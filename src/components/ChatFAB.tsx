@@ -2,40 +2,87 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, X, Send } from "lucide-react";
+import { MessageCircle, X, Send, Upload, Camera } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 export function ChatFAB() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { type: "bot", text: "Hi there! 👋 I'm here to help. How can I assist you today?" }
+    { type: "bot", text: "Hi there! 👋 I'm your AI assistant. I can help you get an instant quote by analyzing a photo of your rug!" }
   ]);
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
 
   const quickReplies = [
-    "📅 Book a collection",
+    "📸 Get AI Quote (Upload Photo)",
     "📍 Check service areas",
-    "💰 Get a quote",
+    "💰 Manual quote",
     "📞 Speak to someone"
   ];
 
   const handleQuickReply = (reply: string) => {
     setMessages([...messages, { type: "user", text: reply }]);
     
-    // Mock bot responses
+    if (reply.includes("Upload Photo")) {
+      setShowPhotoUpload(true);
+      setTimeout(() => {
+        setMessages(prev => [...prev, { 
+          type: "bot", 
+          text: "Great! Upload a photo of your rug and I'll analyze it using AI to give you an instant quote. I can detect the material, size, and any stains or damage." 
+        }]);
+      }, 500);
+    } else if (reply.includes("service areas")) {
+      setTimeout(() => {
+        setMessages(prev => [...prev, { 
+          type: "bot", 
+          text: "We currently serve Cape Town and Johannesburg! In Cape Town: City Bowl, Atlantic Seaboard, and more. In JHB: Sandton, Rosebank, Fourways, etc. What area are you in?" 
+        }]);
+      }, 800);
+    } else if (reply.includes("Manual quote")) {
+      setTimeout(() => {
+        setMessages(prev => [...prev, { 
+          type: "bot", 
+          text: "I'd love to help! What's the size of your rug? (e.g., 2m x 3m) And what type is it? (Persian, Shaggy, Modern, etc.)" 
+        }]);
+      }, 800);
+    } else {
+      setTimeout(() => {
+        setMessages(prev => [...prev, { 
+          type: "bot", 
+          text: "I'm connecting you to our team now. You can also call us at CPT: 021 555 0123 or JHB: 011 555 0456" 
+        }]);
+      }, 800);
+    }
+  };
+
+  const handlePhotoUpload = () => {
+    setShowPhotoUpload(false);
+    setMessages(prev => [...prev, { 
+      type: "user", 
+      text: "📷 [Photo uploaded: persian_rug.jpg]" 
+    }]);
+
+    // Simulate AI analysis
     setTimeout(() => {
-      let botResponse = "";
-      if (reply.includes("Book")) {
-        botResponse = "Great! I can help you book a collection. Click the button below to get started, or tell me your rug size and I'll give you an instant quote!";
-      } else if (reply.includes("service areas")) {
-        botResponse = "We currently serve Cape Town and Johannesburg! In Cape Town: City Bowl, Atlantic Seaboard, and more. In JHB: Sandton, Rosebank, Fourways, etc. What area are you in?";
-      } else if (reply.includes("quote")) {
-        botResponse = "I'd love to help! A typical Persian rug (2m x 3m) costs around R950-R1200. What's your rug size?";
-      } else {
-        botResponse = "I'm connecting you to our team now. You can also call us at CPT: 021 555 0123 or JHB: 011 555 0456";
-      }
-      setMessages(prev => [...prev, { type: "bot", text: botResponse }]);
-    }, 800);
+      setMessages(prev => [...prev, { 
+        type: "bot", 
+        text: "🤖 Analyzing your rug with AI..." 
+      }]);
+    }, 500);
+
+    setTimeout(() => {
+      setMessages(prev => [...prev, { 
+        type: "bot", 
+        text: "✨ **AI Analysis Complete!**\n\n📐 Detected Size: ~2.8m x 3.5m (9.8 m²)\n🧵 Material: Persian wool\n🎨 Condition: Good (minor stains detected)\n💧 Recommended: Deep clean + stain treatment\n\n💰 **Estimated Price: R1,150 - R1,350**\n\nWould you like to book this cleaning?" 
+      }]);
+    }, 2500);
+
+    setTimeout(() => {
+      setMessages(prev => [...prev, { 
+        type: "bot", 
+        text: "I can also see some wear on the fringes. We offer fringe whitening for an additional R150. Interested?" 
+      }]);
+    }, 4000);
   };
 
   return (
@@ -49,8 +96,8 @@ export function ChatFAB() {
                 <MessageCircle className="h-5 w-5 text-accent-foreground" />
               </div>
               <div>
-                <h3 className="font-bold">Spark & Clean</h3>
-                <p className="text-xs opacity-90">Typically replies instantly</p>
+                <h3 className="font-bold">Spark & Clean AI</h3>
+                <p className="text-xs opacity-90">Powered by AI Vision</p>
               </div>
             </div>
             <Button 
@@ -71,10 +118,26 @@ export function ChatFAB() {
                     ? "bg-primary text-primary-foreground" 
                     : "bg-white border shadow-sm"
                 }`}>
-                  <p className="text-sm">{msg.text}</p>
+                  <p className="text-sm whitespace-pre-line">{msg.text}</p>
                 </div>
               </div>
             ))}
+            
+            {/* Photo Upload Section */}
+            {showPhotoUpload && (
+              <div className="bg-accent/10 border-2 border-dashed border-accent rounded-xl p-6 text-center">
+                <Camera className="h-12 w-12 mx-auto mb-3 text-accent" />
+                <p className="text-sm font-semibold mb-2">Upload Rug Photo</p>
+                <p className="text-xs text-muted-foreground mb-4">AI will analyze material, size & condition</p>
+                <Button 
+                  className="w-full bg-accent hover:bg-accent/90"
+                  onClick={handlePhotoUpload}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choose Photo
+                </Button>
+              </div>
+            )}
             
             {/* Quick Replies */}
             {messages.length === 1 && (
@@ -101,7 +164,7 @@ export function ChatFAB() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
-              Powered by Spark & Clean AI
+              🤖 Powered by Spark & Clean AI Vision
             </p>
           </div>
         </Card>
@@ -111,13 +174,18 @@ export function ChatFAB() {
       <div className="fixed bottom-6 right-6 z-50">
         <Button 
           size="lg" 
-          className="h-14 w-14 rounded-full shadow-lg bg-accent hover:bg-accent/90 text-accent-foreground"
+          className="h-14 w-14 rounded-full shadow-lg bg-accent hover:bg-accent/90 text-accent-foreground relative"
           onClick={() => setIsOpen(!isOpen)}
         >
           {isOpen ? (
             <X className="h-6 w-6" />
           ) : (
-            <MessageCircle className="h-6 w-6" />
+            <>
+              <MessageCircle className="h-6 w-6" />
+              <span className="absolute -top-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-[10px] font-bold text-primary-foreground">
+                AI
+              </span>
+            </>
           )}
         </Button>
       </div>
