@@ -24,7 +24,7 @@ export default function Home() {
                 Book a Rug Collection <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/booking/demo">
+            <Link href="/login">
               <Button variant="outline" size="lg" className="w-full sm:w-auto text-lg px-8 h-12">
                 View My Booking
               </Button>
