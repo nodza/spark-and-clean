@@ -1,0 +1,12 @@
+[
+    {
+        "id": "driver_1",
+        "name": "Thabo Mbeki",
+        "vehicle": "Nissan NP200 (CA 123-456)"
+    },
+    {
+        "id": "driver_2",
+        "name": "Sipho Nkosi",
+        "vehicle": "Toyota Hilux (CA 987-654)"
+    }
+]

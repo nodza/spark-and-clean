@@ -1,0 +1,463 @@
+[
+    {
+        "id": "SC-2025-0001",
+        "customer": {
+            "id": "c1",
+            "name": "Sarah Jenkins",
+            "phone": "082 555 1234",
+            "email": "sarah.j@example.com"
+        },
+        "suburb": "Durbanville",
+        "addressLine1": "42 Protea Way",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-05",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Persian",
+            "widthM": 2.5,
+            "lengthM": 3.0,
+            "areaSqM": 7.5,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 950,
+        "estimatedPriceMax": 1200,
+        "status": "BOOKED",
+        "paymentStatus": "UNPAID",
+        "createdAt": "2025-12-01T09:00:00Z"
+    },
+    {
+        "id": "SC-2025-0002",
+        "customer": {
+            "id": "c2",
+            "name": "Mike Ross",
+            "phone": "071 222 9876",
+            "email": "mike.ross@example.com"
+        },
+        "suburb": "Sea Point",
+        "addressLine1": "10 Beach Road, Apt 5",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-05",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Shaggy",
+            "widthM": 2.0,
+            "lengthM": 2.0,
+            "areaSqM": 4.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 400,
+        "estimatedPriceMax": 550,
+        "status": "SCHEDULED",
+        "paymentStatus": "DEPOSIT",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-12-01T10:30:00Z"
+    },
+    {
+        "id": "SC-2025-0003",
+        "customer": {
+            "id": "c3",
+            "name": "Jessica Pearson",
+            "phone": "083 999 1111",
+            "email": "jessica@pearson.com"
+        },
+        "suburb": "City Bowl",
+        "addressLine1": "15 Kloof Street",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-05",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Kilim",
+            "widthM": 1.5,
+            "lengthM": 2.0,
+            "areaSqM": 3.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 600,
+        "estimatedPriceMax": 750,
+        "status": "COLLECTED",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_2",
+        "createdAt": "2025-11-30T14:00:00Z"
+    },
+    {
+        "id": "SC-2025-0004",
+        "customer": {
+            "id": "c4",
+            "name": "Louis Litt",
+            "phone": "082 111 2222",
+            "email": "louis@litt.com"
+        },
+        "suburb": "Claremont",
+        "addressLine1": "88 Main Road",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-04",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Persian",
+            "widthM": 3.0,
+            "lengthM": 4.0,
+            "areaSqM": 12.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 1500,
+        "estimatedPriceMax": 1800,
+        "status": "CLEANING",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-11-29T09:15:00Z"
+    },
+    {
+        "id": "SC-2025-0005",
+        "customer": {
+            "id": "c5",
+            "name": "Harvey Specter",
+            "phone": "084 777 8888",
+            "email": "harvey@specter.com"
+        },
+        "suburb": "Camps Bay",
+        "addressLine1": "1 Victoria Road",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-03",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Wool",
+            "widthM": 4.0,
+            "lengthM": 5.0,
+            "areaSqM": 20.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 2500,
+        "estimatedPriceMax": 3000,
+        "status": "DRYING",
+        "paymentStatus": "DEPOSIT",
+        "assignedDriverId": "driver_2",
+        "createdAt": "2025-11-28T11:00:00Z"
+    },
+    {
+        "id": "SC-2025-0006",
+        "customer": {
+            "id": "c6",
+            "name": "Donna Paulsen",
+            "phone": "082 333 4444",
+            "email": "donna@example.com"
+        },
+        "suburb": "Green Point",
+        "addressLine1": "55 Somerset Road",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-02",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Shaggy",
+            "widthM": 1.8,
+            "lengthM": 2.4,
+            "areaSqM": 4.32,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 450,
+        "estimatedPriceMax": 600,
+        "status": "READY",
+        "paymentStatus": "UNPAID",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-11-27T16:20:00Z"
+    },
+    {
+        "id": "SC-2025-0007",
+        "customer": {
+            "id": "c7",
+            "name": "Rachel Zane",
+            "phone": "072 666 5555",
+            "email": "rachel@example.com"
+        },
+        "suburb": "Rondebosch",
+        "addressLine1": "12 College Road",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-01",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Machine",
+            "widthM": 2.0,
+            "lengthM": 3.0,
+            "areaSqM": 6.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 500,
+        "estimatedPriceMax": 650,
+        "status": "DELIVERED",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_2",
+        "createdAt": "2025-11-26T10:00:00Z"
+    },
+    {
+        "id": "SC-2025-0008",
+        "customer": {
+            "id": "c1",
+            "name": "Sarah Jenkins",
+            "phone": "082 555 1234",
+            "email": "sarah.j@example.com"
+        },
+        "suburb": "Durbanville",
+        "addressLine1": "42 Protea Way",
+        "city": "Cape Town",
+        "collectionDate": "2025-11-15",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Persian",
+            "widthM": 1.0,
+            "lengthM": 1.5,
+            "areaSqM": 1.5,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 200,
+        "estimatedPriceMax": 300,
+        "status": "DELIVERED",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-11-10T09:00:00Z"
+    },
+    {
+        "id": "SC-2025-0009",
+        "customer": {
+            "id": "c8",
+            "name": "Katrina Bennett",
+            "phone": "083 444 3333",
+            "email": "katrina@example.com"
+        },
+        "suburb": "Milnerton",
+        "addressLine1": "7 Lagoon Beach",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-06",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Kilim",
+            "widthM": 2.0,
+            "lengthM": 2.5,
+            "areaSqM": 5.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 700,
+        "estimatedPriceMax": 850,
+        "status": "BOOKED",
+        "paymentStatus": "UNPAID",
+        "createdAt": "2025-12-01T12:00:00Z"
+    },
+    {
+        "id": "SC-2025-0010",
+        "customer": {
+            "id": "c9",
+            "name": "Alex Williams",
+            "phone": "071 888 7777",
+            "email": "alex@example.com"
+        },
+        "suburb": "Woodstock",
+        "addressLine1": "44 Albert Road",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-06",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Other",
+            "widthM": 1.5,
+            "lengthM": 1.5,
+            "areaSqM": 2.25,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 350,
+        "estimatedPriceMax": 450,
+        "status": "BOOKED",
+        "paymentStatus": "UNPAID",
+        "createdAt": "2025-12-01T13:30:00Z"
+    },
+    {
+        "id": "SC-2025-0011",
+        "customer": {
+            "id": "c10",
+            "name": "Samantha Wheeler",
+            "phone": "082 000 1111",
+            "email": "sam@example.com"
+        },
+        "suburb": "Constantia",
+        "addressLine1": "99 Spaanschemat River Rd",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-07",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Persian",
+            "widthM": 3.5,
+            "lengthM": 4.5,
+            "areaSqM": 15.75,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 2200,
+        "estimatedPriceMax": 2600,
+        "status": "BOOKED",
+        "paymentStatus": "DEPOSIT",
+        "createdAt": "2025-12-01T14:45:00Z"
+    },
+    {
+        "id": "SC-2025-0012",
+        "customer": {
+            "id": "c11",
+            "name": "Robert Zane",
+            "phone": "084 555 6666",
+            "email": "robert@zane.com"
+        },
+        "suburb": "Bishopscourt",
+        "addressLine1": "3 Canterbury Drive",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-05",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Wool",
+            "widthM": 4.0,
+            "lengthM": 6.0,
+            "areaSqM": 24.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 3000,
+        "estimatedPriceMax": 3500,
+        "status": "SCHEDULED",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-11-30T10:00:00Z"
+    },
+    {
+        "id": "SC-2025-0013",
+        "customer": {
+            "id": "c12",
+            "name": "Sheila Sazs",
+            "phone": "072 222 3333",
+            "email": "sheila@example.com"
+        },
+        "suburb": "Observatory",
+        "addressLine1": "22 Lower Main",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-05",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Shaggy",
+            "widthM": 1.2,
+            "lengthM": 1.8,
+            "areaSqM": 2.16,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 300,
+        "estimatedPriceMax": 400,
+        "status": "SCHEDULED",
+        "paymentStatus": "UNPAID",
+        "assignedDriverId": "driver_2",
+        "createdAt": "2025-11-30T11:00:00Z"
+    },
+    {
+        "id": "SC-2025-0014",
+        "customer": {
+            "id": "c13",
+            "name": "Harold Gunderson",
+            "phone": "083 777 6666",
+            "email": "harold@example.com"
+        },
+        "suburb": "Gardens",
+        "addressLine1": "5 Kloof Nek",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-04",
+        "collectionSlot": "MORNING",
+        "rug": {
+            "type": "Machine",
+            "widthM": 2.0,
+            "lengthM": 3.0,
+            "areaSqM": 6.0,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": false,
+            "fabricProtection": false
+        },
+        "estimatedPriceMin": 450,
+        "estimatedPriceMax": 550,
+        "status": "CLEANING",
+        "paymentStatus": "DEPOSIT",
+        "assignedDriverId": "driver_1",
+        "createdAt": "2025-11-29T15:00:00Z"
+    },
+    {
+        "id": "SC-2025-0015",
+        "customer": {
+            "id": "c14",
+            "name": "Daniel Hardman",
+            "phone": "082 999 0000",
+            "email": "daniel@example.com"
+        },
+        "suburb": "Fresnaye",
+        "addressLine1": "18 Ocean View",
+        "city": "Cape Town",
+        "collectionDate": "2025-12-03",
+        "collectionSlot": "AFTERNOON",
+        "rug": {
+            "type": "Persian",
+            "widthM": 2.5,
+            "lengthM": 3.5,
+            "areaSqM": 8.75,
+            "photos": []
+        },
+        "addOns": {
+            "stainTreatment": true,
+            "fabricProtection": true
+        },
+        "estimatedPriceMin": 1200,
+        "estimatedPriceMax": 1500,
+        "status": "DRYING",
+        "paymentStatus": "PAID",
+        "assignedDriverId": "driver_2",
+        "createdAt": "2025-11-28T14:00:00Z"
+    }
+]

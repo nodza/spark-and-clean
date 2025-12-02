@@ -1,65 +1,164 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, CheckCircle2, MapPin, Star, Truck, Sparkles, Clock } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-20 lg:py-32">
+        <div className="container px-4 mx-auto text-center">
+          <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 text-primary">
+            Rug Cleaning Made Easy <br className="hidden sm:inline" />
+            in Cape Town
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Book a collection in minutes and track your rug from pickup to delivery. 
+            Professional care for your Persian, Kilim, and modern rugs.
           </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/book/rug">
+              <Button size="lg" className="w-full sm:w-auto text-lg px-8 h-12">
+                Book a Rug Collection <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+            <Link href="/booking/demo">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto text-lg px-8 h-12">
+                View My Booking
+              </Button>
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-20 bg-white">
+        <div className="container px-4 mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <p className="text-muted-foreground text-lg">Simple, transparent, and hassle-free.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: <Clock className="h-10 w-10 text-primary" />,
+                title: "1. Schedule Collection",
+                desc: "Select your rug type, size, and preferred pickup slot online."
+              },
+              {
+                icon: <Sparkles className="h-10 w-10 text-primary" />,
+                title: "2. Deep Cleaning",
+                desc: "We treat stains and deep clean using our automated rug machine."
+              },
+              {
+                icon: <Truck className="h-10 w-10 text-primary" />,
+                title: "3. Fresh Delivery",
+                desc: "We deliver your fresh, dry, and wrapped rugs back to you."
+              }
+            ].map((step, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-6 rounded-2xl bg-secondary/20">
+                <div className="mb-4 p-4 bg-white rounded-full shadow-sm">{step.icon}</div>
+                <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
+                <p className="text-muted-foreground">{step.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
+      </section>
+
+      {/* Services */}
+      <section className="py-20 bg-secondary/10">
+        <div className="container px-4 mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold mb-4">Our Services</h2>
+            <p className="text-muted-foreground text-lg">Specialized cleaning for your home.</p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-primary/20 shadow-md hover:shadow-lg transition-shadow cursor-pointer relative overflow-hidden group">
+              <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" /> Rug Cleaning
+                </CardTitle>
+                <CardDescription>Persian, Shaggy, Wool & more</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">Deep wash, stain removal, and fringe whitening.</p>
+                <Link href="/book/rug">
+                  <Button className="w-full">Book Now</Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {[
+              { title: "Upholstery", desc: "Couches, armchairs & dining chairs" },
+              { title: "Mattresses", desc: "Deep clean & sanitation" },
+              { title: "Tiles & Grout", desc: "High pressure cleaning" }
+            ].map((service, i) => (
+              <Card key={i} className="opacity-75 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+                <CardHeader>
+                  <CardTitle>{service.title}</CardTitle>
+                  <CardDescription>Coming Soon</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">{service.desc}</p>
+                  <Button variant="secondary" disabled className="w-full">Waitlist</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Social Proof & Areas */}
+      <section className="py-20 bg-white">
+        <div className="container px-4 mx-auto grid lg:grid-cols-2 gap-16">
+          <div>
+            <h2 className="text-3xl font-bold mb-8">Trusted by Cape Town</h2>
+            <div className="space-y-6">
+              {[
+                { name: "Sarah J.", loc: "Durbanville", text: "My Persian rug looks brand new! The pickup and delivery was so convenient." },
+                { name: "Mike R.", loc: "Sea Point", text: "Incredible service. The online booking made it super easy to schedule." }
+              ].map((review, i) => (
+                <div key={i} className="bg-secondary/10 p-6 rounded-xl">
+                  <div className="flex gap-1 text-accent mb-2">
+                    {[1, 2, 3, 4, 5].map((_, j) => <Star key={j} className="h-4 w-4 fill-current" />)}
+                  </div>
+                  <p className="text-lg mb-4">"{review.text}"</p>
+                  <div className="font-semibold text-sm text-muted-foreground">
+                    — {review.name}, {review.loc}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-3xl font-bold mb-8">Areas We Serve</h2>
+            <div className="bg-secondary/20 p-8 rounded-2xl">
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  "City Bowl", "Atlantic Seaboard", "Southern Suburbs", 
+                  "Northern Suburbs", "Durbanville", "Blouberg", 
+                  "Milnerton", "Century City"
+                ].map((area) => (
+                  <div key={area} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <span>{area}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-8 pt-8 border-t border-border/50">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-5 w-5" />
+                  <span>More areas coming soon!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

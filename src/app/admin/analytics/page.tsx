@@ -1,0 +1,95 @@
+"use client";
+
+import { useBookingStore } from "@/store/useBookingStore";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+
+export default function AdminAnalytics() {
+  const router = useRouter();
+  const { bookings, fetchBookings } = useBookingStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (bookings.length === 0) fetchBookings();
+  }, [bookings.length, fetchBookings]);
+
+  if (!mounted) return null;
+
+  // Prepare Data
+  const bookingsByArea = bookings.reduce((acc, b) => {
+    acc[b.suburb] = (acc[b.suburb] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const areaData = Object.entries(bookingsByArea).map(([name, value]) => ({ name, value }));
+
+  const bookingsByType = bookings.reduce((acc, b) => {
+    acc[b.rug.type] = (acc[b.rug.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const typeData = Object.entries(bookingsByType).map(([name, value]) => ({ name, value }));
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+
+  return (
+    <div className="container mx-auto py-10 px-4">
+      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+      </Button>
+
+      <h1 className="text-3xl font-bold mb-8">Analytics & Reports</h1>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Bookings by Area</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={areaData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {areaData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Popular Rug Types</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={typeData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" fill="#0088FE" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
