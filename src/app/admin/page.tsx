@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { ArrowRight, DollarSign, Truck, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
+import { ArrowRight, DollarSign, Truck, Calendar as CalendarIcon, AlertCircle, Bell } from "lucide-react";
 
 export default function AdminDashboard() {
   const { bookings, fetchBookings } = useBookingStore();
@@ -76,6 +76,49 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Notifications / Alerts */}
+      <Card className="mb-8 border-orange-200 bg-orange-50/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-orange-600" />
+            Notifications & Alerts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {unpaidCount > 0 && (
+              <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-orange-200">
+                <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{unpaidCount} Unpaid Booking{unpaidCount > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-muted-foreground">Follow up on payment collection</p>
+                </div>
+                <Button size="sm" variant="outline">View</Button>
+              </div>
+            )}
+            {todaysPickups > 0 && (
+              <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-200">
+                <Truck className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{todaysPickups} Collection{todaysPickups > 1 ? 's' : ''} Today</p>
+                  <p className="text-xs text-muted-foreground">Ensure drivers are assigned</p>
+                </div>
+                <Button size="sm" variant="outline">Assign</Button>
+              </div>
+            )}
+            {activeJobs > 5 && (
+              <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-200">
+                <CalendarIcon className="h-5 w-5 text-green-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">High Volume Alert</p>
+                  <p className="text-xs text-muted-foreground">{activeJobs} jobs in progress - consider capacity</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Bookings Table */}
       <Card>
