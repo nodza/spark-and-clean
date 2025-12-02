@@ -10,12 +10,12 @@ export default function Home() {
       <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-20 lg:py-32">
         <div className="container px-4 mx-auto text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 text-primary">
-            Rug Cleaning Made Easy <br className="hidden sm:inline" />
-            in Cape Town
+            Automatic Rug Cleaning <br className="hidden sm:inline" />
+            & Drying Services
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Book a collection in minutes and track your rug from pickup to delivery. 
-            Professional care for your Persian, Kilim, and modern rugs.
+            Restore the vibrant colour and soft texture of your treasured rugs. 
+            We specialise in expert care for Persian, Kilim, Shaggy, and more.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/book/rug">
@@ -36,25 +36,25 @@ export default function Home() {
       <section className="py-20 bg-white">
         <div className="container px-4 mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+            <h2 className="text-3xl font-bold mb-4">Booking is as easy as 1-2-3</h2>
             <p className="text-muted-foreground text-lg">Simple, transparent, and hassle-free.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
                 icon: <Clock className="h-10 w-10 text-primary" />,
-                title: "1. Schedule Collection",
-                desc: "Select your rug type, size, and preferred pickup slot online."
+                title: "1. Find Your Measurements",
+                desc: "Check the label on the back of your rug, or measure the length and width."
               },
               {
                 icon: <Sparkles className="h-10 w-10 text-primary" />,
-                title: "2. Deep Cleaning",
-                desc: "We treat stains and deep clean using our automated rug machine."
+                title: "2. Send Them to Us",
+                desc: "Enter your details and choose a convenient collection slot in our wizard."
               },
               {
                 icon: <Truck className="h-10 w-10 text-primary" />,
-                title: "3. Fresh Delivery",
-                desc: "We deliver your fresh, dry, and wrapped rugs back to you."
+                title: "3. We'll Handle the Rest",
+                desc: "We'll collect, clean, dry, and deliver your fresh rug back to you."
               }
             ].map((step, i) => (
               <div key={i} className="flex flex-col items-center text-center p-6 rounded-2xl bg-secondary/20">
@@ -71,8 +71,8 @@ export default function Home() {
       <section className="py-20 bg-secondary/10">
         <div className="container px-4 mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Our Services</h2>
-            <p className="text-muted-foreground text-lg">Specialized cleaning for your home.</p>
+            <h2 className="text-3xl font-bold mb-4">Our Specialist Services</h2>
+            <p className="text-muted-foreground text-lg">Specialist care for every rug and fabric in your home.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-primary/20 shadow-md hover:shadow-lg transition-shadow cursor-pointer relative overflow-hidden group">
