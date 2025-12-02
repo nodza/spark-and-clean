@@ -11,7 +11,7 @@ export default function Home() {
       <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-20 lg:py-32">
         <div className="container px-4 mx-auto text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 text-primary">
-            Cape Town's First <br className="hidden sm:inline" />
+            South Africa's First <br className="hidden sm:inline" />
             Tech-Enabled Rug Logistics
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
@@ -135,11 +135,11 @@ export default function Home() {
       <section className="py-20 bg-white">
         <div className="container px-4 mx-auto grid lg:grid-cols-2 gap-16">
           <div>
-            <h2 className="text-3xl font-bold mb-8">Trusted by Cape Town</h2>
+            <h2 className="text-3xl font-bold mb-8">Trusted Across South Africa</h2>
             <div className="space-y-6">
               {[
-                { name: "Sarah J.", loc: "Durbanville", text: "My Persian rug looks brand new! The pickup and delivery was so convenient." },
-                { name: "Mike R.", loc: "Sea Point", text: "Incredible service. The online booking made it super easy to schedule." }
+                { name: "Sarah J.", loc: "Durbanville, CPT", text: "My Persian rug looks brand new! The pickup and delivery was so convenient." },
+                { name: "Mike R.", loc: "Sandton, JHB", text: "Incredible service. The online booking made it super easy to schedule." }
               ].map((review, i) => (
                 <div key={i} className="bg-secondary/10 p-6 rounded-xl">
                   <div className="flex gap-1 text-accent mb-2">
@@ -155,24 +155,40 @@ export default function Home() {
           </div>
 
           <div>
-            <h2 className="text-3xl font-bold mb-8">Areas We Serve</h2>
+            <h2 className="text-3xl font-bold mb-8">Service Areas</h2>
             <div className="bg-secondary/20 p-8 rounded-2xl">
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  "City Bowl", "Atlantic Seaboard", "Southern Suburbs", 
-                  "Northern Suburbs", "Durbanville", "Blouberg", 
-                  "Milnerton", "Century City"
-                ].map((area) => (
-                  <div key={area} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                    <span>{area}</span>
-                  </div>
-                ))}
+              <div className="mb-6">
+                <h3 className="font-semibold text-lg mb-3 text-primary">Cape Town</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    "City Bowl", "Atlantic Seaboard", "Southern Suburbs", 
+                    "Northern Suburbs", "Durbanville", "Blouberg"
+                  ].map((area) => (
+                    <div key={area} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm">{area}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="mt-8 pt-8 border-t border-border/50">
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-primary">Johannesburg</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    "Sandton", "Rosebank", "Fourways", 
+                    "Randburg", "Bryanston", "Midrand"
+                  ].map((area) => (
+                    <div key={area} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm">{area}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-6 pt-6 border-t border-border/50">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-5 w-5" />
-                  <span>More areas coming soon!</span>
+                  <span>Expanding to more areas soon!</span>
                 </div>
               </div>
             </div>
@@ -186,14 +202,14 @@ export default function Home() {
           <div>
             <h3 className="font-bold text-lg mb-4 text-primary">Spark & Clean</h3>
             <p className="text-muted-foreground">
-              Cape Town's premier tech-enabled rug cleaning service.
+              South Africa's premier tech-enabled rug cleaning service.
             </p>
           </div>
           <div>
             <h3 className="font-bold text-lg mb-4 text-primary">Contact Us</h3>
             <div className="space-y-2 text-muted-foreground">
-              <p>📍 55 Somerset Road, Green Point</p>
-              <p>📞 021 555 0123</p>
+              <p>📍 Cape Town & Johannesburg</p>
+              <p>📞 CPT: 021 555 0123 | JHB: 011 555 0456</p>
               <p>📧 hello@sparkandclean.co.za</p>
             </div>
           </div>
