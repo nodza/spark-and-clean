@@ -87,6 +87,46 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Video Showcase */}
+      <section className="py-20 bg-white">
+        <div className="container px-4 mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">See Our Process in Action</h2>
+            <p className="text-muted-foreground text-lg">Watch how we care for your treasured rugs</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Video Placeholder 1 */}
+            <div className="relative aspect-video bg-secondary/20 rounded-xl overflow-hidden group cursor-pointer border-2 border-border hover:border-primary transition-colors">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <svg className="h-8 w-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                  <p className="font-semibold text-sm">Rug Cleaning Process</p>
+                  <p className="text-xs text-muted-foreground">2:34</p>
+                </div>
+              </div>
+            </div>
+            {/* Video Placeholder 2 */}
+            <div className="relative aspect-video bg-secondary/20 rounded-xl overflow-hidden group cursor-pointer border-2 border-border hover:border-primary transition-colors">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <svg className="h-8 w-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                  <p className="font-semibold text-sm">Commercial Services</p>
+                  <p className="text-xs text-muted-foreground">1:45</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Services */}
       <section className="py-20 bg-secondary/10">
         <div className="container px-4 mx-auto">
@@ -191,6 +231,44 @@ export default function Home() {
                   <span>Expanding to more areas soon!</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Client Logos */}
+      <section className="py-16 bg-secondary/10 border-y">
+        <div className="container px-4 mx-auto">
+          <h3 className="text-center text-sm font-semibold text-muted-foreground mb-8 uppercase tracking-wider">
+            Trusted by Leading Organizations
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 items-center">
+            {[
+              { name: "Radisson Blu", color: "#003580" },
+              { name: "Torga Optical", color: "#0066CC" },
+              { name: "Sefar SA", color: "#E31837" },
+              { name: "UKKO", color: "#2C3E50" },
+              { name: "Spur", color: "#D32F2F" },
+              { name: "SACAP", color: "#00A651" }
+            ].map((client, i) => (
+              <div key={i} className="flex items-center justify-center p-4 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100">
+                <div className="text-center">
+                  <div className="h-12 w-24 rounded bg-white border flex items-center justify-center mb-2">
+                    <span className="text-xs font-bold" style={{ color: client.color }}>{client.name}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-semibold">EXCELLENT 4.8</span>
+              <div className="flex gap-0.5">
+                {[1,2,3,4,5].map(i => (
+                  <Star key={i} className="h-4 w-4 fill-accent text-accent" />
+                ))}
+              </div>
+              <span>Google Reviews</span>
             </div>
           </div>
         </div>
