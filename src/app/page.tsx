@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, CheckCircle2, MapPin, Star, Truck, Sparkles, Clock } from "lucide-react";
+import { ChatFAB } from "@/components/ChatFAB";
 
 export default function Home() {
   return (
@@ -10,12 +11,12 @@ export default function Home() {
       <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-20 lg:py-32">
         <div className="container px-4 mx-auto text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 text-primary">
-            Automatic Rug Cleaning <br className="hidden sm:inline" />
-            & Drying Services
+            Cape Town's First <br className="hidden sm:inline" />
+            Tech-Enabled Rug Logistics
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Restore the vibrant colour and soft texture of your treasured rugs. 
-            We specialise in expert care for Persian, Kilim, Shaggy, and more.
+            Experience the future of rug care. Real-time tracking, automated scheduling, 
+            and expert cleaning for your treasured Persian, Kilim, and modern rugs.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/book/rug">
@@ -61,6 +62,25 @@ export default function Home() {
                 <div className="mb-4 p-4 bg-white rounded-full shadow-sm">{step.icon}</div>
                 <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
                 <p className="text-muted-foreground">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why Tech-Enabled? */}
+      <section className="py-20 bg-primary text-primary-foreground">
+        <div className="container px-4 mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-12">Why Tech-Enabled Cleaning?</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { title: "Real-Time Tracking", desc: "Know exactly when your rug is collected, cleaned, and out for delivery." },
+              { title: "Automated Scheduling", desc: "Book a slot that fits your life instantly. No back-and-forth calls." },
+              { title: "Digital Quality Checks", desc: "Every rug is photographed and inspected digitally before and after cleaning." }
+            ].map((item, i) => (
+              <div key={i} className="bg-white/10 p-6 rounded-xl backdrop-blur-sm">
+                <h3 className="text-xl font-bold mb-2 text-accent">{item.title}</h3>
+                <p className="opacity-90">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -159,6 +179,37 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Contact Footer */}
+      <footer className="bg-secondary/30 py-12 border-t">
+        <div className="container px-4 mx-auto grid md:grid-cols-3 gap-8">
+          <div>
+            <h3 className="font-bold text-lg mb-4 text-primary">Spark & Clean</h3>
+            <p className="text-muted-foreground">
+              Cape Town's premier tech-enabled rug cleaning service.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-bold text-lg mb-4 text-primary">Contact Us</h3>
+            <div className="space-y-2 text-muted-foreground">
+              <p>📍 55 Somerset Road, Green Point</p>
+              <p>📞 021 555 0123</p>
+              <p>📧 hello@sparkandclean.co.za</p>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-bold text-lg mb-4 text-primary">Hours</h3>
+            <div className="space-y-2 text-muted-foreground">
+              <p>Mon - Fri: 08:00 - 17:00</p>
+              <p>Sat: 09:00 - 13:00</p>
+              <p>Sun: Closed</p>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* FAB Chat Widget */}
+      <ChatFAB />
     </div>
   );
 }
