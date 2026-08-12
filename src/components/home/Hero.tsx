@@ -1,25 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-const HERO_VIDEO =
-  "https://www.sparkandclean.co.za/wp-content/uploads/2025/05/IMG_0815-2.mov";
-const HERO_POSTER =
-  "https://www.sparkandclean.co.za/wp-content/uploads/revslider/video-media/IMG_0815-2_29.jpeg";
+const HERO_VIDEO = "/videos/hero.mp4";
+const HERO_POSTER = "/videos/hero-poster.jpeg";
 
 export function Hero() {
-  const [videoReady, setVideoReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+
+    const tryPlay = () => {
+      void video.play().catch(() => {
+        // Autoplay can still be blocked; poster remains visible.
+      });
+    };
+
+    tryPlay();
+    video.addEventListener("loadeddata", tryPlay);
+    video.addEventListener("canplay", tryPlay);
+
+    return () => {
+      video.removeEventListener("loadeddata", tryPlay);
+      video.removeEventListener("canplay", tryPlay);
+    };
+  }, []);
 
   return (
     <section
       className="relative isolate flex min-h-[min(85vh,720px)] items-center overflow-hidden max-md:landscape:min-h-[100svh]"
       aria-labelledby="hero-heading"
     >
-      {/* Crisp fallback thumbnail — visible until video can play */}
+      {/* Fallback thumbnail for slow connections / autoplay failure */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={HERO_POSTER}
@@ -30,26 +51,21 @@ export function Hero() {
       />
 
       <video
-        className={cn(
-          "absolute inset-0 -z-10 h-full w-full object-cover transition-opacity duration-700",
-          videoReady ? "opacity-100" : "opacity-0"
-        )}
+        ref={videoRef}
+        className="absolute inset-0 -z-10 h-full w-full object-cover"
         autoPlay
         muted
         loop
         playsInline
-        preload="metadata"
+        preload="auto"
         poster={HERO_POSTER}
         aria-hidden="true"
-        onCanPlay={() => setVideoReady(true)}
-        onLoadedData={() => setVideoReady(true)}
       >
         <source src={HERO_VIDEO} type="video/mp4" />
-        <source src={HERO_VIDEO} type="video/quicktime" />
       </video>
 
       <div
-        className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/80 via-primary/65 to-primary/85"
+        className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/55 via-primary/45 to-primary/70"
         aria-hidden="true"
       />
 
