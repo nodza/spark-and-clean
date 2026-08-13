@@ -14,17 +14,6 @@ const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLaye
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
 const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false });
 
-// Fix Leaflet default icon issue
-import L from "leaflet";
-
-const icon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
 export default function TechMap() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
@@ -91,7 +80,7 @@ export default function TechMap() {
           {myJobs.map((job) => {
             const position = getCoords(job.suburb);
             return (
-              <Marker key={job.id} position={position} icon={icon}>
+              <Marker key={job.id} position={position}>
                 <Popup>
                   <div className="p-2">
                     <h3 className="font-bold">{job.customer.name}</h3>

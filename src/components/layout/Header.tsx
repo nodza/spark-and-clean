@@ -16,7 +16,9 @@ export function Header() {
         
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
           <Link href="/" className="hover:text-primary transition-colors">Home</Link>
+          <Link href="/" className="hover:text-primary transition-colors">Home</Link>
           <Link href="/book/rug" className="hover:text-primary transition-colors">Book Now</Link>
+          <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
           <Link href="/admin" className="hover:text-primary transition-colors">Admin</Link>
           <Link href="/tech" className="hover:text-primary transition-colors">Technician</Link>
         </nav>

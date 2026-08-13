@@ -274,34 +274,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Contact Footer */}
-      <footer className="bg-secondary/30 py-12 border-t">
-        <div className="container px-4 mx-auto grid md:grid-cols-3 gap-8">
-          <div>
-            <h3 className="font-bold text-lg mb-4 text-primary">Spark & Clean</h3>
-            <p className="text-muted-foreground">
-              South Africa's premier tech-enabled rug cleaning service.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-bold text-lg mb-4 text-primary">Contact Us</h3>
-            <div className="space-y-2 text-muted-foreground">
-              <p>📍 Cape Town & Johannesburg</p>
-              <p>📞 CPT: 021 555 0123 | JHB: 011 555 0456</p>
-              <p>📧 hello@sparkandclean.co.za</p>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-bold text-lg mb-4 text-primary">Hours</h3>
-            <div className="space-y-2 text-muted-foreground">
-              <p>Mon - Fri: 08:00 - 17:00</p>
-              <p>Sat: 09:00 - 13:00</p>
-              <p>Sun: Closed</p>
-            </div>
-          </div>
-        </div>
-      </footer>
-
       {/* FAB Chat Widget */}
       <ChatFAB />
     </div>
