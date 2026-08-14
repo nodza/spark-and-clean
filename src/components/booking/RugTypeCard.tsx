@@ -37,6 +37,7 @@ export function RugTypeCard({
           src={imageUrl}
           alt={title}
           fill
+          unoptimized
           sizes="(max-width: 768px) 50vw, 200px"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
