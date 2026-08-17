@@ -7,9 +7,6 @@ const formatTel = (phone: string) => {
 };
 
 const ContactPage = () => {
-  const mapsEmbedUrl = (query: string, zoom = 17) =>
-    `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=h&z=${zoom}&output=embed`;
-
   return (
     <div className="container mx-auto px-4 py-20">
       <div className="max-w-4xl mx-auto text-center mb-12">
@@ -31,11 +28,12 @@ const ContactPage = () => {
             <article key={branch.name} className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="h-56 sm:h-64 md:h-60 lg:h-56 overflow-hidden">
                 <iframe
-                  src={mapsEmbedUrl(branch.googleMapsQuery)}
+                  src={branch.mapsEmbedUrl}
                   title={`${branch.name} location map`}
                   className="h-full w-full object-cover border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
                 />
               </div>
 
