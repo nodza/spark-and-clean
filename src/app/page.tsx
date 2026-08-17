@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, CheckCircle2, MapPin, Star, Truck, Sparkles, Clock } from "lucide-react";
 import { ChatFAB } from "@/components/ChatFAB";
+import TrustSection from "@/components/TrustSection";
 
 export default function Home() {
   return (
@@ -236,43 +237,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Client Logos */}
-      <section className="py-16 bg-secondary/10 border-y">
-        <div className="container px-4 mx-auto">
-          <h3 className="text-center text-sm font-semibold text-muted-foreground mb-8 uppercase tracking-wider">
-            Trusted by Leading Organizations
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 items-center">
-            {[
-              { name: "Radisson Blu", color: "#003580" },
-              { name: "Torga Optical", color: "#0066CC" },
-              { name: "Sefar SA", color: "#E31837" },
-              { name: "UKKO", color: "#2C3E50" },
-              { name: "Spur", color: "#D32F2F" },
-              { name: "SACAP", color: "#00A651" }
-            ].map((client, i) => (
-              <div key={i} className="flex items-center justify-center p-4 grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100">
-                <div className="text-center">
-                  <div className="h-12 w-24 rounded bg-white border flex items-center justify-center mb-2">
-                    <span className="text-xs font-bold" style={{ color: client.color }}>{client.name}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-semibold">EXCELLENT 4.8</span>
-              <div className="flex gap-0.5">
-                {[1,2,3,4,5].map(i => (
-                  <Star key={i} className="h-4 w-4 fill-accent text-accent" />
-                ))}
-              </div>
-              <span>Google Reviews</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <TrustSection />
 
       {/* FAB Chat Widget */}
       <ChatFAB />
