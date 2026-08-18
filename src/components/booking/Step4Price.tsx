@@ -1,53 +1,66 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox"; // Need to check if I installed this. I think I missed it.
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Booking } from "@/types/booking";
-import { useEffect } from "react";
 import { Ticket } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
 }
 
+/** Phase 1: alphanumeric only (e.g. SPARK10, CLEANNEW). No discount calc yet. */
+export function isValidCouponFormat(code: string): boolean {
+  return /^[A-Za-z0-9]+$/.test(code.trim());
+}
+
 export function Step4Price({ data, update }: StepProps) {
   const addOns = data.addOns || { stainTreatment: false, fabricProtection: false };
   const area = data.rug?.areaSqM || 0;
-  
-  // Simple pricing logic
-  const baseRate = 80; // R80 per m2
+
+  const [couponInput, setCouponInput] = useState(data.couponCode || "");
+  const [couponStatus, setCouponStatus] = useState<"idle" | "success" | "error">(
+    data.couponCode ? "success" : "idle"
+  );
+
+  const baseRate = 80;
   const typeMultiplier = data.rug?.type === "Persian" ? 1.5 : 1.0;
-  
+
   const basePrice = Math.round(area * baseRate * typeMultiplier);
   const stainPrice = addOns.stainTreatment ? 150 : 0;
   const protectPrice = addOns.fabricProtection ? 200 : 0;
-  
-  const totalMin = basePrice + stainPrice + protectPrice;
-  const totalMax = Math.round(totalMin * 1.2); // 20% buffer
 
-  useEffect(() => {
-    update({ estimatedPriceMin: totalMin, estimatedPriceMax: totalMax });
-  }, [totalMin, totalMax]); // Warning: this might cause infinite loop if update changes reference. 
-  // Better to calculate on render or only when dependencies change. 
-  // But update function is stable usually.
-  // Actually, let's just update it when we leave the step or just calculate it here and pass it to next step?
-  // The parent state holds the data. If we update it here, it updates the parent.
-  // To avoid loop, we should only call update if the values are different.
-  
-  // Let's just display it here. The parent doesn't strictly need the price in state until submission.
-  // But Step 5 needs it.
-  // I'll wrap the update in a check.
-  
-  // Actually, useEffect is fine if we check values.
+  const totalMin = basePrice + stainPrice + protectPrice;
+  const totalMax = Math.round(totalMin * 1.2);
+
   useEffect(() => {
     if (data.estimatedPriceMin !== totalMin || data.estimatedPriceMax !== totalMax) {
       update({ estimatedPriceMin: totalMin, estimatedPriceMax: totalMax });
     }
-  }, [totalMin, totalMax, data.estimatedPriceMin, data.estimatedPriceMax]);
+  }, [totalMin, totalMax, data.estimatedPriceMin, data.estimatedPriceMax, update]);
 
+  const applyCoupon = () => {
+    const code = couponInput.trim();
+
+    if (!isValidCouponFormat(code)) {
+      setCouponStatus("error");
+      return;
+    }
+
+    // Store code only — do not recalculate prices (Phase 2 / E8)
+    update({ couponCode: code.toUpperCase() });
+    setCouponInput(code.toUpperCase());
+    setCouponStatus("success");
+  };
 
   return (
     <div className="space-y-8">
-      <div className="text-center space-y-2">
+      <div className="space-y-2 text-center">
         <h3 className="text-lg font-medium text-muted-foreground">Estimated Price</h3>
         <div className="text-4xl font-bold text-primary">
           R{totalMin} - R{totalMax}
@@ -57,17 +70,21 @@ export function Step4Price({ data, update }: StepProps) {
         </p>
       </div>
 
-      <div className="space-y-4 border rounded-xl p-6 bg-card">
+      <div className="space-y-4 rounded-xl border bg-card p-6">
         <h4 className="font-semibold">Recommended Add-ons</h4>
-        
+
         <div className="flex items-start space-x-3">
-          <Checkbox 
-            id="stain" 
+          <Checkbox
+            id="stain"
             checked={addOns.stainTreatment}
-            onCheckedChange={(checked) => update({ addOns: { ...addOns, stainTreatment: checked as boolean } })}
+            onCheckedChange={(checked) =>
+              update({
+                addOns: { ...addOns, stainTreatment: checked as boolean },
+              })
+            }
           />
           <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="stain" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="stain" className="cursor-pointer text-base font-medium">
               Deep Stain Treatment (+R150)
             </Label>
             <p className="text-sm text-muted-foreground">
@@ -77,13 +94,17 @@ export function Step4Price({ data, update }: StepProps) {
         </div>
 
         <div className="flex items-start space-x-3">
-          <Checkbox 
-            id="protect" 
+          <Checkbox
+            id="protect"
             checked={addOns.fabricProtection}
-            onCheckedChange={(checked) => update({ addOns: { ...addOns, fabricProtection: checked as boolean } })}
+            onCheckedChange={(checked) =>
+              update({
+                addOns: { ...addOns, fabricProtection: checked as boolean },
+              })
+            }
           />
           <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="protect" className="text-base font-medium cursor-pointer">
+            <Label htmlFor="protect" className="cursor-pointer text-base font-medium">
               Fiber Shield Protection (+R200)
             </Label>
             <p className="text-sm text-muted-foreground">
@@ -93,14 +114,59 @@ export function Step4Price({ data, update }: StepProps) {
         </div>
       </div>
 
-      <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 flex items-center gap-4">
-        <div className="p-2 bg-accent/20 rounded-full text-accent-foreground">
+      <div className="space-y-3 rounded-xl border p-6">
+        <Label htmlFor="coupon" className="text-base font-semibold">
+          Coupon code
+        </Label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            id="coupon"
+            placeholder="e.g. SPARK10"
+            value={couponInput}
+            autoComplete="off"
+            spellCheck={false}
+            className={cn(
+              couponStatus === "error" && "border-destructive focus-visible:ring-destructive/30"
+            )}
+            onChange={(e) => {
+              setCouponInput(e.target.value);
+              if (couponStatus !== "idle") setCouponStatus("idle");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyCoupon();
+              }
+            }}
+          />
+          <Button type="button" onClick={applyCoupon} className="sm:w-28">
+            Apply
+          </Button>
+        </div>
+        {couponStatus === "error" && (
+          <p className="text-sm text-destructive" role="alert">
+            Invalid coupon format
+          </p>
+        )}
+        {couponStatus === "success" && (
+          <p className="text-sm font-medium text-green-600" role="status">
+            Coupon applied successfully
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Format check only for Phase 1 — discounts will apply in a later release.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-4 rounded-xl border border-accent/20 bg-accent/10 p-4">
+        <div className="rounded-full bg-accent/20 p-2 text-accent-foreground">
           <Ticket className="h-6 w-6" />
         </div>
         <div>
           <h4 className="font-semibold text-accent-foreground">Loyalty Reward</h4>
           <p className="text-sm text-muted-foreground">
-            You've cleaned <span className="font-bold">3/5</span> rugs. 2 more for a free clean!
+            You&apos;ve cleaned <span className="font-bold">3/5</span> rugs. 2 more for a
+            free clean!
           </p>
         </div>
       </div>

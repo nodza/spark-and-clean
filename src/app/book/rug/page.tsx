@@ -4,13 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress"; // Need to install this? I'll check.
 import { Step1Details } from "@/components/booking/Step1Details";
 import { Step2Photos } from "@/components/booking/Step2Photos";
 import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
-import { useBookingStore } from "@/store/useBookingStore";
 import { Booking } from "@/types/booking";
 
 export default function BookingWizard() {
