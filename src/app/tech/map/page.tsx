@@ -10,14 +10,10 @@ import type { Icon } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 // Dynamic import for Leaflet map to avoid SSR issues
-const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), {
-  ssr: false,
-});
-const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), {
-  ssr: false,
-});
-const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ssr: false });
 
 export default function TechMap() {
   const router = useRouter();
@@ -99,7 +95,7 @@ export default function TechMap() {
           {myJobs.map((job) => {
             const position = getCoords(job.suburb);
             return (
-              <Marker key={job.id} position={position} icon={markerIcon}>
+              <Marker key={job.id} position={position}>
                 <Popup>
                   <div className="p-2">
                     <h3 className="font-bold">{job.customer.name}</h3>

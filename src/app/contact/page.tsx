@@ -1,62 +1,85 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { buildMetadata, pageSeo } from "@/lib/seo";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { branchContacts } from "@/data/branchContacts";
+import { MapPin, Phone, Mail, ExternalLink } from "lucide-react";
 
-export const metadata = buildMetadata(pageSeo.contact);
+const formatTel = (phone: string) => {
+  const digits = phone.replace(/[^0-9]/g, "");
+  return `tel:${digits.startsWith("0") ? "+27" + digits.slice(1) : digits}`;
+};
 
-export default function ContactPage() {
+const ContactPage = () => {
   return (
-    <div className="flex flex-col">
-      <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-16 lg:py-24">
-        <div className="container mx-auto max-w-3xl px-4 text-center">
-          <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-primary lg:text-5xl">
-            Contact Spark & Clean
-          </h1>
-          <p className="mb-8 text-lg text-muted-foreground">
-            Reach us for rug collection quotes, residential call-outs or commercial
-            cleaning programmes in Cape Town and Johannesburg.
-          </p>
-          <Link href="/book/rug">
-            <Button size="lg" className="h-12 px-8 text-lg">
-              Book Online Instead
-            </Button>
-          </Link>
-        </div>
-      </section>
+    <div className="container mx-auto px-4 py-20">
+      <div className="max-w-4xl mx-auto text-center mb-12">
+        <p className="text-sm uppercase tracking-[0.3em] text-primary font-semibold">Get In Touch</p>
+        <h1 className="text-4xl font-extrabold mt-4 mb-2">Contact Spark & Clean</h1>
+        <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          Need support or want to drop off a rug? Reach out to our Gauteng and Cape Town branches directly.
+        </p>
+      </div>
 
-      <section className="bg-white py-16">
-        <div className="container mx-auto grid max-w-4xl gap-8 px-4 md:grid-cols-3">
-          <div className="rounded-xl bg-secondary/20 p-6">
-            <Phone className="mb-4 h-8 w-8 text-primary" />
-            <h2 className="mb-3 text-lg font-semibold">Phone</h2>
-            <p className="text-sm text-muted-foreground">
-              Gauteng: 064 289 2384 / 068 729 2869
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Cape Town: 064 043 6902 / 063 853 4499
-            </p>
-          </div>
-          <div className="rounded-xl bg-secondary/20 p-6">
-            <Mail className="mb-4 h-8 w-8 text-primary" />
-            <h2 className="mb-3 text-lg font-semibold">Email</h2>
-            <a
-              href="mailto:hello@sparkandclean.co.za"
-              className="text-sm text-primary hover:underline"
-            >
-              hello@sparkandclean.co.za
-            </a>
-          </div>
-          <div className="rounded-xl bg-secondary/20 p-6">
-            <MapPin className="mb-4 h-8 w-8 text-primary" />
-            <h2 className="mb-3 text-lg font-semibold">Locations</h2>
-            <p className="text-sm text-muted-foreground">
-              Kya Sand, Johannesburg & Maitland, Cape Town — serving surrounding
-              areas.
-            </p>
-          </div>
-        </div>
-      </section>
+      <div className="grid gap-8 lg:grid-cols-2">
+        {branchContacts.map((branch) => {
+          const addressLines = branch.addressLines ?? branch.address.split(",").map((s) => s.trim());
+          const [subtitle, title] = branch.location.includes(",")
+            ? [branch.location.split(",")[0].trim(), branch.location.split(",")[1].trim()]
+            : [branch.location, branch.name];
+
+          return (
+            <article key={branch.name} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="h-56 sm:h-64 md:h-60 lg:h-56 overflow-hidden">
+                <iframe
+                  src={branch.mapsEmbedUrl}
+                  title={`${branch.name} location map`}
+                  className="h-full w-full object-cover border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              </div>
+
+              <div className="p-6">
+                <h3 className="text-2xl font-semibold">{title}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{subtitle}</p>
+
+                <div className="border-t pt-4 mb-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="p-2 rounded bg-muted/30"><MapPin className="w-5 h-5 text-muted-foreground" /></div>
+                    <div>
+                      <p className="text-sm font-semibold">{addressLines[0]}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{addressLines.slice(1).join(", ")}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="p-2 rounded bg-muted/30"><Phone className="w-5 h-5 text-muted-foreground" /></div>
+                    <div>
+                      {branch.phones.map((phone) => (
+                        <p key={phone.number} className="text-sm"><a href={formatTel(phone.number)} className="text-primary hover:underline">{phone.number}</a></p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="p-2 rounded bg-muted/30"><Mail className="w-5 h-5 text-muted-foreground" /></div>
+                    <div>
+                      <p className="text-sm"><a href={`mailto:${branch.email}`} className="text-primary hover:underline">{branch.email}</a></p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2">
+                    <a href={`https://maps.google.com/?q=${encodeURIComponent(branch.googleMapsQuery)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
+                      Get directions <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
     </div>
   );
-}
+};
+
+export default ContactPage;
