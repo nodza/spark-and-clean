@@ -88,7 +88,15 @@ export default function BookingWizard() {
           ) : (
             <Button
               onClick={() => {
-                console.log("Submitting:", formData);
+                const payload = {
+                  ...formData,
+                  addressLine1: formData.addressLine1,
+                  suburb: formData.suburb,
+                  city: formData.city,
+                  coordinates: formData.coordinates,
+                };
+                // Phase 1 mock payload — includes captured lat/lng for E11/E16
+                console.log("Submitting booking payload:", payload);
                 router.push("/booking/SC-2025-MOCK");
               }}
             >
