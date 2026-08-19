@@ -1,29 +1,66 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress"; // Need to install this? I'll check.
 import { Step1Details } from "@/components/booking/Step1Details";
 import { Step2Photos } from "@/components/booking/Step2Photos";
 import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
+import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
+import { generateBookingReference } from "@/lib/bookingReference";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking } from "@/types/booking";
 
+function buildSubmittedBooking(
+  formData: Partial<Booking>,
+  bookingId: string
+): Booking {
+  const customer = formData.customer || {
+    id: "",
+    name: "",
+    email: "",
+    phone: "",
+  };
+
+  return {
+    id: bookingId,
+    customer: {
+      ...customer,
+      id: customer.id || `guest-${Date.now()}`,
+    },
+    suburb: formData.suburb || "",
+    addressLine1: formData.addressLine1 || "",
+    city: formData.city || "",
+    collectionDate: formData.collectionDate || new Date().toISOString(),
+    collectionSlot: formData.collectionSlot || "MORNING",
+    rug: formData.rug || {
+      type: "",
+      widthM: 0,
+      lengthM: 0,
+      areaSqM: 0,
+      photos: [],
+    },
+    addOns: formData.addOns || {
+      stainTreatment: false,
+      fabricProtection: false,
+    },
+    estimatedPriceMin: formData.estimatedPriceMin || 0,
+    estimatedPriceMax: formData.estimatedPriceMax || 0,
+    status: "BOOKED",
+    paymentStatus: "UNPAID",
+    createdAt: new Date().toISOString(),
+  };
+}
+
 export default function BookingWizard() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
+  const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
     addOns: { stainTreatment: false, fabricProtection: false },
-    customer: { id: "", name: "", email: "", phone: "" }, // Will fill in review or separate step? PRD didn't specify auth, so maybe just input in review or location.
-    // Let's assume customer details are part of Step 3 (Location) or Step 5 (Review) for a guest checkout flow.
-    // PRD Step 3 is "Location & Collection Slot".
-    // PRD Step 5 is "Review & Confirm".
-    // I'll add customer fields to Step 3 or 5. Let's put them in Step 3 with address.
+    customer: { id: "", name: "", email: "", phone: "" },
   });
 
   const totalSteps = 5;
@@ -36,18 +73,50 @@ export default function BookingWizard() {
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
+  const confirmBooking = () => {
+    const bookingId = generateBookingReference(formData.city);
+    const booking = buildSubmittedBooking(formData, bookingId);
+
+    console.log("Submitting:", booking);
+
+    try {
+      sessionStorage.setItem(`booking:${bookingId}`, JSON.stringify(booking));
+    } catch {
+      // ignore private-mode storage failures
+    }
+
+    useBookingStore.setState((state) => ({
+      bookings: [
+        ...state.bookings.filter((b) => b.id !== bookingId),
+        booking,
+      ],
+    }));
+
+    setSubmittedBookingId(bookingId);
+  };
+
+  if (submittedBookingId) {
+    return (
+      <BookingSuccessPanel
+        bookingId={submittedBookingId}
+        email={formData.customer?.email || ""}
+      />
+    );
+  }
+
   return (
-    <div className="container max-w-2xl mx-auto py-10 px-4">
+    <div className="container mx-auto max-w-2xl px-4 py-10">
       <div className="mb-8">
-        <div className="flex justify-between text-sm font-medium text-muted-foreground mb-2">
-          <span>Step {step} of {totalSteps}</span>
+        <div className="mb-2 flex justify-between text-sm font-medium text-muted-foreground">
+          <span>
+            Step {step} of {totalSteps}
+          </span>
           <span>{Math.round(progress)}% Completed</span>
         </div>
-        {/* Simple progress bar using Tailwind since I might not have the component installed yet */}
-        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-primary transition-all duration-300 ease-in-out" 
-            style={{ width: `${progress}%` }} 
+        <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+          <div
+            className="h-full bg-primary transition-all duration-300 ease-in-out"
+            style={{ width: `${progress}%` }}
           />
         </div>
       </div>
@@ -76,14 +145,7 @@ export default function BookingWizard() {
           {step < totalSteps ? (
             <Button onClick={nextStep}>Next</Button>
           ) : (
-            <Button onClick={() => {
-              // Submit logic here
-              console.log("Submitting:", formData);
-              // Mock submit
-              router.push("/booking/SC-2025-MOCK");
-            }}>
-              Confirm Booking
-            </Button>
+            <Button onClick={confirmBooking}>Confirm Booking</Button>
           )}
         </CardFooter>
       </Card>

@@ -35,7 +35,20 @@ export default function BookingStatusPage() {
   useEffect(() => {
     if (bookings.length > 0) {
       const found = bookings.find((b) => b.id === id);
-      setBooking(found);
+      if (found) {
+        setBooking(found);
+        return;
+      }
+    }
+
+    // Fallback: booking just submitted in this session (guest track)
+    try {
+      const raw = sessionStorage.getItem(`booking:${id}`);
+      if (raw) {
+        setBooking(JSON.parse(raw) as Booking);
+      }
+    } catch {
+      // ignore
     }
   }, [bookings, id]);
 
