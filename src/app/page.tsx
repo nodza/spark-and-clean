@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, CheckCircle2, MapPin, Star, Truck, Sparkles, Clock } from "lucide-react";
 import { ChatFAB } from "@/components/ChatFAB";
+import { buildMetadata, pageSeo } from "@/lib/seo";
+
+export const metadata = buildMetadata(pageSeo.home);
 
 export default function Home() {
   return (
@@ -135,35 +138,48 @@ export default function Home() {
             <p className="text-muted-foreground text-lg">Specialist care for every rug and fabric in your home.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-primary/20 shadow-md hover:shadow-lg transition-shadow cursor-pointer relative overflow-hidden group">
-              <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" /> Rug Cleaning
-                </CardTitle>
-                <CardDescription>Persian, Shaggy, Wool & more</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">Deep wash, stain removal, and fringe whitening.</p>
-                <Link href="/book/rug">
-                  <Button className="w-full">Book Now</Button>
-                </Link>
-              </CardContent>
-            </Card>
-
             {[
-              { title: "Upholstery", desc: "Couches, armchairs & dining chairs" },
-              { title: "Mattresses", desc: "Deep clean & sanitation" },
-              { title: "Tiles & Grout", desc: "High pressure cleaning" }
-            ].map((service, i) => (
-              <Card key={i} className="opacity-75 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+              {
+                title: "Automatic Rug Cleaning",
+                desc: "7-minute clean & dry",
+                href: "/services/automatic-rug-cleaning",
+                detail: "Deep wash, stain removal, and fringe whitening.",
+              },
+              {
+                title: "Persian Rugs",
+                desc: "Handmade specialist care",
+                href: "/services/persian-rug-cleaning",
+                detail: "Gentle automatic cleaning for delicate fibres.",
+              },
+              {
+                title: "Residential",
+                desc: "Carpets & upholstery",
+                href: "/services/residential-cleaning",
+                detail: "Call-out cleaning for homes across CT & JHB.",
+              },
+              {
+                title: "Commercial",
+                desc: "Offices, hotels & retail",
+                href: "/services/commercial-cleaning",
+                detail: "Scheduled cleaning for businesses.",
+              },
+            ].map((service) => (
+              <Card
+                key={service.href}
+                className="border-primary/20 shadow-md hover:shadow-lg transition-shadow relative overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
                 <CardHeader>
-                  <CardTitle>{service.title}</CardTitle>
-                  <CardDescription>Coming Soon</CardDescription>
+                  <CardTitle className="flex items-center gap-2 relative">
+                    <Sparkles className="h-5 w-5 text-primary" /> {service.title}
+                  </CardTitle>
+                  <CardDescription className="relative">{service.desc}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{service.desc}</p>
-                  <Button variant="secondary" disabled className="w-full">Waitlist</Button>
+                <CardContent className="relative">
+                  <p className="text-sm text-muted-foreground mb-4">{service.detail}</p>
+                  <Link href={service.href}>
+                    <Button className="w-full">View Service</Button>
+                  </Link>
                 </CardContent>
               </Card>
             ))}
@@ -287,8 +303,11 @@ export default function Home() {
             <h3 className="font-bold text-lg mb-4 text-primary">Contact Us</h3>
             <div className="space-y-2 text-muted-foreground">
               <p>📍 Cape Town & Johannesburg</p>
-              <p>📞 CPT: 021 555 0123 | JHB: 011 555 0456</p>
+              <p>📞 CPT: 064 043 6902 | JHB: 064 289 2384</p>
               <p>📧 hello@sparkandclean.co.za</p>
+              <Link href="/contact" className="inline-block text-primary hover:underline text-sm font-medium">
+                Full contact details →
+              </Link>
             </div>
           </div>
           <div>
