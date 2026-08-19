@@ -22,6 +22,7 @@ export interface RugDetails {
   lengthM: number;
   areaSqM: number;
   photos?: string[]; // local URLs for mock
+  labelPhotos?: string[]; // back-of-label / tag photos
 }
 
 export interface Booking {
