@@ -33,6 +33,15 @@ const legacyRedirects: { source: string; destination: string }[] = [
 ];
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "www.sparkandclean.co.za",
+        pathname: "/wp-content/uploads/**",
+      },
+    ],
+  },
   async redirects() {
     return legacyRedirects.map(({ source, destination }) => ({
       source,
