@@ -1,73 +1,24 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, CheckCircle2, MapPin, Star, Truck, Sparkles, Clock } from "lucide-react";
+import { Hero } from "@/components/home/Hero";
+import { HowItWorks } from "@/components/home/HowItWorks";
+import { PromoVideos } from "@/components/home/PromoVideos";
 import { ChatFAB } from "@/components/ChatFAB";
 import TrustSection from "@/components/TrustSection";
+import { buildMetadata, pageSeo } from "@/lib/seo";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export const metadata = buildMetadata(pageSeo.home);
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/5 py-20 lg:py-32">
-        <div className="container px-4 mx-auto text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 text-primary">
-            South Africa's First <br className="hidden sm:inline" />
-            Tech-Enabled Rug Logistics
-          </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Experience the future of rug care. Real-time tracking, automated scheduling, 
-            and expert cleaning for your treasured Persian, Kilim, and modern rugs.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/book/rug">
-              <Button size="lg" className="w-full sm:w-auto text-lg px-8 h-12">
-                Book a Rug Collection <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="outline" size="lg" className="w-full sm:w-auto text-lg px-8 h-12">
-                View My Booking
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
+      <Hero />
 
       {/* How It Works */}
-      <section className="py-20 bg-white">
-        <div className="container px-4 mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Booking is as easy as 1-2-3</h2>
-            <p className="text-muted-foreground text-lg">Simple, transparent, and hassle-free.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: <Clock className="h-10 w-10 text-primary" />,
-                title: "1. Find Your Measurements",
-                desc: "Check the label on the back of your rug, or measure the length and width."
-              },
-              {
-                icon: <Sparkles className="h-10 w-10 text-primary" />,
-                title: "2. Send Them to Us",
-                desc: "Enter your details and choose a convenient collection slot in our wizard."
-              },
-              {
-                icon: <Truck className="h-10 w-10 text-primary" />,
-                title: "3. We'll Handle the Rest",
-                desc: "We'll collect, clean, dry, and deliver your fresh rug back to you."
-              }
-            ].map((step, i) => (
-              <div key={i} className="flex flex-col items-center text-center p-6 rounded-2xl bg-secondary/20">
-                <div className="mb-4 p-4 bg-white rounded-full shadow-sm">{step.icon}</div>
-                <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                <p className="text-muted-foreground">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <HowItWorks />
 
       {/* Why Tech-Enabled? */}
       <section className="py-20 bg-primary text-primary-foreground">
@@ -89,44 +40,7 @@ export default function Home() {
       </section>
 
       {/* Video Showcase */}
-      <section className="py-20 bg-white">
-        <div className="container px-4 mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">See Our Process in Action</h2>
-            <p className="text-muted-foreground text-lg">Watch how we care for your treasured rugs</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {/* Video Placeholder 1 */}
-            <div className="relative aspect-video bg-secondary/20 rounded-xl overflow-hidden group cursor-pointer border-2 border-border hover:border-primary transition-colors">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <svg className="h-8 w-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </div>
-                  <p className="font-semibold text-sm">Rug Cleaning Process</p>
-                  <p className="text-xs text-muted-foreground">2:34</p>
-                </div>
-              </div>
-            </div>
-            {/* Video Placeholder 2 */}
-            <div className="relative aspect-video bg-secondary/20 rounded-xl overflow-hidden group cursor-pointer border-2 border-border hover:border-primary transition-colors">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <svg className="h-8 w-8 text-primary" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </div>
-                  <p className="font-semibold text-sm">Commercial Services</p>
-                  <p className="text-xs text-muted-foreground">1:45</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PromoVideos />
 
       {/* Services */}
       <section className="py-20 bg-secondary/10">
@@ -173,70 +87,6 @@ export default function Home() {
       </section>
 
       {/* Social Proof & Areas */}
-      <section className="py-20 bg-white">
-        <div className="container px-4 mx-auto grid lg:grid-cols-2 gap-16">
-          <div>
-            <h2 className="text-3xl font-bold mb-8">Trusted Across South Africa</h2>
-            <div className="space-y-6">
-              {[
-                { name: "Sarah J.", loc: "Durbanville, CPT", text: "My Persian rug looks brand new! The pickup and delivery was so convenient." },
-                { name: "Mike R.", loc: "Sandton, JHB", text: "Incredible service. The online booking made it super easy to schedule." }
-              ].map((review, i) => (
-                <div key={i} className="bg-secondary/10 p-6 rounded-xl">
-                  <div className="flex gap-1 text-accent mb-2">
-                    {[1, 2, 3, 4, 5].map((_, j) => <Star key={j} className="h-4 w-4 fill-current" />)}
-                  </div>
-                  <p className="text-lg mb-4">"{review.text}"</p>
-                  <div className="font-semibold text-sm text-muted-foreground">
-                    — {review.name}, {review.loc}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-3xl font-bold mb-8">Service Areas</h2>
-            <div className="bg-secondary/20 p-8 rounded-2xl">
-              <div className="mb-6">
-                <h3 className="font-semibold text-lg mb-3 text-primary">Cape Town</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    "City Bowl", "Atlantic Seaboard", "Southern Suburbs", 
-                    "Northern Suburbs", "Durbanville", "Blouberg"
-                  ].map((area) => (
-                    <div key={area} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm">{area}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-3 text-primary">Johannesburg</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    "Sandton", "Rosebank", "Fourways", 
-                    "Randburg", "Bryanston", "Midrand"
-                  ].map((area) => (
-                    <div key={area} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm">{area}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-6 pt-6 border-t border-border/50">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="h-5 w-5" />
-                  <span>Expanding to more areas soon!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <TrustSection />
 
       {/* FAB Chat Widget */}

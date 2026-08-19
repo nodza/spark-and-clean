@@ -1,9 +1,23 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { AddressAutocomplete } from "@/components/booking/AddressAutocomplete";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -16,9 +30,42 @@ interface StepProps {
 
 export function Step3Location({ data, update }: StepProps) {
   const customer = data.customer || { id: "", name: "", email: "", phone: "" };
-  
-  // Mock availability: Kraaifontein (Mon, Thu), Durbanville (Tue, Fri)
-  // For prototype, we just allow any date for now to avoid complex logic blocking the demo.
+  const [latInput, setLatInput] = useState(
+    data.coordinates?.lat != null ? String(data.coordinates.lat) : ""
+  );
+  const [lngInput, setLngInput] = useState(
+    data.coordinates?.lng != null ? String(data.coordinates.lng) : ""
+  );
+
+  // Keep inputs in sync when autocomplete (or parent) updates coordinates
+  useEffect(() => {
+    setLatInput(
+      data.coordinates?.lat != null && Number.isFinite(data.coordinates.lat)
+        ? String(data.coordinates.lat)
+        : ""
+    );
+    setLngInput(
+      data.coordinates?.lng != null && Number.isFinite(data.coordinates.lng)
+        ? String(data.coordinates.lng)
+        : ""
+    );
+  }, [data.coordinates?.lat, data.coordinates?.lng]);
+
+  const commitCoordinates = (latRaw: string, lngRaw: string) => {
+    const lat = Number(latRaw.trim());
+    const lng = Number(lngRaw.trim());
+    const latOk = latRaw.trim() !== "" && Number.isFinite(lat);
+    const lngOk = lngRaw.trim() !== "" && Number.isFinite(lng);
+
+    if (latOk && lngOk) {
+      update({ coordinates: { lat, lng } });
+      return;
+    }
+
+    if (!latRaw.trim() && !lngRaw.trim()) {
+      update({ coordinates: undefined });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -26,41 +73,81 @@ export function Step3Location({ data, update }: StepProps) {
         <h3 className="font-semibold text-lg">Collection Address</h3>
         <div className="space-y-2">
           <Label htmlFor="address">Street Address</Label>
-          <Input 
-            id="address" 
-            placeholder="e.g. 42 Protea Way"
+          <AddressAutocomplete
+            id="address"
             value={data.addressLine1 || ""}
-            onChange={(e) => update({ addressLine1: e.target.value })}
+            placeholder="e.g. 42 Protea Way, Durbanville"
+            onInputChange={(value) => update({ addressLine1: value })}
+            onAddressResolved={(result) =>
+              update({
+                addressLine1: result.addressLine1,
+                suburb: result.suburb,
+                city: result.city,
+                coordinates: result.coordinates,
+              })
+            }
           />
+          <p className="text-xs text-muted-foreground">
+            Start typing to search Cape Town or Johannesburg addresses
+            (mock autocomplete).
+          </p>
         </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="suburb">Suburb</Label>
-            <Select 
-              value={data.suburb} 
-              onValueChange={(val) => update({ suburb: val })}
-            >
-              <SelectTrigger id="suburb">
-                <SelectValue placeholder="Select suburb" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Durbanville">Durbanville</SelectItem>
-                <SelectItem value="Kraaifontein">Kraaifontein</SelectItem>
-                <SelectItem value="Sea Point">Sea Point</SelectItem>
-                <SelectItem value="City Bowl">City Bowl</SelectItem>
-                <SelectItem value="Claremont">Claremont</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              id="suburb"
+              placeholder="e.g. Durbanville"
+              value={data.suburb || ""}
+              onChange={(e) => update({ suburb: e.target.value })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="city">City</Label>
-            <Input 
-              id="city" 
-              value={data.city || "Cape Town"} 
+            <Input
+              id="city"
+              placeholder="Cape Town or Johannesburg"
+              value={data.city || ""}
               onChange={(e) => update({ city: e.target.value })}
             />
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="latitude">Latitude (Optional)</Label>
+            <Input
+              id="latitude"
+              inputMode="decimal"
+              placeholder="e.g. -33.9249"
+              value={latInput}
+              onChange={(e) => {
+                const next = e.target.value;
+                setLatInput(next);
+                commitCoordinates(next, lngInput);
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="longitude">Longitude (Optional)</Label>
+            <Input
+              id="longitude"
+              inputMode="decimal"
+              placeholder="e.g. 18.4241"
+              value={lngInput}
+              onChange={(e) => {
+                const next = e.target.value;
+                setLngInput(next);
+                commitCoordinates(latInput, next);
+              }}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Autocomplete fills these automatically. Override if you have more
+          precise coordinates.
+        </p>
       </div>
 
       <div className="space-y-4">
@@ -78,14 +165,24 @@ export function Step3Location({ data, update }: StepProps) {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {data.collectionDate ? format(new Date(data.collectionDate), "PPP") : <span>Pick a date</span>}
+                  {data.collectionDate ? (
+                    format(new Date(data.collectionDate), "PPP")
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   mode="single"
-                  selected={data.collectionDate ? new Date(data.collectionDate) : undefined}
-                  onSelect={(date) => update({ collectionDate: date?.toISOString() })}
+                  selected={
+                    data.collectionDate
+                      ? new Date(data.collectionDate)
+                      : undefined
+                  }
+                  onSelect={(date) =>
+                    update({ collectionDate: date?.toISOString() })
+                  }
                   initialFocus
                   disabled={(date) => date < new Date()}
                 />
@@ -94,16 +191,20 @@ export function Step3Location({ data, update }: StepProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="slot">Time Slot</Label>
-            <Select 
-              value={data.collectionSlot} 
-              onValueChange={(val: any) => update({ collectionSlot: val })}
+            <Select
+              value={data.collectionSlot}
+              onValueChange={(val: "MORNING" | "AFTERNOON") =>
+                update({ collectionSlot: val })
+              }
             >
               <SelectTrigger id="slot">
                 <SelectValue placeholder="Select time" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="MORNING">Morning (08:00 - 12:00)</SelectItem>
-                <SelectItem value="AFTERNOON">Afternoon (12:00 - 16:00)</SelectItem>
+                <SelectItem value="AFTERNOON">
+                  Afternoon (12:00 - 16:00)
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -114,31 +215,37 @@ export function Step3Location({ data, update }: StepProps) {
         <h3 className="font-semibold text-lg">Contact Details</h3>
         <div className="space-y-2">
           <Label htmlFor="name">Full Name</Label>
-          <Input 
-            id="name" 
+          <Input
+            id="name"
             placeholder="John Doe"
             value={customer.name}
-            onChange={(e) => update({ customer: { ...customer, name: e.target.value } })}
+            onChange={(e) =>
+              update({ customer: { ...customer, name: e.target.value } })
+            }
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
-            <Input 
-              id="phone" 
+            <Input
+              id="phone"
               placeholder="082 123 4567"
               value={customer.phone}
-              onChange={(e) => update({ customer: { ...customer, phone: e.target.value } })}
+              onChange={(e) =>
+                update({ customer: { ...customer, phone: e.target.value } })
+              }
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
+            <Input
+              id="email"
+              type="email"
               placeholder="john@example.com"
               value={customer.email}
-              onChange={(e) => update({ customer: { ...customer, email: e.target.value } })}
+              onChange={(e) =>
+                update({ customer: { ...customer, email: e.target.value } })
+              }
             />
           </div>
         </div>
