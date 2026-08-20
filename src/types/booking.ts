@@ -24,12 +24,18 @@ export interface RugDetails {
   photos?: string[]; // local URLs for mock
 }
 
+export interface Coordinates {
+  lat: number;
+  lng: number;
+}
+
 export interface Booking {
   id: string;
   customer: Customer;
   suburb: string;
   addressLine1: string;
   city: string;
+  coordinates?: Coordinates;
   collectionDate: string; // ISO
   collectionSlot: "MORNING" | "AFTERNOON";
   rug: RugDetails;
