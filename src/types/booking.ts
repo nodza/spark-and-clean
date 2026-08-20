@@ -45,6 +45,8 @@ export interface Booking {
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;
+  /** Phase 1 stub — format-validated promo code; discount calc deferred to E8 */
+  couponCode?: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
