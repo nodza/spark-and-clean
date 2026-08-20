@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking, BookingStatus } from "@/types/booking";
+import { BookingStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, Clock, MapPin, Truck } from "lucide-react";
@@ -22,28 +22,44 @@ const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
-  const { bookings, fetchBookings } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const { bookings, fetchBookings, isLoading } = useBookingStore();
+  const [hydrated, setHydrated] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    // Ensure we have data (from local storage or fetch)
-    if (bookings.length === 0) {
-      fetchBookings();
-    }
-  }, [bookings.length, fetchBookings]);
+    setHydrated(useBookingStore.persist.hasHydrated());
+    return useBookingStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
+
+  const booking = bookings.find((b) => b.id === id);
 
   useEffect(() => {
-    if (bookings.length > 0) {
-      const found = bookings.find((b) => b.id === id);
-      setBooking(found);
-    }
-  }, [bookings, id]);
+    if (!hydrated || booking || hasFetched) return;
+    void fetchBookings().finally(() => setHasFetched(true));
+  }, [hydrated, booking, hasFetched, fetchBookings]);
+
+  if (!hydrated || (isLoading && !booking && !hasFetched)) {
+    return (
+      <div className="container py-20 text-center">
+        <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
+        <p className="text-muted-foreground">
+          If this takes too long, the booking ID might be invalid.
+        </p>
+      </div>
+    );
+  }
 
   if (!booking) {
     return (
       <div className="container py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
-        <p className="text-muted-foreground">If this takes too long, the booking ID might be invalid.</p>
+        <h1 className="text-2xl font-bold mb-4">Booking not found</h1>
+        <p className="text-muted-foreground">
+          No booking exists for this ID. Complete a booking from{" "}
+          <a href="/book/rug" className="text-primary underline-offset-4 hover:underline">
+            /book/rug
+          </a>{" "}
+          to view status here.
+        </p>
       </div>
     );
   }
@@ -140,7 +156,14 @@ export default function BookingStatusPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Size</span>
-              <span className="font-medium">{booking.rug.widthM}m x {booking.rug.lengthM}m</span>
+              <span className="font-medium">
+                {typeof booking.rug.widthM === "number" &&
+                typeof booking.rug.lengthM === "number" &&
+                booking.rug.widthM > 0 &&
+                booking.rug.lengthM > 0
+                  ? `${booking.rug.widthM}m x ${booking.rug.lengthM}m`
+                  : "To be measured by driver"}
+              </span>
             </div>
             <div className="flex justify-between border-t pt-2 mt-2">
               <span className="font-semibold">Est. Total</span>

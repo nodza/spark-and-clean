@@ -10,13 +10,16 @@ import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
 import { Booking } from "@/types/booking";
+import { useBookingStore } from "@/store/useBookingStore";
 
 export default function BookingWizard() {
   const router = useRouter();
+  const addBooking = useBookingStore((s) => s.addBooking);
   const [step, setStep] = useState(1);
   const [showTypeError, setShowTypeError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
-    rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
+    rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: { stainTreatment: false, fabricProtection: false },
     customer: { id: "", name: "", email: "", phone: "" },
   });
@@ -87,20 +90,51 @@ export default function BookingWizard() {
             <Button onClick={nextStep}>Next</Button>
           ) : (
             <Button
-              onClick={() => {
-                const payload = {
-                  ...formData,
-                  addressLine1: formData.addressLine1,
-                  suburb: formData.suburb,
-                  city: formData.city,
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                const booking: Booking = {
+                  id: "",
+                  customer: formData.customer ?? {
+                    id: "",
+                    name: "",
+                    email: "",
+                    phone: "",
+                  },
+                  suburb: formData.suburb ?? "",
+                  addressLine1: formData.addressLine1 ?? "",
+                  city: formData.city ?? "",
                   coordinates: formData.coordinates,
+                  collectionDate:
+                    formData.collectionDate ?? new Date().toISOString(),
+                  collectionSlot: formData.collectionSlot ?? "MORNING",
+                  rug: formData.rug ?? {
+                    type: "",
+                    widthM: null,
+                    lengthM: null,
+                    areaSqM: 0,
+                    photos: [],
+                  },
+                  addOns: formData.addOns ?? {
+                    stainTreatment: false,
+                    fabricProtection: false,
+                  },
+                  estimatedPriceMin: formData.estimatedPriceMin ?? 0,
+                  estimatedPriceMax: formData.estimatedPriceMax ?? 0,
+                  status: "BOOKED",
+                  paymentStatus: "UNPAID",
+                  createdAt: new Date().toISOString(),
                 };
-                // Phase 1 mock payload — includes captured lat/lng for E11/E16
-                console.log("Submitting booking payload:", payload);
-                router.push("/booking/SC-2025-MOCK");
+
+                const created = await addBooking(booking);
+                if (created?.id) {
+                  router.push(`/booking/${created.id}`);
+                  return;
+                }
+                setIsSubmitting(false);
               }}
             >
-              Confirm Booking
+              {isSubmitting ? "Confirming..." : "Confirm Booking"}
             </Button>
           )}
         </CardFooter>

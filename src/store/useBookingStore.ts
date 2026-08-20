@@ -10,7 +10,7 @@ interface BookingState {
   
   // Actions
   fetchBookings: () => Promise<void>;
-  addBooking: (booking: Booking) => Promise<void>;
+  addBooking: (booking: Booking) => Promise<Booking | undefined>;
   updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
   updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<void>;
   assignDriver: (id: string, driverId: string) => Promise<void>;
@@ -27,7 +27,15 @@ export const useBookingStore = create<BookingState>()(
         set({ isLoading: true, error: null });
         try {
           const data = await bookingService.getBookings();
-          set({ bookings: data, isLoading: false });
+          set((state) => {
+            const byId = new Map(data.map((b) => [b.id, b]));
+            for (const booking of state.bookings) {
+              if (!byId.has(booking.id)) {
+                byId.set(booking.id, booking);
+              }
+            }
+            return { bookings: Array.from(byId.values()), isLoading: false };
+          });
         } catch (err) {
           set({ error: "Failed to fetch bookings", isLoading: false });
         }
@@ -37,12 +45,14 @@ export const useBookingStore = create<BookingState>()(
         set({ isLoading: true, error: null });
         try {
           const newBooking = await bookingService.createBooking(booking);
-          set((state) => ({ 
+          set((state) => ({
             bookings: [...state.bookings, newBooking],
-            isLoading: false 
+            isLoading: false,
           }));
+          return newBooking;
         } catch (err) {
           set({ error: "Failed to create booking", isLoading: false });
+          return undefined;
         }
       },
 
