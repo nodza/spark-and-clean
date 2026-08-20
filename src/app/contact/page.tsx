@@ -78,10 +78,6 @@ const ContactPage = () => {
         })}
       </div>
 
-      <div className="max-w-4xl mx-auto mt-12 bg-teal-50 rounded-xl p-8">
-        <h3 className="text-xl font-semibold">Spark & Clean</h3>
-        <p className="text-muted-foreground mt-2">Trusted rug cleaning with collection and support in Gauteng and Cape Town.</p>
-      </div>
     </div>
   );
 };

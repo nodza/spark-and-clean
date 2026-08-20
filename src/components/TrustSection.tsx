@@ -1,4 +1,3 @@
-import React from "react";
 import { Star } from "lucide-react";
 
 type Client = {
@@ -8,31 +7,55 @@ type Client = {
 };
 
 const clients: Client[] = [
-  { name: "Radisson Hotels", src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/1-radisson-logo.jpg", alt: "Radisson Hotels" },
-  { name: "Torga Optical", src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/2-torga-logo.jpg", alt: "Torga Optical" },
-  { name: "Sefar", src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/3-sefar-logo.jpg", alt: "Sefar" },
-  { name: "Ukko", src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/4-ukko-logo.jpg", alt: "Ukko" },
-  { name: "Jonsson Workwear", src: "https://www.sparkandclean.co.za/wp-content/uploads/2023/03/jonsson-workwear-logo.jpg", alt: "Jonsson Workwear" },
-  { name: "Skye College", src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/5-skye-college-logo.jpg", alt: "Skye College" }
+  { 
+    name: "Radisson Hotels", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/1-radisson-logo.jpg", 
+    alt: "Radisson Hotels" 
+  },
+  { 
+    name: "Torga Optical", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/2-torga-logo.jpg", 
+    alt: "Torga Optical" 
+  },
+  { 
+    name: "Sefar", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/3-sefar-logo.jpg", 
+    alt: "Sefar" 
+  },
+  { 
+    name: "Ukko", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/4-ukko-logo.jpg",
+    alt: "Ukko" 
+  },
+  { 
+    name: "Jonsson Workwear", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2023/03/jonsson-workwear-logo.jpg", 
+    alt: "Jonsson Workwear" 
+  },
+  { 
+    name: "Skye College", 
+    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/5-skye-college-logo.jpg", 
+    alt: "Skye College"
+  }
 ];
 
 export function TrustSection() {
   return (
-    <section className="py-16 bg-secondary/10 border-y">
-      <div className="container px-4 mx-auto">
-        <h3 className="text-center text-sm font-semibold text-muted-foreground mb-8 uppercase tracking-wider">
+    <section className="bg-white py-16">
+      <div className="container mx-auto px-4">
+        <h3 className="mb-10 text-center text-2xl font-bold tracking-tight text-primary sm:text-3xl">
           Trusted by Leading Organizations
         </h3>
 
-        {/* Responsive grid: 2 mobile, 3 tablet, 6 desktop */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
+        <div className="grid grid-cols-2 items-center gap-8 md:grid-cols-3 lg:grid-cols-6">
           {clients.map((c) => (
-            <div key={c.name} className="flex items-center justify-center p-4 bg-white/0">
-              <div className="h-16 flex items-center justify-center">
+            <div key={c.name} className="flex items-center justify-center">
+              <div className="flex h-20 items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={c.src}
                   alt={c.alt ?? c.name}
-                  className="max-h-12 object-contain grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all"
+                  className="max-h-16 w-auto object-contain"
                 />
               </div>
             </div>
@@ -64,9 +87,6 @@ export function TrustSection() {
             </a>
           </div>
         </div>
-
-        {/* TODO: Confirm logo usage & quality with Noel before publishing. */}
-        <div className="sr-only">TODO: Confirm logo permissions with Noel</div>
       </div>
     </section>
   );
