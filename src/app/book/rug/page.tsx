@@ -33,6 +33,7 @@ function buildSubmittedBooking(
     suburb: formData.suburb || "",
     addressLine1: formData.addressLine1 || "",
     city: formData.city || "",
+    coordinates: formData.coordinates,
     collectionDate: formData.collectionDate || new Date().toISOString(),
     collectionSlot: formData.collectionSlot || "MORNING",
     rug: formData.rug || {
@@ -48,6 +49,7 @@ function buildSubmittedBooking(
     },
     estimatedPriceMin: formData.estimatedPriceMin || 0,
     estimatedPriceMax: formData.estimatedPriceMax || 0,
+    couponCode: formData.couponCode,
     status: "BOOKED",
     paymentStatus: "UNPAID",
     createdAt: new Date().toISOString(),
@@ -57,6 +59,7 @@ function buildSubmittedBooking(
 export default function BookingWizard() {
   const [step, setStep] = useState(1);
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
+  const [showTypeError, setShowTypeError] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
     addOns: { stainTreatment: false, fabricProtection: false },
@@ -66,7 +69,14 @@ export default function BookingWizard() {
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, totalSteps));
+  const nextStep = () => {
+    if (step === 1 && !formData.rug?.type) {
+      setShowTypeError(true);
+      return;
+    }
+    setStep((s) => Math.min(s + 1, totalSteps));
+  };
+
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
   const updateFormData = (data: Partial<Booking>) => {
@@ -77,7 +87,8 @@ export default function BookingWizard() {
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(formData, bookingId);
 
-    console.log("Submitting:", booking);
+    // Phase 1 mock payload — includes captured lat/lng for E11/E16
+    console.log("Submitting booking payload:", booking);
 
     try {
       sessionStorage.setItem(`booking:${bookingId}`, JSON.stringify(booking));
@@ -132,7 +143,14 @@ export default function BookingWizard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {step === 1 && <Step1Details data={formData} update={updateFormData} />}
+          {step === 1 && (
+            <Step1Details
+              data={formData}
+              update={updateFormData}
+              showTypeError={showTypeError}
+              onTypeSelected={() => setShowTypeError(false)}
+            />
+          )}
           {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
           {step === 3 && <Step3Location data={formData} update={updateFormData} />}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}
