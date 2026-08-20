@@ -35,7 +35,19 @@ export default function BookingStatusPage() {
   useEffect(() => {
     if (bookings.length > 0) {
       const found = bookings.find((b) => b.id === id);
-      setBooking(found);
+      if (found) {
+        setBooking(found);
+        return;
+      }
+    }
+
+    try {
+      const raw = sessionStorage.getItem(`booking:${id}`);
+      if (raw) {
+        setBooking(JSON.parse(raw) as Booking);
+      }
+    } catch {
+      // ignore
     }
   }, [bookings, id]);
 
@@ -50,11 +62,39 @@ export default function BookingStatusPage() {
 
   const currentStepIndex = STATUS_STEPS.findIndex((s) => s.id === booking.status);
 
+  const paymentLabel =
+    booking.paymentStatus === "PAID"
+      ? "Paid in full"
+      : booking.paymentStatus === "DEPOSIT"
+        ? "Deposit received"
+        : "Payment outstanding";
+
   return (
     <div className="container max-w-3xl mx-auto py-10 px-4">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold mb-2">Booking Status</h1>
         <p className="text-muted-foreground">Order #{booking.id}</p>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <Badge variant={booking.status === "DELIVERED" ? "default" : "secondary"}>
+            {STATUS_STEPS.find((s) => s.id === booking.status)?.label}
+          </Badge>
+          <Badge
+            variant={
+              booking.paymentStatus === "PAID"
+                ? "default"
+                : booking.paymentStatus === "DEPOSIT"
+                  ? "secondary"
+                  : "outline"
+            }
+            className={
+              booking.paymentStatus === "UNPAID"
+                ? "border-destructive text-destructive"
+                : undefined
+            }
+          >
+            {booking.paymentStatus}
+          </Badge>
+        </div>
       </div>
 
       <Card className="mb-8">
@@ -149,6 +189,46 @@ export default function BookingStatusPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Payment details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Payment status</span>
+            <Badge
+              variant={
+                booking.paymentStatus === "PAID"
+                  ? "default"
+                  : booking.paymentStatus === "DEPOSIT"
+                    ? "secondary"
+                    : "outline"
+              }
+              className={
+                booking.paymentStatus === "UNPAID"
+                  ? "border-destructive text-destructive"
+                  : undefined
+              }
+            >
+              {booking.paymentStatus}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">{paymentLabel}</p>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Estimated amount</span>
+            <span className="font-medium">
+              R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
+            </span>
+          </div>
+          {booking.paymentStatus === "UNPAID" && (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              Outstanding balance — pay after inspection or when your rug is ready
+              for delivery.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
