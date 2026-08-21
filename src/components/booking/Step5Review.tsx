@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import { Booking } from "@/types/booking";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
-import { MapPin } from "lucide-react";
+import { MapPin, Ruler, Tag, WalletCards } from "lucide-react";
 
 interface StepProps {
   data: Partial<Booking>;
-  update: (data: Partial<Booking>) => void;
+  termsAccepted: boolean;
+  onTermsAcceptedChange: (accepted: boolean) => void;
 }
 
 function Detail({
@@ -29,7 +30,7 @@ function Detail({
   );
 }
 
-export function Step5Review({ data }: StepProps) {
+export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: StepProps) {
   const street = data.addressLine1?.trim() || "";
   const locality = [data.suburb, data.city].filter(Boolean).join(", ");
 
@@ -46,8 +47,9 @@ export function Step5Review({ data }: StepProps) {
     data.rug.widthM > 0 &&
     data.rug.lengthM > 0;
 
-  const collectionDate = data.collectionDate
-    ? format(new Date(data.collectionDate), "PPP")
+  const parsedCollectionDate = data.collectionDate ? new Date(data.collectionDate) : null;
+  const collectionDate = parsedCollectionDate && !Number.isNaN(parsedCollectionDate.getTime())
+    ? format(parsedCollectionDate, "PPP")
     : null;
   const collectionSlot =
     data.collectionSlot === "MORNING"
@@ -65,122 +67,62 @@ export function Step5Review({ data }: StepProps) {
       .join(", ") || "None";
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
-        {/* Address hero block — compact */}
-        <section className="rounded-lg bg-muted/50 px-3.5 py-3">
-          <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-primary ring-1 ring-border">
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Collection address
-              </p>
-
-              <h3 className="mt-1 text-sm font-semibold leading-snug tracking-tight text-foreground text-balance sm:text-[15px]">
-                {[street || "No street address", locality].filter(Boolean).join(", ")}
-              </h3>
-
-              {hasCoordinates ? (
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <p className="tabular-nums text-foreground">
-                    <span className="font-medium text-muted-foreground">
-                      Latitude
-                    </span>{" "}
-                    <span className="font-medium">
-                      {data.coordinates!.lat.toFixed(5)}
-                    </span>
-                  </p>
-                  <p className="tabular-nums text-foreground">
-                    <span className="font-medium text-muted-foreground">
-                      Longitude
-                    </span>{" "}
-                    <span className="font-medium">
-                      {data.coordinates!.lng.toFixed(5)}
-                    </span>
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        <dl className="mt-4 grid grid-cols-1 gap-4 px-1 sm:grid-cols-2">
+    <div className="space-y-5">
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 border-b pb-3 text-base font-semibold">
+          <Ruler className="h-4 w-4 text-primary" aria-hidden="true" /> Rug Profile
+        </h3>
+        <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
           <Detail label="Rug">
             {rugLabel ? (
-              <>
-                {rugLabel}
-                {hasSize
-                  ? ` · ${data.rug!.widthM}m × ${data.rug!.lengthM}m`
-                  : ""}
-              </>
+              rugLabel
             ) : (
-              "Not set"
+              "Not provided"
             )}
           </Detail>
-
-          <Detail label="Collection">
-            {collectionDate || collectionSlot ? (
-              <>
-                {collectionDate ?? "Date not set"}
-                {collectionSlot ? (
-                  <>
-                    <br />
-                    <span className="font-normal text-muted-foreground">
-                      {collectionSlot}
-                    </span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              "Not set"
-            )}
+          <Detail label="Dimensions">
+            {hasSize ? `${data.rug!.widthM}m × ${data.rug!.lengthM}m` : "Pending (Measured by Driver on Pickup)"}
           </Detail>
-
-          <Detail label="Add-ons">{addOns}</Detail>
-
-          {data.customer?.name ? (
-            <Detail label="Contact">
-              {data.customer.name}
-              {data.customer.phone ? ` · ${data.customer.phone}` : ""}
-            </Detail>
-          ) : null}
+          <Detail label="Label Photo">{data.rug?.labelPhotos?.length ? "Provided" : "None provided"}</Detail>
+          <Detail label="Cleaning Photos">{data.rug?.photos?.length ? `${data.rug.photos.length} provided` : "None provided"}</Detail>
         </dl>
+      </section>
 
-        <div className="mt-4 flex items-center justify-between rounded-lg bg-primary/5 px-3.5 py-2.5">
-          <span className="text-sm text-muted-foreground">Estimated total</span>
-          <span className="text-base font-semibold text-primary">
-            {data.estimatedPriceMin != null && data.estimatedPriceMax != null
-              ? `R${data.estimatedPriceMin} – R${data.estimatedPriceMax}`
-              : "Pending"}
-          </span>
-        </div>
-      </div>
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 border-b pb-3 text-base font-semibold">
+          <MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Pickup Location & Time
+        </h3>
+        <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
+          <Detail label="Address">{[street, locality].filter(Boolean).join(", ") || "Not provided"}</Detail>
+          <Detail label="Pickup window">
+            {collectionDate || collectionSlot ? `${collectionDate || "Date pending"}${collectionSlot ? ` · ${collectionSlot}` : ""}` : "Not provided"}
+          </Detail>
+          {hasCoordinates ? <Detail label="Coordinates">{data.coordinates!.lat.toFixed(5)}, {data.coordinates!.lng.toFixed(5)}</Detail> : null}
+        </dl>
+      </section>
 
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Payment method</h3>
-        <RadioGroup
-          defaultValue="eft"
-          onValueChange={(val) => console.log(val)}
-          className="gap-2.5"
-        >
-          <Label
-            htmlFor="eft"
-            className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 font-normal transition-colors hover:bg-muted/30"
-          >
-            <RadioGroupItem value="eft" id="eft" />
-            <span className="text-sm">EFT / Bank Transfer</span>
-          </Label>
-          <Label
-            htmlFor="card"
-            className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 font-normal transition-colors hover:bg-muted/30"
-          >
-            <RadioGroupItem value="card" id="card" />
-            <span className="text-sm">Card on Delivery (Yoco/Tap)</span>
-          </Label>
-        </RadioGroup>
+      <section className="rounded-xl border bg-card p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 border-b pb-3 text-base font-semibold">
+          <Tag className="h-4 w-4 text-primary" aria-hidden="true" /> Upsell Add-ons
+        </h3>
+        <p className="pt-4 text-sm font-medium">{addOns}</p>
+      </section>
+
+      <section className="rounded-xl border bg-primary/5 p-4 shadow-sm">
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <WalletCards className="h-4 w-4 text-primary" aria-hidden="true" /> Est. Total Price
+        </h3>
+        <p className="mt-3 text-2xl font-bold text-primary">
+          {data.estimatedPriceMin != null && data.estimatedPriceMax != null ? `R${data.estimatedPriceMin} – R${data.estimatedPriceMax}` : "Pending"}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Final pricing is confirmed after driver verification.</p>
+      </section>
+
+      <div className="flex items-start gap-3 rounded-lg border p-4">
+        <Checkbox id="terms-accepted" checked={termsAccepted} onCheckedChange={(checked) => onTermsAcceptedChange(checked === true)} />
+        <Label htmlFor="terms-accepted" className="cursor-pointer text-sm font-normal leading-relaxed">
+          I agree to the terms of service and understand pricing is an estimate subject to driver verification.
+        </Label>
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { BookingStatus, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import driversData from "@/data/drivers.json";
-import { ArrowLeft, Check, Truck, User } from "lucide-react";
+import { ArrowLeft, User } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_OPTIONS: BookingStatus[] = [
@@ -23,17 +23,11 @@ export default function AdminBookingDetail() {
   const router = useRouter();
   const id = params.id as string;
   const { bookings, fetchBookings, updateBookingStatus, updatePaymentStatus, assignDriver } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const booking = bookings.find((candidate) => candidate.id === id);
 
   useEffect(() => {
     if (bookings.length === 0) fetchBookings();
   }, [bookings.length, fetchBookings]);
-
-  useEffect(() => {
-    if (bookings.length > 0) {
-      setBooking(bookings.find((b) => b.id === id));
-    }
-  }, [bookings, id]);
 
   if (!booking) return <div className="p-10">Loading...</div>;
 

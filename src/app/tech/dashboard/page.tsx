@@ -13,14 +13,15 @@ import driversData from "@/data/drivers.json";
 export default function TechDashboard() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
-  const [driverId, setDriverId] = useState<string | null>(null);
+  const [driverId] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : localStorage.getItem("currentDriverId")
+  );
 
   useEffect(() => {
     const storedId = localStorage.getItem("currentDriverId");
     if (!storedId) {
       router.push("/tech");
     } else {
-      setDriverId(storedId);
       if (bookings.length === 0) fetchBookings();
     }
   }, [bookings.length, fetchBookings, router]);

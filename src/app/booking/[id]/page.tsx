@@ -23,7 +23,16 @@ export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
   const { bookings, fetchBookings } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const [sessionBooking] = useState<Booking | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    try {
+      const raw = sessionStorage.getItem(`booking:${id}`);
+      return raw ? (JSON.parse(raw) as Booking) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  const booking = bookings.find((candidate) => candidate.id === id) ?? sessionBooking;
 
   useEffect(() => {
     // Ensure we have data (from local storage or fetch)
@@ -31,26 +40,6 @@ export default function BookingStatusPage() {
       fetchBookings();
     }
   }, [bookings.length, fetchBookings]);
-
-  useEffect(() => {
-    if (bookings.length > 0) {
-      const found = bookings.find((b) => b.id === id);
-      if (found) {
-        setBooking(found);
-        return;
-      }
-    }
-
-    // Fallback: booking just submitted in this session (guest track)
-    try {
-      const raw = sessionStorage.getItem(`booking:${id}`);
-      if (raw) {
-        setBooking(JSON.parse(raw) as Booking);
-      }
-    } catch {
-      // ignore
-    }
-  }, [bookings, id]);
 
   if (!booking) {
     return (

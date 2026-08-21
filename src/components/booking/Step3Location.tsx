@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,20 +37,6 @@ export function Step3Location({ data, update }: StepProps) {
     data.coordinates?.lng != null ? String(data.coordinates.lng) : ""
   );
 
-  // Keep inputs in sync when autocomplete (or parent) updates coordinates
-  useEffect(() => {
-    setLatInput(
-      data.coordinates?.lat != null && Number.isFinite(data.coordinates.lat)
-        ? String(data.coordinates.lat)
-        : ""
-    );
-    setLngInput(
-      data.coordinates?.lng != null && Number.isFinite(data.coordinates.lng)
-        ? String(data.coordinates.lng)
-        : ""
-    );
-  }, [data.coordinates?.lat, data.coordinates?.lng]);
-
   const commitCoordinates = (latRaw: string, lngRaw: string) => {
     const lat = Number(latRaw.trim());
     const lng = Number(lngRaw.trim());
@@ -78,14 +64,16 @@ export function Step3Location({ data, update }: StepProps) {
             value={data.addressLine1 || ""}
             placeholder="e.g. 42 Protea Way, Durbanville"
             onInputChange={(value) => update({ addressLine1: value })}
-            onAddressResolved={(result) =>
+            onAddressResolved={(result) => {
+              setLatInput(String(result.coordinates.lat));
+              setLngInput(String(result.coordinates.lng));
               update({
                 addressLine1: result.addressLine1,
                 suburb: result.suburb,
                 city: result.city,
                 coordinates: result.coordinates,
-              })
-            }
+              });
+            }}
           />
           <p className="text-xs text-muted-foreground">
             Start typing to search Cape Town or Johannesburg addresses

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Step1Details } from "@/components/booking/Step1Details";
@@ -8,7 +9,6 @@ import { Step2Photos } from "@/components/booking/Step2Photos";
 import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
-import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
 import { generateBookingReference } from "@/lib/bookingReference";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking } from "@/types/booking";
@@ -57,9 +57,10 @@ function buildSubmittedBooking(
 }
 
 export default function BookingWizard() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
-  const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
     addOns: { stainTreatment: false, fabricProtection: false },
@@ -84,6 +85,7 @@ export default function BookingWizard() {
   };
 
   const confirmBooking = () => {
+    if (!termsAccepted) return;
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(formData, bookingId);
 
@@ -103,17 +105,8 @@ export default function BookingWizard() {
       ],
     }));
 
-    setSubmittedBookingId(bookingId);
+    router.push(`/booking/${bookingId}`);
   };
-
-  if (submittedBookingId) {
-    return (
-      <BookingSuccessPanel
-        bookingId={submittedBookingId}
-        email={formData.customer?.email || ""}
-      />
-    );
-  }
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-10">
@@ -154,7 +147,13 @@ export default function BookingWizard() {
           {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
           {step === 3 && <Step3Location data={formData} update={updateFormData} />}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}
-          {step === 5 && <Step5Review data={formData} update={updateFormData} />}
+          {step === 5 && (
+            <Step5Review
+              data={formData}
+              termsAccepted={termsAccepted}
+              onTermsAcceptedChange={setTermsAccepted}
+            />
+          )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button variant="outline" onClick={prevStep} disabled={step === 1}>
@@ -163,7 +162,7 @@ export default function BookingWizard() {
           {step < totalSteps ? (
             <Button onClick={nextStep}>Next</Button>
           ) : (
-            <Button onClick={confirmBooking}>Confirm Booking</Button>
+            <Button onClick={confirmBooking} disabled={!termsAccepted}>Confirm Booking</Button>
           )}
         </CardFooter>
       </Card>
