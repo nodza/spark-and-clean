@@ -38,8 +38,8 @@ function buildSubmittedBooking(
     collectionSlot: formData.collectionSlot || "MORNING",
     rug: formData.rug || {
       type: "",
-      widthM: 0,
-      lengthM: 0,
+      widthM: null,
+      lengthM: null,
       areaSqM: 0,
       photos: [],
     },
@@ -57,11 +57,13 @@ function buildSubmittedBooking(
 }
 
 export default function BookingWizard() {
+  const addBooking = useBookingStore((s) => s.addBooking);
   const [step, setStep] = useState(1);
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
-    rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
+    rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: { stainTreatment: false, fabricProtection: false },
     customer: { id: "", name: "", email: "", phone: "" },
   });
@@ -83,11 +85,13 @@ export default function BookingWizard() {
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
-  const confirmBooking = () => {
+  const confirmBooking = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(formData, bookingId);
 
-    // Phase 1 mock payload — includes captured lat/lng for E11/E16
     console.log("Submitting booking payload:", booking);
 
     try {
@@ -96,14 +100,26 @@ export default function BookingWizard() {
       // ignore private-mode storage failures
     }
 
-    useBookingStore.setState((state) => ({
-      bookings: [
-        ...state.bookings.filter((b) => b.id !== bookingId),
-        booking,
-      ],
-    }));
+    const created = await addBooking(booking);
+    const resolvedId = created?.id || bookingId;
 
-    setSubmittedBookingId(bookingId);
+    if (created) {
+      try {
+        sessionStorage.setItem(`booking:${resolvedId}`, JSON.stringify(created));
+      } catch {
+        // ignore
+      }
+    } else {
+      useBookingStore.setState((state) => ({
+        bookings: [
+          ...state.bookings.filter((b) => b.id !== bookingId),
+          booking,
+        ],
+      }));
+    }
+
+    setSubmittedBookingId(resolvedId);
+    setIsSubmitting(false);
   };
 
   if (submittedBookingId) {
@@ -163,7 +179,9 @@ export default function BookingWizard() {
           {step < totalSteps ? (
             <Button onClick={nextStep}>Next</Button>
           ) : (
-            <Button onClick={confirmBooking}>Confirm Booking</Button>
+            <Button onClick={confirmBooking} disabled={isSubmitting}>
+              {isSubmitting ? "Confirming..." : "Confirm Booking"}
+            </Button>
           )}
         </CardFooter>
       </Card>

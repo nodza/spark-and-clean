@@ -112,9 +112,10 @@ export function Step5Review({ data }: StepProps) {
             {rugLabel ? (
               <>
                 {rugLabel}
+                {" · "}
                 {hasSize
-                  ? ` · ${data.rug!.widthM}m × ${data.rug!.lengthM}m`
-                  : ""}
+                  ? `${data.rug!.widthM}m × ${data.rug!.lengthM}m`
+                  : "To be measured by driver"}
               </>
             ) : (
               "Not set"

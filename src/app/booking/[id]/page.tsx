@@ -19,44 +19,62 @@ const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
   { id: "DELIVERED", label: "Delivered" },
 ];
 
+function readSessionBooking(id: string): Booking | undefined {
+  try {
+    const raw = sessionStorage.getItem(`booking:${id}`);
+    if (!raw) return undefined;
+    return JSON.parse(raw) as Booking;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
-  const { bookings, fetchBookings } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const { bookings, fetchBookings, isLoading } = useBookingStore();
+  const [hydrated, setHydrated] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [sessionBooking, setSessionBooking] = useState<Booking | undefined>();
 
   useEffect(() => {
-    // Ensure we have data (from local storage or fetch)
-    if (bookings.length === 0) {
-      fetchBookings();
-    }
-  }, [bookings.length, fetchBookings]);
+    setHydrated(useBookingStore.persist.hasHydrated());
+    return useBookingStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
 
   useEffect(() => {
-    if (bookings.length > 0) {
-      const found = bookings.find((b) => b.id === id);
-      if (found) {
-        setBooking(found);
-        return;
-      }
-    }
+    setSessionBooking(readSessionBooking(id));
+  }, [id]);
 
-    // Fallback: booking just submitted in this session (guest track)
-    try {
-      const raw = sessionStorage.getItem(`booking:${id}`);
-      if (raw) {
-        setBooking(JSON.parse(raw) as Booking);
-      }
-    } catch {
-      // ignore
-    }
-  }, [bookings, id]);
+  const booking = bookings.find((b) => b.id === id) ?? sessionBooking;
+
+  useEffect(() => {
+    if (!hydrated || booking || hasFetched) return;
+    void fetchBookings().finally(() => setHasFetched(true));
+  }, [hydrated, booking, hasFetched, fetchBookings]);
+
+  if (!hydrated || (isLoading && !booking && !hasFetched)) {
+    return (
+      <div className="container py-20 text-center">
+        <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
+        <p className="text-muted-foreground">
+          If this takes too long, the booking ID might be invalid.
+        </p>
+      </div>
+    );
+  }
 
   if (!booking) {
     return (
       <div className="container py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
-        <p className="text-muted-foreground">If this takes too long, the booking ID might be invalid.</p>
+        <h1 className="text-2xl font-bold mb-4">Booking not found</h1>
+        <p className="text-muted-foreground">
+          No booking exists for this ID. Complete a booking from{" "}
+          <a href="/book/rug" className="text-primary underline-offset-4 hover:underline">
+            /book/rug
+          </a>{" "}
+          to view status here.
+        </p>
       </div>
     );
   }
@@ -81,9 +99,8 @@ export default function BookingStatusPage() {
         </CardHeader>
         <CardContent>
           <div className="relative">
-            {/* Vertical line for mobile, horizontal for desktop could be tricky, let's stick to vertical list for simplicity and responsiveness */}
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-secondary" />
-            
+
             <div className="space-y-8 relative">
               {STATUS_STEPS.map((step, index) => {
                 const isCompleted = index <= currentStepIndex;
@@ -92,8 +109,8 @@ export default function BookingStatusPage() {
                 return (
                   <div key={step.id} className="flex items-center gap-4">
                     <div className={`z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                      isCompleted 
-                        ? "bg-primary border-primary text-primary-foreground" 
+                      isCompleted
+                        ? "bg-primary border-primary text-primary-foreground"
                         : "bg-background border-muted-foreground text-muted-foreground"
                     }`}>
                       {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -153,7 +170,14 @@ export default function BookingStatusPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Size</span>
-              <span className="font-medium">{booking.rug.widthM}m x {booking.rug.lengthM}m</span>
+              <span className="font-medium">
+                {typeof booking.rug.widthM === "number" &&
+                typeof booking.rug.lengthM === "number" &&
+                booking.rug.widthM > 0 &&
+                booking.rug.lengthM > 0
+                  ? `${booking.rug.widthM}m x ${booking.rug.lengthM}m`
+                  : "To be measured by driver"}
+              </span>
             </div>
             <div className="flex justify-between border-t pt-2 mt-2">
               <span className="font-semibold">Est. Total</span>

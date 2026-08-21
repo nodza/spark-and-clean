@@ -18,8 +18,8 @@ export interface Customer {
 
 export interface RugDetails {
   type: string; // Persian, Kilim, etc.
-  widthM: number;
-  lengthM: number;
+  widthM: number | null;
+  lengthM: number | null;
   areaSqM: number;
   photos?: string[]; // local URLs for mock
   labelPhotos?: string[]; // back-of-label / tag photos
