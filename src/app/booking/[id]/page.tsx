@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
-import { BookingStatus } from "@/types/booking";
+import { Booking, BookingStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, Clock, MapPin, Truck } from "lucide-react";
@@ -19,19 +19,34 @@ const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
   { id: "DELIVERED", label: "Delivered" },
 ];
 
+function readSessionBooking(id: string): Booking | undefined {
+  try {
+    const raw = sessionStorage.getItem(`booking:${id}`);
+    if (!raw) return undefined;
+    return JSON.parse(raw) as Booking;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
   const { bookings, fetchBookings, isLoading } = useBookingStore();
   const [hydrated, setHydrated] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
+  const [sessionBooking, setSessionBooking] = useState<Booking | undefined>();
 
   useEffect(() => {
     setHydrated(useBookingStore.persist.hasHydrated());
     return useBookingStore.persist.onFinishHydration(() => setHydrated(true));
   }, []);
 
-  const booking = bookings.find((b) => b.id === id);
+  useEffect(() => {
+    setSessionBooking(readSessionBooking(id));
+  }, [id]);
+
+  const booking = bookings.find((b) => b.id === id) ?? sessionBooking;
 
   useEffect(() => {
     if (!hydrated || booking || hasFetched) return;
@@ -84,9 +99,8 @@ export default function BookingStatusPage() {
         </CardHeader>
         <CardContent>
           <div className="relative">
-            {/* Vertical line for mobile, horizontal for desktop could be tricky, let's stick to vertical list for simplicity and responsiveness */}
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-secondary" />
-            
+
             <div className="space-y-8 relative">
               {STATUS_STEPS.map((step, index) => {
                 const isCompleted = index <= currentStepIndex;
@@ -95,8 +109,8 @@ export default function BookingStatusPage() {
                 return (
                   <div key={step.id} className="flex items-center gap-4">
                     <div className={`z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                      isCompleted 
-                        ? "bg-primary border-primary text-primary-foreground" 
+                      isCompleted
+                        ? "bg-primary border-primary text-primary-foreground"
                         : "bg-background border-muted-foreground text-muted-foreground"
                     }`}>
                       {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}

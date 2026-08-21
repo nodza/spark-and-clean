@@ -22,6 +22,7 @@ export interface RugDetails {
   lengthM: number | null;
   areaSqM: number;
   photos?: string[]; // local URLs for mock
+  labelPhotos?: string[]; // back-of-label / tag photos
 }
 
 export interface Coordinates {
@@ -45,6 +46,8 @@ export interface Booking {
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;
+  /** Phase 1 stub — format-validated promo code; discount calc deferred to E8 */
+  couponCode?: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
