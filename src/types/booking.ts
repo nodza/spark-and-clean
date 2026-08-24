@@ -5,7 +5,8 @@ export type BookingStatus =
   | "CLEANING"
   | "DRYING"
   | "READY"
-  | "DELIVERED";
+  | "DELIVERED"
+  | "CANCELLED";
 
 export type PaymentStatus = "UNPAID" | "DEPOSIT" | "PAID";
 

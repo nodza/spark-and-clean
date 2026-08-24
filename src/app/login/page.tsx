@@ -10,7 +10,7 @@ import { Sparkles } from "lucide-react";
 
 export default function ClientLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState("sarah.j@example.com"); // Pre-fill for demo
+  const [email, setEmail] = useState("");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +46,6 @@ export default function ClientLogin() {
             <Button type="submit" className="w-full">
               View My Bookings
             </Button>
-            <div className="text-center text-sm text-muted-foreground mt-4">
-              <p>Demo Hint: Use <strong>sarah.j@example.com</strong></p>
-            </div>
           </form>
         </CardContent>
       </Card>

@@ -4,11 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Calendar, MapPin, Plus } from "lucide-react";
 import { format } from "date-fns";
+
+function formatCollectionDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date pending" : format(date, "PPP");
+}
 
 export default function ClientDashboard() {
   const router = useRouter();
@@ -71,7 +76,7 @@ export default function ClientDashboard() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span>{format(new Date(booking.collectionDate), "PPP")}</span>
+                        <span>{formatCollectionDate(booking.collectionDate)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <MapPin className="h-4 w-4" />
