@@ -21,7 +21,16 @@ export function isValidCouponFormat(code: string): boolean {
 
 export function Step4Price({ data, update }: StepProps) {
   const addOns = data.addOns || { stainTreatment: false, fabricProtection: false };
-  const area = data.rug?.areaSqM || 0;
+  const area =
+    typeof data.rug?.areaSqM === "number" && Number.isFinite(data.rug.areaSqM)
+      ? data.rug.areaSqM
+      : 0;
+  const dimensionsSkipped = !(
+    typeof data.rug?.widthM === "number" &&
+    typeof data.rug?.lengthM === "number" &&
+    data.rug.widthM > 0 &&
+    data.rug.lengthM > 0
+  );
 
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
   const [couponStatus, setCouponStatus] = useState<"idle" | "success" | "error">(
@@ -30,8 +39,7 @@ export function Step4Price({ data, update }: StepProps) {
 
   const baseRate = 80;
   const typeMultiplier = data.rug?.type === "Persian" ? 1.5 : 1.0;
-
-  const basePrice = Math.round(area * baseRate * typeMultiplier);
+  const basePrice = Math.round(area * baseRate * typeMultiplier) || 0;
   const stainPrice = addOns.stainTreatment ? 150 : 0;
   const protectPrice = addOns.fabricProtection ? 200 : 0;
 
@@ -66,7 +74,9 @@ export function Step4Price({ data, update }: StepProps) {
           R{totalMin} - R{totalMax}
         </div>
         <p className="text-sm text-muted-foreground">
-          Final price confirmed after inspection.
+          {dimensionsSkipped
+            ? "Driver to measure on collection"
+            : "Final price confirmed after inspection."}
         </p>
       </div>
 
