@@ -44,8 +44,8 @@ function buildSubmittedBooking(
       photos: [],
     },
     addOns: formData.addOns || {
-      stainTreatment: false,
-      fabricProtection: false,
+      odourRemoval: false,
+      stainProtection: false,
     },
     estimatedPriceMin: formData.estimatedPriceMin || 0,
     estimatedPriceMax: formData.estimatedPriceMax || 0,
@@ -64,7 +64,10 @@ export default function BookingWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
-    addOns: { stainTreatment: false, fabricProtection: false },
+    addOns: {
+      odourRemoval: false,
+      stainProtection: false,
+    },
     customer: { id: "", name: "", email: "", phone: "" },
   });
 

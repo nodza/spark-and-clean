@@ -58,8 +58,8 @@ export function Step5Review({ data }: StepProps) {
 
   const addOns =
     [
-      data.addOns?.stainTreatment && "Stain Treatment",
-      data.addOns?.fabricProtection && "Fiber Shield",
+      data.addOns?.odourRemoval && "Odour Removal & Hygiene Treatment",
+      data.addOns?.stainProtection && "Stain Protection Treatment",
     ]
       .filter(Boolean)
       .join(", ") || "None";
