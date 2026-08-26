@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import driversData from "@/data/drivers.json";
-import { ArrowLeft, Check, Truck, User } from "lucide-react";
+import { ArrowLeft, User } from "lucide-react";
 import { format } from "date-fns";
+
+type DriverOption = { id: string; name: string; vehicle: string };
 
 const STATUS_OPTIONS: BookingStatus[] = [
   "BOOKED", "SCHEDULED", "COLLECTED", "CLEANING", "DRYING", "READY", "DELIVERED"
@@ -24,10 +25,17 @@ export default function AdminBookingDetail() {
   const id = params.id as string;
   const { bookings, fetchBookings, updateBookingStatus, updatePaymentStatus, assignDriver } = useBookingStore();
   const [booking, setBooking] = useState<Booking | undefined>();
+  const [drivers, setDrivers] = useState<DriverOption[]>([]);
 
   useEffect(() => {
-    if (bookings.length === 0) fetchBookings();
-  }, [bookings.length, fetchBookings]);
+    void fetchBookings();
+    void fetch("/api/drivers", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setDrivers(data);
+      })
+      .catch(() => setDrivers([]));
+  }, [fetchBookings]);
 
   useEffect(() => {
     if (bookings.length > 0) {
@@ -161,7 +169,7 @@ export default function AdminBookingDetail() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned" disabled>Select driver...</SelectItem>
-                    {driversData.map((driver) => (
+                    {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
                         {driver.name} ({driver.vehicle})
                       </SelectItem>

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, Clock, MapPin, Truck } from "lucide-react";
 import { format } from "date-fns";
+import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 
 const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
   { id: "BOOKED", label: "Booked" },
@@ -19,47 +20,34 @@ const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
   { id: "DELIVERED", label: "Delivered" },
 ];
 
-function readSessionBooking(id: string): Booking | undefined {
-  try {
-    const raw = sessionStorage.getItem(`booking:${id}`);
-    if (!raw) return undefined;
-    return JSON.parse(raw) as Booking;
-  } catch {
-    return undefined;
-  }
-}
-
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
-  const { bookings, fetchBookings, isLoading } = useBookingStore();
-  const [hydrated, setHydrated] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [sessionBooking, setSessionBooking] = useState<Booking | undefined>();
+  const { email, ready: authReady } = useRequireClientAuth();
+  const { bookings, fetchBookingById, isLoading } = useBookingStore();
+  const [booking, setBooking] = useState<Booking | undefined>();
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setHydrated(useBookingStore.persist.hasHydrated());
-    return useBookingStore.persist.onFinishHydration(() => setHydrated(true));
-  }, []);
+    if (!authReady) return;
+    const cached = bookings.find((b) => b.id === id);
+    if (cached) {
+      setBooking(cached);
+      setLoaded(true);
+      return;
+    }
+    void fetchBookingById(id).then((b) => {
+      setBooking(b);
+      setLoaded(true);
+    });
+  }, [authReady, bookings, fetchBookingById, id]);
 
-  useEffect(() => {
-    setSessionBooking(readSessionBooking(id));
-  }, [id]);
+  if (!authReady || !email) return null;
 
-  const booking = bookings.find((b) => b.id === id) ?? sessionBooking;
-
-  useEffect(() => {
-    if (!hydrated || booking || hasFetched) return;
-    void fetchBookings().finally(() => setHasFetched(true));
-  }, [hydrated, booking, hasFetched, fetchBookings]);
-
-  if (!hydrated || (isLoading && !booking && !hasFetched)) {
+  if (!loaded || (isLoading && !booking)) {
     return (
       <div className="container py-20 text-center">
         <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
-        <p className="text-muted-foreground">
-          If this takes too long, the booking ID might be invalid.
-        </p>
       </div>
     );
   }
@@ -69,12 +57,22 @@ export default function BookingStatusPage() {
       <div className="container py-20 text-center">
         <h1 className="text-2xl font-bold mb-4">Booking not found</h1>
         <p className="text-muted-foreground">
-          No booking exists for this ID. Complete a booking from{" "}
-          <a href="/book/rug" className="text-primary underline-offset-4 hover:underline">
-            /book/rug
-          </a>{" "}
-          to view status here.
+          No booking exists for this ID, or it does not belong to your account.
         </p>
+      </div>
+    );
+  }
+
+  if (booking.customer.email.toLowerCase() !== email.toLowerCase()) {
+    return (
+      <div className="container py-20 text-center">
+        <h1 className="text-2xl font-bold mb-4">Access denied</h1>
+        <p className="text-muted-foreground mb-6">
+          This booking belongs to another account.
+        </p>
+        <a href="/dashboard" className="text-primary underline-offset-4 hover:underline">
+          Back to My Bookings
+        </a>
       </div>
     );
   }
@@ -120,31 +118,46 @@ export default function BookingStatusPage() {
         <CardHeader>
           <CardTitle className="flex justify-between items-center">
             <span>Current Status</span>
-            <Badge variant={booking.status === "DELIVERED" ? "default" : "secondary"} className="text-lg px-4 py-1">
-              {STATUS_STEPS.find(s => s.id === booking.status)?.label}
+            <Badge
+              variant={booking.status === "DELIVERED" ? "default" : "secondary"}
+              className="text-lg px-4 py-1"
+            >
+              {STATUS_STEPS.find((s) => s.id === booking.status)?.label}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="relative">
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-secondary" />
-
             <div className="space-y-8 relative">
               {STATUS_STEPS.map((step, index) => {
                 const isCompleted = index <= currentStepIndex;
                 const isCurrent = index === currentStepIndex;
-
                 return (
                   <div key={step.id} className="flex items-center gap-4">
-                    <div className={`z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                      isCompleted
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "bg-background border-muted-foreground text-muted-foreground"
-                    }`}>
-                      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                    <div
+                      className={`z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                        isCompleted
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "bg-background border-muted-foreground text-muted-foreground"
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-5 h-5" />
+                      ) : (
+                        <Circle className="w-5 h-5" />
+                      )}
                     </div>
-                    <div className={`${isCompleted ? "text-foreground" : "text-muted-foreground"}`}>
-                      <p className={`font-medium ${isCurrent ? "text-lg font-bold text-primary" : ""}`}>
+                    <div
+                      className={
+                        isCompleted ? "text-foreground" : "text-muted-foreground"
+                      }
+                    >
+                      <p
+                        className={`font-medium ${
+                          isCurrent ? "text-lg font-bold text-primary" : ""
+                        }`}
+                      >
                         {step.label}
                       </p>
                       {isCurrent && (
@@ -173,13 +186,18 @@ export default function BookingStatusPage() {
               <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
               <div>
                 <p className="font-medium">{booking.addressLine1}</p>
-                <p className="text-sm text-muted-foreground">{booking.suburb}, {booking.city}</p>
+                <p className="text-sm text-muted-foreground">
+                  {booking.suburb}, {booking.city}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm">
-                {format(new Date(booking.collectionDate), "PPP")} - {booking.collectionSlot === "MORNING" ? "08:00 - 12:00" : "12:00 - 16:00"}
+                {format(new Date(booking.collectionDate), "PPP")} -{" "}
+                {booking.collectionSlot === "MORNING"
+                  ? "08:00 - 12:00"
+                  : "12:00 - 16:00"}
               </p>
             </div>
           </CardContent>
@@ -209,7 +227,9 @@ export default function BookingStatusPage() {
             </div>
             <div className="flex justify-between border-t pt-2 mt-2">
               <span className="font-semibold">Est. Total</span>
-              <span className="font-bold text-primary">R{booking.estimatedPriceMin} - R{booking.estimatedPriceMax}</span>
+              <span className="font-bold text-primary">
+                R{booking.estimatedPriceMin} - R{booking.estimatedPriceMax}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -240,12 +260,6 @@ export default function BookingStatusPage() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">{paymentLabel}</p>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Estimated amount</span>
-            <span className="font-medium">
-              R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
-            </span>
-          </div>
           {booking.paymentStatus === "UNPAID" && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               Outstanding balance — pay after inspection or when your rug is ready

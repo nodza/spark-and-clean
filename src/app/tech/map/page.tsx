@@ -8,8 +8,8 @@ import { ArrowLeft } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { Icon } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 
-// Dynamic import for Leaflet map to avoid SSR issues
 const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then(mod => mod.Marker), { ssr: false });
@@ -17,21 +17,13 @@ const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ss
 
 export default function TechMap() {
   const router = useRouter();
+  const { user, ready } = useRequireAuth(["DRIVER"], "/tech");
   const { bookings, fetchBookings } = useBookingStore();
-  const [driverId, setDriverId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [markerIcon, setMarkerIcon] = useState<Icon | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    const storedId = localStorage.getItem("currentDriverId");
-    if (!storedId) {
-      router.push("/tech");
-    } else {
-      setDriverId(storedId);
-      if (bookings.length === 0) fetchBookings();
-    }
-
     void import("leaflet").then((L) => {
       setMarkerIcon(
         L.icon({
@@ -43,15 +35,19 @@ export default function TechMap() {
         })
       );
     });
-  }, [bookings.length, fetchBookings, router]);
+  }, []);
 
-  if (!mounted || !driverId || !markerIcon) return null;
+  useEffect(() => {
+    if (ready) void fetchBookings();
+  }, [ready, fetchBookings]);
 
+  if (!mounted || !ready || !user || !markerIcon) return null;
+
+  const driverId = user.driverProfileId;
   const myJobs = bookings.filter(
     (b) => b.assignedDriverId === driverId && b.status !== "DELIVERED"
   );
 
-  // Mock coordinates for Cape Town suburbs
   const getCoords = (suburb: string): [number, number] => {
     const coords: Record<string, [number, number]> = {
       Durbanville: [-33.8333, 18.65],

@@ -1,26 +1,70 @@
 import { NextResponse } from "next/server";
-import bookingsData from "@/data/bookings.json";
-
-// Simulate DB delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { connectDB } from "@/lib/mongodb";
+import { Booking } from "@/models/Booking";
+import { getSession } from "@/lib/session";
+import { toClientBooking } from "@/lib/serialize";
 
 export async function GET() {
-  await delay(500);
-  // In a real app, this would be: await db.collection('bookings').find({}).toArray();
-  return NextResponse.json(bookingsData);
+  try {
+    await connectDB();
+    const session = await getSession();
+
+    const filter: Record<string, unknown> = {};
+    if (session?.role === "CUSTOMER") {
+      filter["customer.email"] = session.email.toLowerCase();
+    } else if (session?.role === "DRIVER" && session.driverProfileId) {
+      filter.assignedDriverId = session.driverProfileId;
+    }
+    // ADMIN or unauthenticated admin prototype: all bookings
+    // Prefer requiring admin session for full list:
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const docs = await Booking.find(filter).sort({ createdAt: -1 }).lean();
+    return NextResponse.json(
+      docs.map((d) => toClientBooking(d as Record<string, unknown>))
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch bookings";
+    console.error("[api/bookings GET]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  await delay(800);
-  const body = await request.json();
-  
-  // In a real app: await db.collection('bookings').insertOne(body);
-  // For now, we just echo it back with an ID if missing
-  const newBooking = {
-    ...body,
-    id: body.id || `SC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`,
-    createdAt: new Date().toISOString(),
-  };
+  try {
+    await connectDB();
+    const body = await request.json();
 
-  return NextResponse.json(newBooking);
+    const id =
+      body.id ||
+      `SC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)
+        .toString()
+        .padStart(4, "0")}`;
+
+    const payload = {
+      ...body,
+      id,
+      createdAt: body.createdAt || new Date().toISOString(),
+      customer: {
+        ...body.customer,
+        email: body.customer?.email?.toLowerCase?.() ?? body.customer?.email,
+      },
+    };
+
+    const created = await Booking.findOneAndUpdate(
+      { id },
+      { $set: payload },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return NextResponse.json(
+      toClientBooking(created as Record<string, unknown>)
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create booking";
+    console.error("[api/bookings POST]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

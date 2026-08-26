@@ -12,11 +12,23 @@ export default function AdminAnalytics() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
   const [mounted, setMounted] = useState(false);
+  const [driverNames, setDriverNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setMounted(true);
-    if (bookings.length === 0) fetchBookings();
-  }, [bookings.length, fetchBookings]);
+    void fetchBookings();
+    void fetch("/api/drivers", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        const map: Record<string, string> = {};
+        for (const d of data) {
+          map[d.id] = String(d.name).split(" ")[0] || d.id;
+        }
+        setDriverNames(map);
+      })
+      .catch(() => undefined);
+  }, [fetchBookings]);
 
   if (!mounted) return null;
 
@@ -72,7 +84,7 @@ export default function AdminAnalytics() {
   }, {} as Record<string, { completed: number; active: number }>);
 
   const driverData = Object.entries(driverPerformance).map(([id, stats]) => ({
-    name: id === "driver_1" ? "Thabo" : "Sipho",
+    name: driverNames[id] || id,
     completed: stats.completed,
     active: stats.active,
     total: stats.completed + stats.active

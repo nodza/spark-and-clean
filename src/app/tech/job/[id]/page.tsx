@@ -18,8 +18,8 @@ export default function TechJobDetail() {
   const [booking, setBooking] = useState<Booking | undefined>();
 
   useEffect(() => {
-    if (bookings.length === 0) fetchBookings();
-  }, [bookings.length, fetchBookings]);
+    void fetchBookings();
+  }, [fetchBookings]);
 
   useEffect(() => {
     if (bookings.length > 0) {
