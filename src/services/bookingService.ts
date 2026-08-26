@@ -1,6 +1,8 @@
 import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import bookingsData from "@/data/bookings.json";
 
+type BookingUpdate = Pick<Booking, "id"> & Partial<Booking>;
+
 // Simulate API delay
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -33,20 +35,20 @@ class BookingService {
     return res.json();
   }
 
-  async updateStatus(id: string, status: BookingStatus): Promise<Booking> {
+  async updateStatus(id: string, status: BookingStatus): Promise<BookingUpdate> {
     await delay(400);
     // In real app: await fetch(`/api/bookings/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
-    return { id, status } as any; // Partial return for mock
+    return { id, status }; // Partial return for mock
   }
 
-  async updatePaymentStatus(id: string, status: PaymentStatus): Promise<Booking> {
+  async updatePaymentStatus(id: string, status: PaymentStatus): Promise<BookingUpdate> {
     await delay(400);
-    return { id, paymentStatus: status } as any;
+    return { id, paymentStatus: status };
   }
 
-  async assignDriver(id: string, driverId: string): Promise<Booking> {
+  async assignDriver(id: string, driverId: string): Promise<BookingUpdate> {
     await delay(400);
-    return { id, assignedDriverId: driverId, status: "SCHEDULED" } as any;
+    return { id, assignedDriverId: driverId, status: "SCHEDULED" };
   }
 }
 

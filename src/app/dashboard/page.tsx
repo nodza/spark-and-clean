@@ -116,14 +116,15 @@ function BookingCard({
 export default function ClientDashboard() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
-  const [email, setEmail] = useState<string | null>(null);
+  const [email] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : localStorage.getItem("clientEmail")
+  );
 
   useEffect(() => {
     const storedEmail = localStorage.getItem("clientEmail");
     if (!storedEmail) {
       router.push("/login");
     } else {
-      setEmail(storedEmail);
       if (bookings.length === 0) fetchBookings();
     }
   }, [bookings.length, fetchBookings, router]);

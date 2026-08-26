@@ -5,20 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 
 export default function AdminAnalytics() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
-  const [mounted, setMounted] = useState(false);
-
   useEffect(() => {
-    setMounted(true);
     if (bookings.length === 0) fetchBookings();
   }, [bookings.length, fetchBookings]);
-
-  if (!mounted) return null;
 
   // Prepare Data
   const bookingsByArea = bookings.reduce((acc, b) => {

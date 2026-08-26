@@ -61,6 +61,7 @@ export default function BookingWizard() {
   const [step, setStep] = useState(1);
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
@@ -89,7 +90,7 @@ export default function BookingWizard() {
   };
 
   const confirmBooking = async () => {
-    if (isSubmitting) return;
+    if (!termsAccepted || isSubmitting) return;
     setIsSubmitting(true);
 
     const bookingId = generateBookingReference(formData.city);
@@ -173,7 +174,13 @@ export default function BookingWizard() {
           {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
           {step === 3 && <Step3Location data={formData} update={updateFormData} />}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}
-          {step === 5 && <Step5Review data={formData} update={updateFormData} />}
+          {step === 5 && (
+            <Step5Review
+              data={formData}
+              termsAccepted={termsAccepted}
+              onTermsAcceptedChange={setTermsAccepted}
+            />
+          )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button variant="outline" onClick={prevStep} disabled={step === 1}>
@@ -182,7 +189,7 @@ export default function BookingWizard() {
           {step < totalSteps ? (
             <Button onClick={nextStep}>Next</Button>
           ) : (
-            <Button onClick={confirmBooking} disabled={isSubmitting}>
+            <Button onClick={confirmBooking} disabled={!termsAccepted || isSubmitting}>
               {isSubmitting ? "Confirming..." : "Confirm Booking"}
             </Button>
           )}
