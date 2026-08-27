@@ -97,9 +97,9 @@ export default function AdminBookingDetail() {
               <div>
                 <Label className="text-muted-foreground mb-2 block">Add-ons</Label>
                 <div className="flex gap-2">
-                  {booking.addOns.stainTreatment && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Treatment</span>}
-                  {booking.addOns.fabricProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Fiber Shield</span>}
-                  {!booking.addOns.stainTreatment && !booking.addOns.fabricProtection && <span className="text-muted-foreground italic">None</span>}
+                  {booking.addOns.odourRemoval && <span className="bg-secondary px-2 py-1 rounded text-sm">Odour Removal & Hygiene Treatment</span>}
+                  {booking.addOns.stainProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Protection Treatment</span>}
+                  {!booking.addOns.odourRemoval && !booking.addOns.stainProtection && <span className="text-muted-foreground italic">None</span>}
                 </div>
               </div>
             </CardContent>

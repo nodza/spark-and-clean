@@ -19,9 +19,26 @@ export function isValidCouponFormat(code: string): boolean {
   return /^[A-Za-z0-9]+$/.test(code.trim());
 }
 
+const ODOUR_RATE = 25;
+const STAIN_PROTECTION_RATE = 40;
+
+const EMPTY_ADD_ONS = {
+  odourRemoval: false,
+  stainProtection: false,
+};
+
 export function Step4Price({ data, update }: StepProps) {
-  const addOns = data.addOns || { stainTreatment: false, fabricProtection: false };
-  const area = data.rug?.areaSqM || 0;
+  const addOns = data.addOns || EMPTY_ADD_ONS;
+  const area =
+    typeof data.rug?.areaSqM === "number" && Number.isFinite(data.rug.areaSqM)
+      ? data.rug.areaSqM
+      : 0;
+  const dimensionsSkipped = !(
+    typeof data.rug?.widthM === "number" &&
+    typeof data.rug?.lengthM === "number" &&
+    data.rug.widthM > 0 &&
+    data.rug.lengthM > 0
+  );
 
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
   const [couponStatus, setCouponStatus] = useState<"idle" | "success" | "error">(
@@ -30,12 +47,17 @@ export function Step4Price({ data, update }: StepProps) {
 
   const baseRate = 80;
   const typeMultiplier = data.rug?.type === "Persian" ? 1.5 : 1.0;
+  const basePrice = Math.round(area * baseRate * typeMultiplier) || 0;
+  const odourPrice =
+    addOns.odourRemoval && !dimensionsSkipped
+      ? Math.round(area * ODOUR_RATE)
+      : 0;
+  const stainProtectPrice =
+    addOns.stainProtection && !dimensionsSkipped
+      ? Math.round(area * STAIN_PROTECTION_RATE)
+      : 0;
 
-  const basePrice = Math.round(area * baseRate * typeMultiplier);
-  const stainPrice = addOns.stainTreatment ? 150 : 0;
-  const protectPrice = addOns.fabricProtection ? 200 : 0;
-
-  const totalMin = basePrice + stainPrice + protectPrice;
+  const totalMin = basePrice + odourPrice + stainProtectPrice;
   const totalMax = Math.round(totalMin * 1.2);
 
   useEffect(() => {
@@ -66,52 +88,84 @@ export function Step4Price({ data, update }: StepProps) {
           R{totalMin} - R{totalMax}
         </div>
         <p className="text-sm text-muted-foreground">
-          Final price confirmed after inspection.
+          {dimensionsSkipped
+            ? "Driver to measure on collection"
+            : "Final price confirmed after inspection."}
         </p>
       </div>
 
-      <div className="space-y-4 rounded-xl border bg-card p-6">
+      <div className="space-y-4">
         <h4 className="font-semibold">Recommended Add-ons</h4>
 
-        <div className="flex items-start space-x-3">
+        <label
+          htmlFor="odour"
+          className={cn(
+            "flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 transition-colors",
+            addOns.odourRemoval && "border-primary bg-primary/5"
+          )}
+        >
           <Checkbox
-            id="stain"
-            checked={addOns.stainTreatment}
+            id="odour"
+            className="mt-0.5"
+            checked={addOns.odourRemoval}
             onCheckedChange={(checked) =>
               update({
-                addOns: { ...addOns, stainTreatment: checked as boolean },
+                addOns: { ...addOns, odourRemoval: checked === true },
               })
             }
           />
-          <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="stain" className="cursor-pointer text-base font-medium">
-              Deep Stain Treatment (+R150)
-            </Label>
+          <div className="grid min-w-0 flex-1 gap-1.5 leading-none">
+            <span className="text-base font-medium">
+              Odour Removal & Hygiene Treatment{" "}
+              {dimensionsSkipped
+                ? `(+R${ODOUR_RATE}/sqm)`
+                : `(+R${odourPrice || Math.round(area * ODOUR_RATE)})`}
+            </span>
             <p className="text-sm text-muted-foreground">
-              Specialized treatment for wine, pet, or coffee stains.
+              Deep sanitizer and deodorizer
             </p>
+            {dimensionsSkipped && addOns.odourRemoval && (
+              <p className="text-sm text-muted-foreground">
+                Added (price calculated after driver measurement)
+              </p>
+            )}
           </div>
-        </div>
+        </label>
 
-        <div className="flex items-start space-x-3">
+        <label
+          htmlFor="protect"
+          className={cn(
+            "flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 transition-colors",
+            addOns.stainProtection && "border-primary bg-primary/5"
+          )}
+        >
           <Checkbox
             id="protect"
-            checked={addOns.fabricProtection}
+            className="mt-0.5"
+            checked={addOns.stainProtection}
             onCheckedChange={(checked) =>
               update({
-                addOns: { ...addOns, fabricProtection: checked as boolean },
+                addOns: { ...addOns, stainProtection: checked === true },
               })
             }
           />
-          <div className="grid gap-1.5 leading-none">
-            <Label htmlFor="protect" className="cursor-pointer text-base font-medium">
-              Fiber Shield Protection (+R200)
-            </Label>
+          <div className="grid min-w-0 flex-1 gap-1.5 leading-none">
+            <span className="text-base font-medium">
+              Stain Protection Treatment{" "}
+              {dimensionsSkipped
+                ? `(+R${STAIN_PROTECTION_RATE}/sqm)`
+                : `(+R${stainProtectPrice || Math.round(area * STAIN_PROTECTION_RATE)})`}
+            </span>
             <p className="text-sm text-muted-foreground">
-              Protects against future spills and sun damage.
+              Specialized coating to resist spills
             </p>
+            {dimensionsSkipped && addOns.stainProtection && (
+              <p className="text-sm text-muted-foreground">
+                Added (price calculated after driver measurement)
+              </p>
+            )}
           </div>
-        </div>
+        </label>
       </div>
 
       <div className="space-y-3 rounded-xl border p-6">

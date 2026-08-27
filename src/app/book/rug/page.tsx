@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Step1Details } from "@/components/booking/Step1Details";
@@ -9,6 +8,7 @@ import { Step2Photos } from "@/components/booking/Step2Photos";
 import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
+import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
 import { generateBookingReference } from "@/lib/bookingReference";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking } from "@/types/booking";
@@ -38,14 +38,14 @@ function buildSubmittedBooking(
     collectionSlot: formData.collectionSlot || "MORNING",
     rug: formData.rug || {
       type: "",
-      widthM: 0,
-      lengthM: 0,
+      widthM: null,
+      lengthM: null,
       areaSqM: 0,
       photos: [],
     },
     addOns: formData.addOns || {
-      stainTreatment: false,
-      fabricProtection: false,
+      odourRemoval: false,
+      stainProtection: false,
     },
     estimatedPriceMin: formData.estimatedPriceMin || 0,
     estimatedPriceMax: formData.estimatedPriceMax || 0,
@@ -57,13 +57,18 @@ function buildSubmittedBooking(
 }
 
 export default function BookingWizard() {
-  const router = useRouter();
+  const addBooking = useBookingStore((s) => s.addBooking);
   const [step, setStep] = useState(1);
+  const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
-    rug: { type: "", widthM: 0, lengthM: 0, areaSqM: 0, photos: [] },
-    addOns: { stainTreatment: false, fabricProtection: false },
+    rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
+    addOns: {
+      odourRemoval: false,
+      stainProtection: false,
+    },
     customer: { id: "", name: "", email: "", phone: "" },
   });
 
@@ -84,12 +89,13 @@ export default function BookingWizard() {
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
-  const confirmBooking = () => {
-    if (!termsAccepted) return;
+  const confirmBooking = async () => {
+    if (!termsAccepted || isSubmitting) return;
+    setIsSubmitting(true);
+
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(formData, bookingId);
 
-    // Phase 1 mock payload — includes captured lat/lng for E11/E16
     console.log("Submitting booking payload:", booking);
 
     try {
@@ -98,15 +104,36 @@ export default function BookingWizard() {
       // ignore private-mode storage failures
     }
 
-    useBookingStore.setState((state) => ({
-      bookings: [
-        ...state.bookings.filter((b) => b.id !== bookingId),
-        booking,
-      ],
-    }));
+    const created = await addBooking(booking);
+    const resolvedId = created?.id || bookingId;
 
-    router.push(`/booking/${bookingId}`);
+    if (created) {
+      try {
+        sessionStorage.setItem(`booking:${resolvedId}`, JSON.stringify(created));
+      } catch {
+        // ignore
+      }
+    } else {
+      useBookingStore.setState((state) => ({
+        bookings: [
+          ...state.bookings.filter((b) => b.id !== bookingId),
+          booking,
+        ],
+      }));
+    }
+
+    setSubmittedBookingId(resolvedId);
+    setIsSubmitting(false);
   };
+
+  if (submittedBookingId) {
+    return (
+      <BookingSuccessPanel
+        bookingId={submittedBookingId}
+        email={formData.customer?.email || ""}
+      />
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-10">
@@ -162,7 +189,9 @@ export default function BookingWizard() {
           {step < totalSteps ? (
             <Button onClick={nextStep}>Next</Button>
           ) : (
-            <Button onClick={confirmBooking} disabled={!termsAccepted}>Confirm Booking</Button>
+            <Button onClick={confirmBooking} disabled={!termsAccepted || isSubmitting}>
+              {isSubmitting ? "Confirming..." : "Confirm Booking"}
+            </Button>
           )}
         </CardFooter>
       </Card>

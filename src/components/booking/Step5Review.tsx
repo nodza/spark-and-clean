@@ -60,8 +60,8 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
 
   const addOns =
     [
-      data.addOns?.stainTreatment && "Stain Treatment",
-      data.addOns?.fabricProtection && "Fiber Shield",
+      data.addOns?.odourRemoval && "Odour Removal & Hygiene Treatment",
+      data.addOns?.stainProtection && "Stain Protection Treatment",
     ]
       .filter(Boolean)
       .join(", ") || "None";
@@ -74,11 +74,7 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
         </h3>
         <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
           <Detail label="Rug">
-            {rugLabel ? (
-              rugLabel
-            ) : (
-              "Not provided"
-            )}
+            {rugLabel ? rugLabel : "Not provided"}
           </Detail>
           <Detail label="Dimensions">
             {hasSize ? `${data.rug!.widthM}m × ${data.rug!.lengthM}m` : "Pending (Measured by Driver on Pickup)"}
