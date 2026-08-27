@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, MapPin, Phone, Navigation, CheckCircle2, Package } from "lucide-react";
 
 export default function TechJobDetail() {
@@ -15,17 +13,11 @@ export default function TechJobDetail() {
   const router = useRouter();
   const id = params.id as string;
   const { bookings, fetchBookings, updateBookingStatus } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const booking = bookings.find((candidate) => candidate.id === id);
 
   useEffect(() => {
     void fetchBookings();
   }, [fetchBookings]);
-
-  useEffect(() => {
-    if (bookings.length > 0) {
-      setBooking(bookings.find((b) => b.id === id));
-    }
-  }, [bookings, id]);
 
   if (!booking) return <div className="p-6">Loading job...</div>;
 
