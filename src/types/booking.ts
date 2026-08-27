@@ -41,8 +41,8 @@ export interface Booking {
   collectionSlot: "MORNING" | "AFTERNOON";
   rug: RugDetails;
   addOns: {
-    stainTreatment: boolean;
-    fabricProtection: boolean;
+    odourRemoval: boolean;
+    stainProtection: boolean;
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;

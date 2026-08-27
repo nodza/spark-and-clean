@@ -11,11 +11,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 export default function AdminAnalytics() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
-  const [mounted, setMounted] = useState(false);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    setMounted(true);
     void fetchBookings();
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
@@ -29,8 +27,6 @@ export default function AdminAnalytics() {
       })
       .catch(() => undefined);
   }, [fetchBookings]);
-
-  if (!mounted) return null;
 
   // Prepare Data
   const bookingsByArea = bookings.reduce((acc, b) => {

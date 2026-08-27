@@ -20,8 +20,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": false
+            "odourRemoval": true,
+            "stainProtection": false
         },
         "estimatedPriceMin": 950,
         "estimatedPriceMax": 1200,
@@ -50,8 +50,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": false
+            "odourRemoval": false,
+            "stainProtection": false
         },
         "estimatedPriceMin": 400,
         "estimatedPriceMax": 550,
@@ -81,8 +81,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": true
+            "odourRemoval": true,
+            "stainProtection": true
         },
         "estimatedPriceMin": 600,
         "estimatedPriceMax": 750,
@@ -112,8 +112,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": true
+            "odourRemoval": false,
+            "stainProtection": true
         },
         "estimatedPriceMin": 1500,
         "estimatedPriceMax": 1800,
@@ -143,8 +143,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": true
+            "odourRemoval": true,
+            "stainProtection": true
         },
         "estimatedPriceMin": 2500,
         "estimatedPriceMax": 3000,
@@ -174,8 +174,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": false
+            "odourRemoval": false,
+            "stainProtection": false
         },
         "estimatedPriceMin": 450,
         "estimatedPriceMax": 600,
@@ -205,8 +205,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": false
+            "odourRemoval": true,
+            "stainProtection": false
         },
         "estimatedPriceMin": 500,
         "estimatedPriceMax": 650,
@@ -236,8 +236,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": false
+            "odourRemoval": false,
+            "stainProtection": false
         },
         "estimatedPriceMin": 200,
         "estimatedPriceMax": 300,
@@ -267,8 +267,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": true
+            "odourRemoval": false,
+            "stainProtection": true
         },
         "estimatedPriceMin": 700,
         "estimatedPriceMax": 850,
@@ -297,8 +297,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": false
+            "odourRemoval": true,
+            "stainProtection": false
         },
         "estimatedPriceMin": 350,
         "estimatedPriceMax": 450,
@@ -327,8 +327,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": true
+            "odourRemoval": true,
+            "stainProtection": true
         },
         "estimatedPriceMin": 2200,
         "estimatedPriceMax": 2600,
@@ -357,8 +357,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": true
+            "odourRemoval": false,
+            "stainProtection": true
         },
         "estimatedPriceMin": 3000,
         "estimatedPriceMax": 3500,
@@ -388,8 +388,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": false
+            "odourRemoval": true,
+            "stainProtection": false
         },
         "estimatedPriceMin": 300,
         "estimatedPriceMax": 400,
@@ -419,8 +419,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": false,
-            "fabricProtection": false
+            "odourRemoval": false,
+            "stainProtection": false
         },
         "estimatedPriceMin": 450,
         "estimatedPriceMax": 550,
@@ -450,8 +450,8 @@
             "photos": []
         },
         "addOns": {
-            "stainTreatment": true,
-            "fabricProtection": true
+            "odourRemoval": true,
+            "stainProtection": true
         },
         "estimatedPriceMin": 1200,
         "estimatedPriceMax": 1500,

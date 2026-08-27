@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { BookingStatus, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +24,7 @@ export default function AdminBookingDetail() {
   const router = useRouter();
   const id = params.id as string;
   const { bookings, fetchBookings, updateBookingStatus, updatePaymentStatus, assignDriver } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
+  const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
 
   useEffect(() => {
@@ -36,12 +36,6 @@ export default function AdminBookingDetail() {
       })
       .catch(() => setDrivers([]));
   }, [fetchBookings]);
-
-  useEffect(() => {
-    if (bookings.length > 0) {
-      setBooking(bookings.find((b) => b.id === id));
-    }
-  }, [bookings, id]);
 
   if (!booking) return <div className="p-10">Loading...</div>;
 
@@ -111,9 +105,9 @@ export default function AdminBookingDetail() {
               <div>
                 <Label className="text-muted-foreground mb-2 block">Add-ons</Label>
                 <div className="flex gap-2">
-                  {booking.addOns.stainTreatment && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Treatment</span>}
-                  {booking.addOns.fabricProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Fiber Shield</span>}
-                  {!booking.addOns.stainTreatment && !booking.addOns.fabricProtection && <span className="text-muted-foreground italic">None</span>}
+                  {booking.addOns.odourRemoval && <span className="bg-secondary px-2 py-1 rounded text-sm">Odour Removal & Hygiene Treatment</span>}
+                  {booking.addOns.stainProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Protection Treatment</span>}
+                  {!booking.addOns.odourRemoval && !booking.addOns.stainProtection && <span className="text-muted-foreground italic">None</span>}
                 </div>
               </div>
             </CardContent>
