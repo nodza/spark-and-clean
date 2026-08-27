@@ -9,7 +9,7 @@ interface BookingState {
   isLoading: boolean;
   error: string | null;
 
-  fetchBookings: () => Promise<void>;
+  fetchBookings: (opts?: { silent?: boolean }) => Promise<void>;
   fetchBookingById: (id: string) => Promise<Booking | undefined>;
   addBooking: (booking: Booking) => Promise<Booking | undefined>;
   updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
@@ -26,13 +26,17 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchBookings: async () => {
-    set({ isLoading: true, error: null });
+  fetchBookings: async (opts) => {
+    const silent = opts?.silent === true;
+    if (!silent) set({ isLoading: true, error: null });
     try {
       const data = await bookingService.getBookings();
-      set({ bookings: data, isLoading: false });
+      set({ bookings: data, isLoading: false, error: null });
     } catch {
-      set({ error: "Failed to fetch bookings", isLoading: false });
+      set({
+        error: "Failed to fetch bookings",
+        isLoading: silent ? get().isLoading : false,
+      });
     }
   },
 

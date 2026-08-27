@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, PaymentStatus } from "@/types/booking";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, AlertCircle, Calendar, MapPin, Plus } from "lucide-react";
+import {
+  ArrowRight,
+  AlertCircle,
+  Calendar,
+  Loader2,
+  MapPin,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useRequireClientAuth, useAuth } from "@/hooks/useRequireClientAuth";
+import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
+import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 
 const PAST_STATUSES = new Set(["DELIVERED", "CANCELLED"]);
 
@@ -67,9 +74,14 @@ function BookingCard({
         )}
       >
         <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("text-lg", past ? "font-medium" : "font-bold")}>
+              <span
+                className={cn(
+                  "text-lg break-all",
+                  past ? "font-medium" : "font-bold"
+                )}
+              >
                 #{booking.id}
               </span>
               <Badge variant={past ? "secondary" : "default"}>
@@ -88,12 +100,12 @@ function BookingCard({
             ) : (
               <>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
+                  <Calendar className="h-4 w-4 shrink-0" />
                   <span>{format(new Date(booking.collectionDate), "PPP")}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span>{booking.addressLine1}</span>
+                  <MapPin className="h-4 w-4 shrink-0" />
+                  <span className="break-words">{booking.addressLine1}</span>
                 </div>
               </>
             )}
@@ -102,6 +114,7 @@ function BookingCard({
             variant={past ? "ghost" : "outline"}
             size={past ? "sm" : "default"}
             asChild
+            className="shrink-0"
           >
             <span>
               {past ? "View Details" : "Track Status"}{" "}
@@ -115,14 +128,17 @@ function BookingCard({
 }
 
 export default function ClientDashboard() {
-  const router = useRouter();
-  const { logout } = useAuth();
-  const { email, ready } = useRequireClientAuth();
-  const { bookings, fetchBookings } = useBookingStore();
+  const { user, email, ready } = useRequireClientAuth();
+  const {
+    bookings,
+    loading,
+    error,
+    lastSyncedAt,
+    isRefreshing,
+    refresh,
+  } = useBookingsLiveList(ready && !!email);
 
-  useEffect(() => {
-    if (ready) void fetchBookings();
-  }, [ready, fetchBookings]);
+  const displayName = user?.name?.trim() || email;
 
   const { activeBookings, pastBookings } = useMemo(() => {
     if (!email) {
@@ -144,64 +160,95 @@ export default function ClientDashboard() {
     return { activeBookings: active, pastBookings: past };
   }, [bookings, email]);
 
-  const handleLogout = async () => {
-    await logout();
-    router.push("/login");
-  };
-
   if (!ready || !email) return null;
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold">My Bookings</h1>
-          <p className="text-muted-foreground">Welcome back, {email}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void handleLogout()}>
-            Log out
-          </Button>
-          <Link href="/book/rug">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Booking
+          <p className="text-muted-foreground">Welcome back, {displayName}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {lastSyncedAt && (
+              <span aria-live="polite">
+                Last checked {format(lastSyncedAt, "HH:mm:ss")}
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
+              aria-label="Refresh bookings"
+            >
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
+              />
+              Refresh
             </Button>
-          </Link>
+          </div>
         </div>
+        <Link href="/book/rug">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" /> New Booking
+          </Button>
+        </Link>
       </div>
 
-      <div className="space-y-8">
-        <section>
-          <h2 className="mb-4 text-xl font-semibold">Active Orders</h2>
-          {activeBookings.length === 0 ? (
-            <Card className="border-dashed bg-secondary/10">
-              <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                <p className="mb-4 text-muted-foreground">No active bookings.</p>
-                <Link href="/book/rug">
-                  <Button variant="outline">Book a Collection</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {activeBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
-              ))}
-            </div>
-          )}
-        </section>
+      {error && (
+        <p
+          className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
 
-        {pastBookings.length > 0 && (
+      {loading ? (
+        <div
+          className="flex flex-col items-center justify-center gap-3 py-16 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+          <p className="text-sm text-muted-foreground">Loading your bookings…</p>
+        </div>
+      ) : (
+        <div className="space-y-8">
           <section>
-            <h2 className="mb-4 text-xl font-semibold">Past Orders</h2>
-            <div className="grid gap-4">
-              {pastBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} past />
-              ))}
-            </div>
+            <h2 className="mb-4 text-xl font-semibold">Active Orders</h2>
+            {activeBookings.length === 0 ? (
+              <Card className="border-dashed bg-secondary/10">
+                <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                  <p className="mb-4 text-muted-foreground">No active bookings.</p>
+                  <Link href="/book/rug">
+                    <Button variant="outline">Book a Collection</Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {activeBookings.map((booking) => (
+                  <BookingCard key={booking.id} booking={booking} />
+                ))}
+              </div>
+            )}
           </section>
-        )}
-      </div>
+
+          {pastBookings.length > 0 && (
+            <section>
+              <h2 className="mb-4 text-xl font-semibold">Past Orders</h2>
+              <div className="grid gap-4">
+                {pastBookings.map((booking) => (
+                  <BookingCard key={booking.id} booking={booking} past />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
