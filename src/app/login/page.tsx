@@ -28,11 +28,17 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
+  const emailFromQuery = searchParams.get("email") || "";
   const { user, ready, refresh } = useAuth();
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
+  const [email, setEmail] = useState(emailFromQuery);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (emailFromQuery) setEmail(emailFromQuery);
+  }, [emailFromQuery]);
 
   useEffect(() => {
     if (ready && user) {
@@ -44,8 +50,18 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const result = await loginUser({ email, password });
+    const result = await loginUser({
+      email,
+      password: showPassword ? password : password || undefined,
+    });
     setLoading(false);
+
+    if (result.requiresPassword) {
+      setShowPassword(true);
+      setError("Enter your staff password to continue.");
+      return;
+    }
+
     if (result.error || !result.user) {
       setError(result.error || "Login failed");
       return;
@@ -62,9 +78,7 @@ function LoginForm() {
             <Sparkles className="h-6 w-6 text-primary" />
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>
-            Sign in with your Spark &amp; Clean account
-          </CardDescription>
+          <CardDescription>Enter your email to view your bookings</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void handleLogin(e)} className="space-y-4">
@@ -85,20 +99,22 @@ function LoginForm() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <PasswordInput
-                id="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (error) setError(null);
-                }}
-                required
-                minLength={6}
-              />
-            </div>
+            {showPassword ? (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <PasswordInput
+                  id="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  required
+                  minLength={6}
+                />
+              </div>
+            ) : null}
             {error && (
               <p id="login-error" className="text-sm text-destructive" role="alert">
                 {error}
@@ -107,15 +123,24 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
+            {!showPassword ? (
+              <button
+                type="button"
+                className="w-full text-center text-sm text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => setShowPassword(true)}
+              >
+                Staff login (password)
+              </button>
+            ) : null}
             <div className="text-center text-sm text-muted-foreground mt-4 space-y-1">
               <p>
-                Demo customer: <strong>sarah.j@example.com</strong>
+                Demo customer: <strong>sarah.j@example.com</strong> (email only)
               </p>
               <p>
                 Demo admin: <strong>admin@sparkandclean.co.za</strong>
               </p>
               <p>
-                Password: <strong>Password123!</strong>
+                Staff password: <strong>Password123!</strong>
               </p>
             </div>
           </form>
