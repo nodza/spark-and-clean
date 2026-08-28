@@ -16,8 +16,8 @@ export default function TechJobDetail() {
   const booking = bookings.find((candidate) => candidate.id === id);
 
   useEffect(() => {
-    if (bookings.length === 0) fetchBookings();
-  }, [bookings.length, fetchBookings]);
+    void fetchBookings();
+  }, [fetchBookings]);
 
   if (!booking) return <div className="p-6">Loading job...</div>;
 

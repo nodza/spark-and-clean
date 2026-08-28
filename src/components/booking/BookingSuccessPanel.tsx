@@ -4,30 +4,67 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, UserPlus, Eye } from "lucide-react";
+import { CheckCircle2, UserPlus, Eye, LogIn } from "lucide-react";
+import { continueAsGuest, registerUser } from "@/lib/authClient";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 type BookingSuccessPanelProps = {
   bookingId: string;
   email: string;
+  name?: string;
+  phone?: string;
 };
 
 /**
- * Post-submission panel: track as guest or register with checkout email (E6 stub).
+ * Post-submission: track as guest, sign in, or register with checkout details.
  */
-export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelProps) {
+export function BookingSuccessPanel({
+  bookingId,
+  email,
+  name = "",
+  phone = "",
+}: BookingSuccessPanelProps) {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
-  const trackAsGuest = () => {
+  const goSignIn = () => {
+    router.push(`/login?next=/booking/${bookingId}`);
+  };
+
+  const trackAsGuest = async () => {
+    setError(null);
+    if (!email.trim()) {
+      setError("No checkout email found. Go back and add your email in Step 3.");
+      return;
+    }
+
+    setGuestLoading(true);
+    const result = await continueAsGuest({
+      email: email.trim().toLowerCase(),
+      name: name.trim() || undefined,
+      phone: phone.trim() || undefined,
+      bookingId,
+    });
+    setGuestLoading(false);
+
+    if (result.error || !result.user) {
+      setError(result.error || "Could not continue as guest");
+      return;
+    }
+
+    await refresh();
     router.push(`/booking/${bookingId}`);
   };
 
-  const registerAccount = (e: React.FormEvent) => {
+  const registerAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -45,25 +82,26 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
     }
 
     setRegistering(true);
+    const result = await registerUser({
+      email: email.trim().toLowerCase(),
+      password,
+      name: name.trim() || undefined,
+      phone: phone.trim() || undefined,
+    });
 
-    // Phase 1 stub for E6 authentication — credentials map to Step 3 email
-    try {
-      localStorage.setItem("clientEmail", email.trim().toLowerCase());
-      localStorage.setItem(
-        "clientAccount",
-        JSON.stringify({
-          email: email.trim().toLowerCase(),
-          registeredAt: new Date().toISOString(),
-          linkedBookingId: bookingId,
-          // Password not stored in plaintext in production; stub only for Phase 1 demo
-          passwordSet: true,
-        })
-      );
-      router.push("/dashboard");
-    } catch {
-      setError("Could not create account. Please try again.");
+    if (result.error) {
       setRegistering(false);
+      if (result.error.toLowerCase().includes("already")) {
+        setError("Account exists — sign in to view this booking.");
+        return;
+      }
+      setError(result.error);
+      return;
     }
+
+    await refresh();
+    setRegistering(false);
+    router.push(`/booking/${bookingId}`);
   };
 
   return (
@@ -74,7 +112,7 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Booking confirmed</h1>
         <p className="mt-2 text-muted-foreground">
-          Thanks — we&apos;ve received your collection request.
+          Thanks — we&apos;ve saved your collection request to our system.
         </p>
         <p className="mt-4 text-sm text-muted-foreground">Your booking reference</p>
         <p className="mt-1 font-mono text-xl font-bold tracking-wide text-primary">
@@ -87,15 +125,40 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Eye className="h-5 w-5 text-primary" />
-              Track as guest
+              Continue as guest
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              View this booking&apos;s status without creating an account.
+              View this booking&apos;s status without creating a password account.
+              We&apos;ll use <strong>{email || "your checkout email"}</strong>.
             </p>
-            <Button type="button" variant="outline" className="w-full" onClick={trackAsGuest}>
-              Track Booking as Guest
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => void trackAsGuest()}
+              disabled={guestLoading}
+            >
+              {guestLoading ? "Opening…" : "Track Booking as Guest"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <LogIn className="h-5 w-5 text-primary" />
+              Already have an account?
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sign in with <strong>{email || "your checkout email"}</strong> to track
+              this booking.
+            </p>
+            <Button type="button" variant="outline" className="w-full" onClick={goSignIn}>
+              Sign in to track booking
             </Button>
           </CardContent>
         </Card>
@@ -108,11 +171,32 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={registerAccount} className="space-y-4">
+            <form onSubmit={(e) => void registerAccount(e)} className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Save your details to track booking history. Your account email is the one you
-                entered at checkout.
+                We&apos;ll save your checkout name and phone with your account.
               </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="register-name">Full name</Label>
+                <Input
+                  id="register-name"
+                  type="text"
+                  value={name || ""}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="register-phone">Phone</Label>
+                <Input
+                  id="register-phone"
+                  type="tel"
+                  value={phone || ""}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="register-email">Email</Label>
@@ -122,18 +206,13 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
                   value={email || ""}
                   readOnly
                   className="bg-muted"
-                  aria-describedby="register-email-help"
                 />
-                <p id="register-email-help" className="text-xs text-muted-foreground">
-                  From Step 3 contact details
-                </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="register-password">Password</Label>
-                <Input
+                <PasswordInput
                   id="register-password"
-                  type="password"
                   autoComplete="new-password"
                   placeholder="Create a password"
                   value={password}
@@ -145,9 +224,8 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
 
               <div className="space-y-2">
                 <Label htmlFor="register-password-confirm">Confirm password</Label>
-                <Input
+                <PasswordInput
                   id="register-password-confirm"
-                  type="password"
                   autoComplete="new-password"
                   placeholder="Confirm password"
                   value={confirmPassword}
@@ -164,7 +242,7 @@ export function BookingSuccessPanel({ bookingId, email }: BookingSuccessPanelPro
               )}
 
               <Button type="submit" className="w-full" disabled={registering}>
-                {registering ? "Creating account…" : "Register Account"}
+                {registering ? "Creating account…" : "Register & track booking"}
               </Button>
             </form>
           </CardContent>

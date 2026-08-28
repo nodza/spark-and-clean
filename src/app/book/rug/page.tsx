@@ -96,31 +96,8 @@ export default function BookingWizard() {
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(formData, bookingId);
 
-    console.log("Submitting booking payload:", booking);
-
-    try {
-      sessionStorage.setItem(`booking:${bookingId}`, JSON.stringify(booking));
-    } catch {
-      // ignore private-mode storage failures
-    }
-
     const created = await addBooking(booking);
     const resolvedId = created?.id || bookingId;
-
-    if (created) {
-      try {
-        sessionStorage.setItem(`booking:${resolvedId}`, JSON.stringify(created));
-      } catch {
-        // ignore
-      }
-    } else {
-      useBookingStore.setState((state) => ({
-        bookings: [
-          ...state.bookings.filter((b) => b.id !== bookingId),
-          booking,
-        ],
-      }));
-    }
 
     setSubmittedBookingId(resolvedId);
     setIsSubmitting(false);
@@ -131,6 +108,8 @@ export default function BookingWizard() {
       <BookingSuccessPanel
         bookingId={submittedBookingId}
         email={formData.customer?.email || ""}
+        name={formData.customer?.name || ""}
+        phone={formData.customer?.phone || ""}
       />
     );
   }
