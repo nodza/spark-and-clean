@@ -18,6 +18,7 @@ export function Header() {
           <Link href="/" className="hover:text-primary transition-colors">Home</Link>
           <Link href="/services/automatic-rug-cleaning" className="hover:text-primary transition-colors">Services</Link>
           <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
+          <Link href="/dashboard" className="hover:text-primary transition-colors">My Dashboard</Link>
           <Link href="/admin" className="hover:text-primary transition-colors">Admin</Link>
           <Link href="/tech" className="hover:text-primary transition-colors">Technician</Link>
         </nav>

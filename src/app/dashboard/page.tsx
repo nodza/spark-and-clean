@@ -88,7 +88,7 @@ function BookingCard({
               <>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>{format(new Date(booking.collectionDate), "PPP")}</span>
+                  <span>{formatCollectionDate(booking.collectionDate)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4" />
@@ -111,6 +111,11 @@ function BookingCard({
       </Card>
     </Link>
   );
+}
+
+function formatCollectionDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date pending" : format(date, "PPP");
 }
 
 export default function ClientDashboard() {
