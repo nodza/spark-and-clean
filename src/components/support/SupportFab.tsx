@@ -44,7 +44,7 @@ export function SupportFab() {
         aria-hidden={open || undefined}
         tabIndex={open ? -1 : 0}
         className={cn(
-          "fixed z-40 h-10 min-h-10 rounded-full bg-transparent px-4 text-sm font-semibold shadow-none transition-colors duration-200 hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] sm:bottom-6 sm:right-6",
+          "fixed z-40 size-14 min-h-14 min-w-14 rounded-full bg-transparent p-0 shadow-none transition-colors duration-200 hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] sm:bottom-6 sm:right-6",
           open && "invisible pointer-events-none",
           onDark
             ? "border-primary-foreground/50 text-primary-foreground hover:border-primary-foreground hover:text-primary-foreground"
@@ -52,8 +52,7 @@ export function SupportFab() {
         )}
         onClick={() => setOpen(true)}
       >
-        <WhatsAppIcon className="size-4" />
-        Chat with support
+        <WhatsAppIcon className="size-7" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

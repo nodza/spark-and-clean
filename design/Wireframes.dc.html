@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f0eee9;font-family:'Patrick Hand',cursive}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.12);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 11px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:700 16px/1.2 'Patrick Hand',cursive;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:8px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 'Patrick Hand',cursive;color:rgba(0,0,0,.6)}
+.dv-card{max-width:100%;background:#fff;border:2px solid #1a1a1a;border-radius:14px;box-shadow:2px 3px 0 rgba(0,0,0,.15);overflow:hidden}
+.dv-opt:target .dv-oid{background:#0a7a63;color:#fff}
+.dv-next{margin:22px 0 0;font:14px/1.5 'Patrick Hand',cursive;color:rgba(0,0,0,.55)}
+.wf{width:250px;padding:12px;box-sizing:border-box;font-family:'Patrick Hand',cursive;color:#222}
+.wf h4{margin:0 0 8px;font-size:15px;border-bottom:2px solid #222;padding-bottom:4px}
+.box{border:2px dashed #999;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px;color:#555}
+.solid{border:2px solid #222;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px}
+.btn{border:2px solid #222;border-radius:20px;padding:6px 10px;text-align:center;font-size:12px;font-weight:700;margin-bottom:6px}
+.btn-accent{background:#6cf3d5;border-color:#0a7a63}
+.btn-yellow{background:#ffdc39;border-color:#8a7500}
+.pill{display:inline-block;border:1.5px solid #222;border-radius:10px;padding:2px 8px;font-size:10px;margin:0 4px 4px 0}
+.row{display:flex;gap:6px}
+.row>*{flex:1}
+.navbar{background:#000b49;color:#6cf3d5;padding:8px 10px;font-size:12px;font-weight:700;border-radius:4px;margin-bottom:8px;display:flex;justify-content:space-between}
+.imgph{background:repeating-linear-gradient(45deg,#eee,#eee 6px,#ddd 6px,#ddd 12px);border:1.5px solid #999;border-radius:6px;height:50px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;margin-bottom:6px}
+.step-dots{display:flex;gap:4px;margin-bottom:8px}
+.dot{width:16px;height:16px;border-radius:50%;border:2px solid #222;font-size:9px;display:flex;align-items:center;justify-content:center}
+.dot.on{background:#6cf3d5}
+.tick{position:absolute;font-size:9px}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t7">
+<div class="dv-thd"><a class="dv-tid" href="#t7">7</a><span class="dv-tname">Condensed booking flow riffs — adopted into <a class="dv-oid" href="#t1">turn 1</a> below</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="7a"><div class="dv-olabel"><a class="dv-oid" href="#7a">7a</a>Type + dimensions combined</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>≡ Spark & Clean</span><span>JHB ▾</span></div>
+<div class="step-dots"><div class="dot on">1</div><div class="dot">2</div><div class="dot">3</div><div class="dot">4</div><div class="dot">5</div><div class="dot">6</div></div>
+<h4>Step 1 of 6 — Rug & size</h4>
+<div class="box" style="font-size:11px">What are we cleaning?</div>
+<div class="row" style="margin-bottom:6px">
+<div class="imgph" style="height:38px;flex:1">🖼</div><div class="imgph" style="height:38px;flex:1;border-color:#0a7a63;background:#eafaf5">🖼✓</div><div class="imgph" style="height:38px;flex:1">🖼</div><div class="imgph" style="height:38px;flex:1">🖼</div>
+</div>
+<div class="solid" style="font-size:10px;text-align:center">Persian / Oriental</div>
+<div class="row"><div class="box">Width (cm)</div><div class="box">Length (cm)</div></div>
+<div class="solid">Est. area: — m²</div>
+<div class="btn" style="border-style:dashed">Skip sizing — driver will measure</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+<div class="dv-opt" id="7b"><div class="dv-olabel"><a class="dv-oid" href="#7b">7b</a>Add-ons + coupon combined ("Extras")</div><div class="dv-card"><div class="wf">
+<h4>Extras</h4>
+<div class="solid">☑ Stain protection +R150</div>
+<div class="box">☐ Deodorizing treatment +R90</div>
+<div class="box">☐ Rush 48h service +R200</div>
+<div class="row" style="margin-top:4px"><div class="box" style="flex:2">Coupon code</div><div class="btn">Apply</div></div>
+<div class="solid" style="background:#fff8d6;border-color:#8a7500">Estimated total: R850</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "adopt <a class="dv-oid" href="#7a">7a</a>/<a class="dv-oid" href="#7b">7b</a> as the real flow and renumber steps to 6", "keep photos as full step but merge coupon only"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Booking flow — rug collection request (priority, condensed to 6 steps)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Step 1 — Rug & size (combined)</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>≡ Spark & Clean</span><span>JHB ▾</span></div>
+<div class="step-dots"><div class="dot on">1</div><div class="dot">2</div><div class="dot">3</div><div class="dot">4</div><div class="dot">5</div><div class="dot">6</div></div>
+<h4>Step 1 of 6 — Rug & size</h4>
+<div class="box" style="font-size:11px">What are we cleaning?</div>
+<div class="row" style="margin-bottom:6px">
+<div class="imgph" style="height:38px;flex:1">🖼</div><div class="imgph" style="height:38px;flex:1;border-color:#0a7a63;background:#eafaf5">🖼✓</div><div class="imgph" style="height:38px;flex:1">🖼</div><div class="imgph" style="height:38px;flex:1">🖼</div>
+</div>
+<div class="solid" style="font-size:10px;text-align:center">Persian / Oriental</div>
+<div class="row"><div class="box">Width (cm)</div><div class="box">Length (cm)</div></div>
+<div class="solid">Est. area: — m²</div>
+<div class="btn" style="border-style:dashed">Skip sizing — driver will measure</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Step 2 — Photo upload</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>← Back</span><span>Step 2/6</span></div>
+<h4>Add photos</h4>
+<div class="solid">Condition photos <span class="pill">required, min 1</span></div>
+<div class="row"><div class="imgph">+ add</div><div class="imgph">📷</div><div class="imgph">📷</div></div>
+<div class="box">Back-of-rug label <span class="pill">optional</span></div>
+<div class="imgph" style="border-style:dashed">+ add label photo</div>
+<div class="btn" style="border-style:dashed">No label — skip this</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Step 3 — Pickup address + map pin</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>← Back</span><span>Step 3/6</span></div>
+<h4>Where should we collect it?</h4>
+<div class="solid">City: ◉ Johannesburg ○ Cape Town</div>
+<div class="box">123 Oak Ave, Sandton...</div>
+<div class="imgph" style="height:90px">map w/ 📍 pin</div>
+<div class="solid" style="background:#eafaf5;border-color:#0a7a63">✓ Pin confirmed — 123 Oak Ave</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Step 4 — Extras (add-ons + coupon combined)</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>← Back</span><span>Step 4/6</span></div>
+<h4>Extras</h4>
+<div class="solid">☑ Stain protection +R150</div>
+<div class="box">☐ Deodorizing treatment +R90</div>
+<div class="box">☐ Rush 48h service +R200</div>
+<div class="row" style="margin-top:4px"><div class="box" style="flex:2">Coupon code</div><div class="btn">Apply</div></div>
+<div class="solid" style="background:#fff8d6;border-color:#8a7500">Estimated total: R850</div>
+<div class="btn btn-accent">Continue →</div>
+</div></div></div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Step 5 — Review & confirm</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>← Back</span><span>Step 5/6</span></div>
+<h4>Review your booking</h4>
+<div class="solid">Persian rug · JHB pickup</div>
+<div class="box">⚠ Sizing skipped — driver will measure</div>
+<div class="box">⚠ Label photo skipped</div>
+<div class="solid">2 add-ons · Coupon: none</div>
+<div class="solid" style="background:#fff8d6;border-color:#8a7500">Total: R850</div>
+<div class="btn btn-accent">Confirm booking →</div>
+</div></div></div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Step 6 — Account vs guest</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>← Back</span><span>Step 6/6</span></div>
+<h4>Almost done!</h4>
+<div class="row">
+<div class="solid" style="text-align:center">Create account<br><span style="font-size:10px">track future bookings</span></div>
+<div class="solid" style="text-align:center">Continue as guest<br><span style="font-size:10px">email receipt only</span></div>
+</div>
+<div class="btn btn-accent">Submit booking →</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "polish <a class="dv-oid" href="#1c">1c</a> into hi-fi", "show step dots differently", "add the skip-confirmed micro-state back into <a class="dv-oid" href="#1a">1a</a>"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Auth screens</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Client login</div><div class="dv-card"><div class="wf">
+<h4>Welcome back</h4>
+<div class="box">Email</div><div class="box">Password</div>
+<div style="text-align:right;font-size:11px;margin-bottom:6px">Forgot password?</div>
+<div class="btn btn-accent">Log in</div>
+<div class="box" style="text-align:center">New here? Create account</div>
+</div></div></div>
+
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Client self-signup</div><div class="dv-card"><div class="wf">
+<h4>Create your account</h4>
+<div class="box">Full name</div><div class="box">Email</div><div class="box">Phone</div><div class="box">Password</div>
+<div class="btn btn-accent">Create account</div>
+<div class="box" style="text-align:center">Already have one? Log in</div>
+</div></div></div>
+
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Guest checkout indicator (in-flow)</div><div class="dv-card"><div class="wf">
+<div class="navbar" style="background:#eafaf5;color:#000b49"><span>👤 Continuing as guest</span><span style="text-decoration:underline">Sign in</span></div>
+<div class="box">rest of booking step continues below...</div>
+</div></div></div>
+
+<div class="dv-opt" id="2d"><div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Forgot password — request</div><div class="dv-card"><div class="wf">
+<h4>Reset your password</h4>
+<div class="box">Email address</div>
+<div class="btn btn-accent">Send reset link</div>
+</div></div></div>
+
+<div class="dv-opt" id="2e"><div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>Check your email</div><div class="dv-card"><div class="wf">
+<div class="imgph" style="height:60px">✉ envelope icon</div>
+<h4>Check your inbox</h4>
+<div class="box">We sent a reset link to j***@gmail.com</div>
+<div class="btn" style="border-style:dashed">Resend email</div>
+</div></div></div>
+
+<div class="dv-opt" id="2f"><div class="dv-olabel"><a class="dv-oid" href="#2f">2f</a>Set new password</div><div class="dv-card"><div class="wf">
+<h4>Set a new password</h4>
+<div class="box">New password</div><div class="box">Confirm password</div>
+<div class="btn btn-accent">Save & log in</div>
+</div></div></div>
+
+<div class="dv-opt" id="2g"><div class="dv-olabel"><a class="dv-oid" href="#2g">2g</a>Admin login</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Spark & Clean</span><span>ADMIN</span></div>
+<h4>Operations sign-in</h4>
+<div class="box">Work email</div><div class="box">Password</div>
+<div class="btn btn-accent">Log in</div>
+</div></div></div>
+
+<div class="dv-opt" id="2h"><div class="dv-olabel"><a class="dv-oid" href="#2h">2h</a>Technician login</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Spark & Clean</span><span>DRIVER</span></div>
+<h4>Driver sign-in</h4>
+<div class="box">Employee ID</div><div class="box">Password</div>
+<div class="btn btn-accent">Log in</div>
+<div class="box" style="font-size:10px;text-align:center">No signup — accounts created by admin</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#2c">2c</a> persist as a fixed top banner across booking", "unify password reset visual with <a class="dv-oid" href="#1e">1e</a> map style"</p>
+</section>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Client portal</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="3a"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Dashboard</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Hi, Naledi</span><span>☰</span></div>
+<div class="btn btn-yellow">+ Start new booking</div>
+<div class="solid">Active: Persian rug — <b>Out for cleaning</b></div>
+<div class="box">Last booking: 12 Jul — Completed</div>
+</div></div></div>
+
+<div class="dv-opt" id="3b"><div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Booking status timeline</div><div class="dv-card"><div class="wf">
+<h4>Booking #SC1042</h4>
+<div class="solid">● Requested — Mon</div>
+<div class="solid">● Collected — Tue</div>
+<div class="solid" style="background:#eafaf5;border-color:#0a7a63">● Cleaning in progress</div>
+<div class="box">○ Out for delivery</div>
+<div class="box">○ Delivered</div>
+</div></div></div>
+
+<div class="dv-opt" id="3c"><div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>Booking + payment history</div><div class="dv-card"><div class="wf">
+<h4>History</h4>
+<div class="solid row"><span>SC1042</span><span>R850</span><span>Paid</span></div>
+<div class="box row"><span>SC0998</span><span>R620</span><span>Paid</span></div>
+<div class="box row"><span>SC0951</span><span>R400</span><span>Refunded</span></div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "add filter/search to <a class="dv-oid" href="#3c">3c</a>", "reuse timeline from <a class="dv-oid" href="#3b">3b</a> in the driver portal"</p>
+</section>
+
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Admin portal</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="4a"><div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Booking queue + notifications</div><div class="dv-card"><div class="wf" style="width:290px">
+<div class="navbar"><span>Admin</span><span>🔔 3 new</span></div>
+<h4>Booking queue</h4>
+<div class="solid row"><span>SC1050</span><span>New</span><span>⋮</span></div>
+<div class="box row"><span>SC1049</span><span>Assigned</span><span>⋮</span></div>
+<div class="box row"><span>SC1048</span><span>En route</span><span>⋮</span></div>
+</div></div></div>
+
+<div class="dv-opt" id="4b"><div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Driver roster — today</div><div class="dv-card"><div class="wf" style="width:290px">
+<h4>Today's roster</h4>
+<div class="solid row"><span>Sipho</span><span>Bakkie #2</span><span>4 jobs</span></div>
+<div class="box row"><span>Amanda</span><span>Van #1</span><span>3 jobs</span></div>
+<div class="box row"><span>Thabo</span><span>Bakkie #3 (CT)</span><span>5 jobs</span></div>
+</div></div></div>
+
+<div class="dv-opt" id="4c"><div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Job notes + call driver</div><div class="dv-card"><div class="wf">
+<h4>SC1050 · Sipho</h4>
+<div class="btn btn-accent">📞 Call driver</div>
+<div class="box">Notes:</div>
+<div class="solid" style="font-size:11px">"Customer requested 2pm pickup"</div>
+<div class="box">+ add note</div>
+</div></div></div>
+
+<div class="dv-opt" id="4d"><div class="dv-olabel"><a class="dv-oid" href="#4d">4d</a>Vehicle assignment (per-day)</div><div class="dv-card"><div class="wf">
+<h4>Assign vehicle — Sipho, Wed</h4>
+<div class="solid">◉ Bakkie #2</div>
+<div class="box">○ Van #1</div>
+<div class="box">○ Bakkie #3</div>
+<div class="box" style="font-size:10px">Mon: Van #1 · Tue: Bakkie #2 · Wed: —</div>
+<div class="btn btn-accent">Save assignment</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#4a">4a</a> the data-table pattern with sort/filter", "add drag-assign between <a class="dv-oid" href="#4b">4b</a> and <a class="dv-oid" href="#4d">4d</a>"</p>
+</section>
+
+<section class="dv-turn" id="t5">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Technician / driver portal</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="5a"><div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>Today's job list</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Sipho</span><span>Wed, 4 jobs</span></div>
+<div class="solid row"><span>09:00</span><span>Sandton</span><span>→</span></div>
+<div class="box row"><span>10:30</span><span>Rosebank</span><span>→</span></div>
+<div class="box row"><span>13:00</span><span>Melrose</span><span>→</span></div>
+</div></div></div>
+
+<div class="dv-opt" id="5b"><div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>Job detail</div><div class="dv-card"><div class="wf">
+<h4>SC1050 · 09:00</h4>
+<div class="box">123 Oak Ave, Sandton</div>
+<div class="imgph" style="height:60px">map / directions</div>
+<div class="solid">Persian rug · 2.4m²</div>
+<div class="row"><div class="imgph">📷</div><div class="imgph">📷</div></div>
+<div class="btn btn-accent">Mark as collected</div>
+</div></div></div>
+
+<div class="dv-opt" id="5c"><div class="dv-olabel"><a class="dv-oid" href="#5c">5c</a>Chat with admin</div><div class="dv-card"><div class="wf">
+<h4>Admin team</h4>
+<div class="box" style="align-self:flex-start">Admin: "Customer wants 2pm"</div>
+<div class="solid" style="text-align:right">Me: "Noted, on my way"</div>
+<div class="box">Type a message...</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "share status-update control from <a class="dv-oid" href="#5b">5b</a> with admin's <a class="dv-oid" href="#4c">4c</a>"</p>
+</section>
+
+<section class="dv-turn" id="t6">
+<div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Shared shell — role-aware nav</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="6a"><div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a>Marketing (public)</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>SPARK & CLEAN</span><span>☰</span></div>
+<div class="btn btn-yellow">Request A Quote</div>
+<div class="btn">View Services</div>
+<div class="box" style="text-align:center;margin-top:20px;font-size:10px">Footer: JHB & Cape Town · socials · contact</div>
+</div></div></div>
+
+<div class="dv-opt" id="6b"><div class="dv-olabel"><a class="dv-oid" href="#6b">6b</a>Client portal shell</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Dashboard</span><span>Naledi ▾</span></div>
+<div class="box">Home · Bookings · History · Account</div>
+</div></div></div>
+
+<div class="dv-opt" id="6c"><div class="dv-olabel"><a class="dv-oid" href="#6c">6c</a>Admin portal shell</div><div class="dv-card"><div class="wf">
+<div class="navbar" style="background:#000b49"><span>Queue · Drivers · Reports</span><span>🔔</span></div>
+<div class="box">sidebar-style on desktop</div>
+</div></div></div>
+
+<div class="dv-opt" id="6d"><div class="dv-olabel"><a class="dv-oid" href="#6d">6d</a>Technician portal shell</div><div class="dv-card"><div class="wf">
+<div class="navbar"><span>Today · Chat</span><span>Sipho</span></div>
+<div class="box">bottom tab bar on mobile</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "pick a direction and I'll build it hi-fi with your real logo + palette"</p>
+</section>
+
+</x-dc>
+</body>
+</html>
