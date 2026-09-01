@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 // Paths where the global marketing header + footer should NOT appear.
 // Portal layouts (PortalLayout, TechLayout, AuthLayout) manage their own chrome.
@@ -15,14 +16,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isPortal) {
     // Render bare — no header, no footer, no wrapping <main>.
     // The layout shell (PortalLayout / AuthLayout / TechLayout) fills the viewport itself.
-    return <>{children}</>;
+    return <AuthProvider>{children}</AuthProvider>;
   }
 
   return (
-    <>
+    <AuthProvider>
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
-    </>
+    </AuthProvider>
   );
 }

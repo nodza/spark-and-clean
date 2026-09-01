@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useBookingStore } from "@/store/useBookingStore";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, AlertCircle, Calendar, MapPin, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useRequireClientAuth, useAuth } from "@/hooks/useRequireClientAuth";
 
 const PAST_STATUSES = new Set(["DELIVERED", "CANCELLED"]);
 
@@ -120,19 +121,13 @@ function formatCollectionDate(value: string) {
 
 export default function ClientDashboard() {
   const router = useRouter();
+  const { logout } = useAuth();
+  const { email, ready } = useRequireClientAuth();
   const { bookings, fetchBookings } = useBookingStore();
-  const [email] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : localStorage.getItem("clientEmail")
-  );
 
   useEffect(() => {
-    const storedEmail = localStorage.getItem("clientEmail");
-    if (!storedEmail) {
-      router.push("/login");
-    } else {
-      if (bookings.length === 0) fetchBookings();
-    }
-  }, [bookings.length, fetchBookings, router]);
+    if (ready) void fetchBookings();
+  }, [ready, fetchBookings]);
 
   const { activeBookings, pastBookings } = useMemo(() => {
     if (!email) {
@@ -154,20 +149,30 @@ export default function ClientDashboard() {
     return { activeBookings: active, pastBookings: past };
   }, [bookings, email]);
 
-  if (!email) return null;
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
+  if (!ready || !email) return null;
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">My Bookings</h1>
           <p className="text-muted-foreground">Welcome back, {email}</p>
         </div>
-        <Link href="/book/rug">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> New Booking
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void handleLogout()}>
+            Log out
           </Button>
-        </Link>
+          <Link href="/book/rug">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> New Booking
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-8">
