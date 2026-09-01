@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{font-family:'Inter',sans-serif;color:#32373c;background:#eef1f5}
+input,button,textarea{font-family:'Inter',sans-serif}
+a{color:#0a7a63;text-decoration:none}
+a:hover{color:#000b49}
+::-webkit-scrollbar{width:0}
+</style>
+</helmet>
+
+<!-- PREVIEW BAR -->
+<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 20px;background:#f0f2f6;border-bottom:1px solid #e3e7ed">
+  <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e3e7ed;border-radius:12px;box-shadow:0 4px 16px rgba(0,11,73,.06);padding:6px">
+    <span style="font-size:10px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;padding:0 10px 0 6px">PREVIEW</span>
+    <sc-for list="{{ screenTabs }}" as="t" hint-placeholder-count="4">
+      <div onClick="{{ t.onClick }}" style="padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s;{{ t.style }}">{{ t.label }}</div>
+    </sc-for>
+  </div>
+</div>
+
+<!-- PHONE STAGE -->
+<div style="display:flex;justify-content:center;padding:34px 20px 48px;background:#eef1f5;min-height:calc(100vh - 57px)">
+<div style="width:392px;max-width:100%;background:#f5f7fa;border-radius:26px;border:1px solid #e0e4ea;box-shadow:0 18px 48px rgba(0,11,73,.12);overflow:hidden;display:flex;flex-direction:column;height:812px">
+
+  <!-- APP HEADER -->
+  <div style="background:#000b49;padding:18px 20px 16px;flex:0 0 auto">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:inline-flex;align-items:center;padding:6px 9px;border-radius:8px;background:#fff;flex:0 0 auto"><img src="uploads/spark-and-clean-22.png" alt="Spark &amp; Clean" style="height:20px;width:auto;object-fit:contain;display:block"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:800;color:#fff">Thabo Mokoena</div>
+        <div style="font-size:11.5px;color:#6cf3d5;margin-top:2px">Gauteng · Sandton route</div>
+      </div>
+      <div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative">
+        {{ bellGlyph }}
+        <span style="position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:#ffdc39"></span>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:1;overflow-y:auto">
+
+    <!-- TODAY -->
+    <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:20px 18px 28px">
+      <div style="display:flex;gap:10px;margin-bottom:18px">
+        <div style="flex:1;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:14px 16px">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#9aa0a6">STOPS TODAY</div>
+          <div style="font-size:24px;font-weight:800;color:#000b49;margin-top:6px">6</div>
+        </div>
+        <div style="flex:1;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:14px 16px">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#9aa0a6">DONE</div>
+          <div style="font-size:24px;font-weight:800;color:#0a7a63;margin-top:6px">2</div>
+        </div>
+        <div style="flex:1;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:14px 16px">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#9aa0a6">ITEMS</div>
+          <div style="font-size:24px;font-weight:800;color:#000b49;margin-top:6px">14</div>
+        </div>
+      </div>
+
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin-bottom:11px">MONDAY 31 AUGUST</div>
+      <sc-for list="{{ stops }}" as="s" hint-placeholder-count="6">
+        <div onClick="{{ s.onClick }}" style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:15px 16px;margin-bottom:10px;cursor:pointer;{{ s.cardStyle }}">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:0 0 auto;width:52px">
+              <div style="font-size:14px;font-weight:800;color:#000b49">{{ s.time }}</div>
+              <div style="font-size:11px;color:#9aa0a6;margin-top:3px">{{ s.window }}</div>
+            </div>
+            <div style="width:3px;align-self:stretch;min-height:38px;border-radius:99px;background:{{ s.accent }};flex:0 0 auto"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14.5px;font-weight:700;color:#000b49">{{ s.client }}</div>
+              <div style="font-size:12.5px;color:#9aa0a6;margin-top:4px">{{ s.detail }}</div>
+            </div>
+            <span style="padding:5px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap;flex:0 0 auto;{{ s.tagStyle }}">{{ s.tag }}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <div style="text-align:center;font-size:12px;color:#b3b9c2;margin-top:16px">That's your full route for today.</div>
+    </div>
+    </sc-if>
+
+    <!-- JOB DETAIL -->
+    <sc-if value="{{ isJob }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 28px">
+      <div onClick="{{ goToday }}" style="display:inline-block;font-size:13px;font-weight:700;color:#0a7a63;cursor:pointer;margin-bottom:14px">← Today</div>
+
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;overflow:hidden">
+        <iframe src="map-tech.html" title="Route to stop" style="display:block;width:100%;height:190px;border:0"></iframe>
+        <div style="padding:18px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.12em;color:#9aa0a6">SC-2417 · COLLECTION</div>
+            <div style="font-size:20px;font-weight:800;color:#000b49;margin-top:7px">Ridwaan Patel</div>
+          </div>
+          <span style="padding:5px 11px;border-radius:999px;font-size:10px;font-weight:800;background:#fff6d6;color:#8a6b00;border:1px solid #f0dc94;white-space:nowrap">09:30</span>
+        </div>
+        <div style="height:1px;background:#f0f2f6;margin:16px 0"></div>
+        <div style="font-size:14px;color:#32373c;line-height:1.55">12 Montrose Avenue, Fourways<br>Johannesburg, 2055</div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:12px 0;border-radius:10px;background:#000b49;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">{{ navGlyph }}Navigate</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:12px 0;border-radius:10px;background:#0a7a63;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">{{ phoneGlyph }}Call</div>
+        </div>
+        </div>
+      </div>
+
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin:22px 0 10px">ITEMS TO COLLECT</div>
+      <sc-for list="{{ jobItems }}" as="it" hint-placeholder-count="2">
+        <div onClick="{{ it.onToggle }}" style="display:flex;align-items:center;gap:13px;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:14px 15px;margin-bottom:9px;cursor:pointer">
+          <div style="width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto;{{ it.boxStyle }}">{{ it.mark }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;color:#000b49">{{ it.name }}</div>
+            <div style="font-size:12px;color:#9aa0a6;margin-top:4px">{{ it.meta }}</div>
+          </div>
+          <div style="width:44px;height:44px;border-radius:9px;background:#f0f2f6;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#b3b9c2;flex:0 0 auto">PHOTO</div>
+        </div>
+      </sc-for>
+
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:15px 16px;margin-top:14px">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin-bottom:9px">CLIENT NOTE</div>
+        <div style="font-size:13.5px;color:#32373c;line-height:1.55">Gate code 4471. Dogs in the yard — please call on arrival.</div>
+      </div>
+
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin:22px 0 10px">CONDITION PHOTOS</div>
+      <div style="display:flex;gap:9px">
+        <div style="flex:1;aspect-ratio:1;border-radius:11px;background:#f0f2f6;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#b3b9c2">PHOTO</div>
+        <div style="flex:1;aspect-ratio:1;border-radius:11px;background:#f0f2f6;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#b3b9c2">PHOTO</div>
+        <div style="flex:1;aspect-ratio:1;border-radius:11px;border:1.5px dashed #d8dde4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;color:#9aa0a6">{{ cameraGlyph }}<span style="font-size:9.5px;font-weight:700">Add</span></div>
+      </div>
+
+      <button onClick="{{ goSignoff }}" style="width:100%;border:none;border-radius:999px;background:#000b49;color:#fff;font-size:14.5px;font-weight:800;padding:15px 0;cursor:pointer;margin-top:22px">Mark as collected</button>
+    </div>
+    </sc-if>
+
+    <!-- SIGN-OFF -->
+    <sc-if value="{{ isSignoff }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 28px">
+      <div onClick="{{ goJob }}" style="display:inline-block;font-size:13px;font-weight:700;color:#0a7a63;cursor:pointer;margin-bottom:14px">← Job</div>
+      <div style="font-size:22px;font-weight:800;color:#000b49;letter-spacing:-.02em">Confirm collection</div>
+      <div style="font-size:13.5px;color:#6b7280;margin-top:8px;line-height:1.55">SC-2417 · Ridwaan Patel · 2 items</div>
+
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:18px;margin-top:20px">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin-bottom:11px">CLIENT SIGNATURE</div>
+        <div style="height:120px;border-radius:11px;border:1.5px dashed #d8dde4;background:#fafbfc;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:#b3b9c2">Sign here</div>
+        <div style="font-size:12px;font-weight:700;color:#0a7a63;cursor:pointer;margin-top:10px;text-align:right">Clear</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:18px;margin-top:12px">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#9aa0a6;margin-bottom:11px">NOTES FOR THE FACILITY</div>
+        <textarea placeholder="Anything the cleaning team should know" style="width:100%;height:78px;resize:none;border:1.5px solid #dfe2e7;border-radius:10px;padding:12px;font-size:13.5px;color:#32373c;outline:none"></textarea>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:16px 18px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#000b49">Send client confirmation</div>
+          <div style="font-size:12px;color:#9aa0a6;margin-top:4px">SMS with tracking link</div>
+        </div>
+        <div onClick="{{ toggleSms }}" style="width:44px;height:25px;border-radius:999px;cursor:pointer;position:relative;transition:.18s;flex:0 0 auto;{{ smsTrackStyle }}">
+          <div style="position:absolute;top:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:.18s;{{ smsKnobStyle }}"></div>
+        </div>
+      </div>
+
+      <button onClick="{{ goToday }}" style="width:100%;border:none;border-radius:999px;background:#0a7a63;color:#fff;font-size:14.5px;font-weight:800;padding:15px 0;cursor:pointer;margin-top:20px">Complete stop</button>
+    </div>
+    </sc-if>
+
+    <!-- HISTORY -->
+    <sc-if value="{{ isHistory }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:20px 18px 28px">
+      <div style="font-size:22px;font-weight:800;color:#000b49;letter-spacing:-.02em">Completed</div>
+      <div style="font-size:13.5px;color:#6b7280;margin-top:7px">Your last 30 days.</div>
+
+      <div style="display:flex;gap:10px;margin:18px 0">
+        <div style="flex:1;background:#000b49;border-radius:12px;padding:15px 16px;color:#fff">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#6cf3d5">STOPS</div>
+          <div style="font-size:24px;font-weight:800;margin-top:6px">118</div>
+        </div>
+        <div style="flex:1;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:15px 16px">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#9aa0a6">ON TIME</div>
+          <div style="font-size:24px;font-weight:800;color:#0a7a63;margin-top:6px">97%</div>
+        </div>
+        <div style="flex:1;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:15px 16px">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.1em;color:#9aa0a6">RATING</div>
+          <div style="font-size:24px;font-weight:800;color:#000b49;margin-top:6px">4.9</div>
+        </div>
+      </div>
+
+      <sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+        <div style="display:flex;align-items:center;gap:13px;background:#fff;border:1px solid #e3e7ed;border-radius:12px;padding:14px 15px;margin-bottom:9px">
+          <div style="width:30px;height:30px;border-radius:50%;background:#eafaf5;color:#0a7a63;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 auto">✓</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;color:#000b49">{{ h.client }}</div>
+            <div style="font-size:12px;color:#9aa0a6;margin-top:4px">{{ h.meta }}</div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:#6b7280;white-space:nowrap">{{ h.date }}</span>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+  </div>
+
+  <!-- TAB BAR -->
+  <div style="flex:0 0 auto;background:#fff;border-top:1px solid #e3e7ed;display:flex;padding:10px 8px 18px">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+      <div onClick="{{ t.onClick }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0;cursor:pointer;{{ t.style }}">
+        {{ t.glyph }}<span style="font-size:10.5px;font-weight:700">{{ t.label }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:980}}">
+class Component extends DCLogic {
+  state = { screen: 'today', checked: { a: false, b: false }, sms: true };
+
+  ic(paths, sz, col, sw) {
+    return React.createElement('svg', { width: sz, height: sz, viewBox: '0 0 24 24', fill: 'none', stroke: col, strokeWidth: sw || 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      paths.map((d, i) => React.createElement('path', { key: i, d })));
+  }
+
+  renderVals() {
+    const st = this.state;
+    const set = (o) => () => this.setState(o);
+
+    const ON = 'background:#000b49;color:#fff;';
+    const OFF = 'background:transparent;color:#6b7280;';
+    const screens = [['today', 'Today'], ['job', 'Job detail'], ['signoff', 'Sign-off'], ['history', 'Completed']];
+    const screenTabs = screens.map(([k, label]) => ({ label, style: st.screen === k ? ON : OFF, onClick: set({ screen: k }) }));
+
+    const TAG = {
+      collect: 'background:#fff6d6;color:#8a6b00;border:1px solid #f0dc94;',
+      deliver: 'background:#e8f0ff;color:#2c4fa6;border:1px solid #c3d3f5;',
+      done: 'background:#eafaf5;color:#0a7a63;border:1px solid #bfe9dc;',
+    };
+
+    const goJob = set({ screen: 'job' });
+    const stops = [
+      { time: '08:00', window: '1 hr', client: 'Nomsa Khumalo', detail: 'Sandton · 3 rugs · delivery', tag: 'DONE', tagStyle: TAG.done, accent: '#0a7a63', cardStyle: 'opacity:.6;', onClick: goJob },
+      { time: '08:45', window: '30 min', client: 'Lebo Sithole', detail: 'Morningside · 1 rug · delivery', tag: 'DONE', tagStyle: TAG.done, accent: '#0a7a63', cardStyle: 'opacity:.6;', onClick: goJob },
+      { time: '09:30', window: '1 hr', client: 'Ridwaan Patel', detail: 'Fourways · 2 rugs · collection', tag: 'NEXT', tagStyle: TAG.collect, accent: '#ffdc39', cardStyle: 'box-shadow:0 0 0 2px #000b49;', onClick: goJob },
+      { time: '11:00', window: '1 hr', client: 'Anke van Wyk', detail: 'Randburg · couch + 1 rug', tag: 'COLLECT', tagStyle: TAG.collect, accent: '#ffdc39', cardStyle: '', onClick: goJob },
+      { time: '13:15', window: '2 hr', client: 'Sipho Ndlovu', detail: 'Midrand · 4 rugs · delivery', tag: 'DELIVER', tagStyle: TAG.deliver, accent: '#2c4fa6', cardStyle: '', onClick: goJob },
+      { time: '15:00', window: '1 hr', client: 'Claire Bester', detail: 'Bryanston · 1 Persian rug', tag: 'DELIVER', tagStyle: TAG.deliver, accent: '#2c4fa6', cardStyle: '', onClick: goJob },
+    ];
+
+    const itemRow = (k, name, meta) => ({
+      name, meta,
+      mark: st.checked[k] ? '✓' : '',
+      boxStyle: st.checked[k] ? 'background:#0a7a63;color:#fff;' : 'background:#fff;border:1.5px solid #dfe2e7;',
+      onToggle: () => this.setState({ checked: { ...st.checked, [k]: !st.checked[k] } }),
+    });
+
+    const history = [
+      { client: 'Nomsa Khumalo', meta: 'SC-2418 · 3 rugs · delivery', date: 'Today' },
+      { client: 'Lebo Sithole', meta: 'SC-2416 · 1 rug · delivery', date: 'Today' },
+      { client: 'Thandi Zulu', meta: 'SC-2399 · couch · collection', date: '30 Aug' },
+      { client: 'Sipho Ndlovu', meta: 'SC-2411 · 4 rugs · collection', date: '29 Aug' },
+      { client: 'Michael Adams', meta: 'SC-2402 · 2 rugs · delivery', date: '28 Aug' },
+      { client: 'Claire Bester', meta: 'SC-2408 · 1 rug · collection', date: '27 Aug' },
+    ];
+
+    const TAB_ON = 'color:#000b49;';
+    const TAB_OFF = 'color:#b3b9c2;';
+    const tabs = [
+      { key: 'today', label: 'Today', paths: ['M8 2v4', 'M16 2v4', 'M3 9h18', 'M3 5h18v16H3z'] },
+      { key: 'history', label: 'Completed', paths: ['M20 6 9 17l-5-5'] },
+      { key: 'profile', label: 'Profile', paths: ['M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'] },
+    ].map((t) => {
+      const active = st.screen === t.key || (t.key === 'today' && (st.screen === 'job' || st.screen === 'signoff'));
+      return { label: t.label, style: active ? TAB_ON : TAB_OFF, glyph: this.ic(t.paths, 21, active ? '#000b49' : '#b3b9c2'), onClick: set({ screen: t.key === 'profile' ? 'history' : t.key }) };
+    });
+
+    return {
+      screenTabs, tabs, stops, history,
+      isToday: st.screen === 'today', isJob: st.screen === 'job', isSignoff: st.screen === 'signoff', isHistory: st.screen === 'history',
+      goToday: set({ screen: 'today' }), goJob: set({ screen: 'job' }), goSignoff: set({ screen: 'signoff' }),
+      jobItems: [
+        itemRow('a', 'Wool rug — 2.0m × 1.4m', 'Standard clean · no visible damage'),
+        itemRow('b', 'Wool runner — 2.6m × 0.7m', 'Standard clean · fringe worn'),
+      ],
+      smsTrackStyle: st.sms ? 'background:#0a7a63;' : 'background:#dfe2e7;',
+      smsKnobStyle: st.sms ? 'left:22px;' : 'left:3px;',
+      toggleSms: () => this.setState({ sms: !st.sms }),
+      bellGlyph: this.ic(['M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9', 'M13.7 21a2 2 0 0 1-3.4 0'], 17, 'rgba(255,255,255,.8)'),
+      navGlyph: this.ic(['M3 11l19-9-9 19-2-8-8-2z'], 16, '#fff'),
+      phoneGlyph: this.ic(['M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z'], 16, '#fff'),
+      cameraGlyph: this.ic(['M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z', 'M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'], 18, '#9aa0a6'),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0;background:#ffffff;font-family:'Inter',sans-serif;color:#32373c}
+a{color:#000b49}
+a:hover{color:#0a7a63}
+input,button{font-family:'Inter',sans-serif}
+::placeholder{color:#9aa0a6}
+</style>
+</helmet>
+
+<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 20px;background:#f0f2f6;border-bottom:1px solid #e3e7ed">
+  <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e3e7ed;border-radius:12px;box-shadow:0 4px 16px rgba(0,11,73,.06);padding:6px">
+    <span style="font-size:10px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;padding:0 10px 0 6px">MODE</span>
+    <div onClick="{{ setClientMode }}" style="padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s;{{ clientModeStyle }}">Client booking</div>
+    <div onClick="{{ setStaffMode }}" style="padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s;{{ staffModeStyle }}">Staff booking</div>
+  </div>
+</div>
+
+<div style="{{ rootStyle }}">
+
+  <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;gap:11px;background:#000b49;padding:11px 20px;position:sticky;top:0;z-index:21">
+      <span style="padding:4px 9px;border-radius:6px;background:#ffdc39;color:#000b49;font-size:10px;font-weight:800;letter-spacing:.1em;flex:0 0 auto">STAFF</span>
+      <span style="font-size:12.5px;color:rgba(255,255,255,.75);flex:1;min-width:0">Booking on behalf of a client · Lerato Mabaso</span>
+    </div>
+  </sc-if>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eceef1;position:sticky;top:0;background:#fff;z-index:20;gap:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <img src="uploads/spark-and-clean-22.png" alt="Spark & Clean" style="height:36px;width:auto">
+    </div>
+    <div style="display:flex;background:#f2f3f6;border-radius:999px;padding:3px;font-size:13px;font-weight:600">
+      <button onClick="{{ setCityJhb }}" style="{{ cityBtnStyle_jhb }}">Johannesburg</button>
+      <button onClick="{{ setCityCpt }}" style="{{ cityBtnStyle_cpt }}">Cape Town</button>
+    </div>
+  </div>
+
+  <div style="{{ bodyRowStyle }}">
+    <div style="{{ mainColStyle }}">
+
+      <div style="padding:18px 20px 6px">
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <sc-for list="{{ stepDots }}" as="d" hint-placeholder-count="6">
+            <div style="{{ d.style }}"></div>
+          </sc-for>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#0a7a63;letter-spacing:.04em;text-transform:uppercase">Step {{ stepNum }} of 6</div>
+        <h1 style="font-size:24px;font-weight:800;color:#000b49;margin:4px 0 18px">{{ stepTitle }}</h1>
+      </div>
+
+      <div style="padding:0 20px 24px">
+
+        <sc-if value="{{ isStep0 }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1.5px solid #000b49;border-radius:12px;padding:16px;margin-bottom:22px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px">
+                  <span style="font-size:10.5px;font-weight:800;letter-spacing:.12em;color:#9aa0a6">BOOKING FOR</span>
+                  <sc-if value="{{ hasClient }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ clearClient }}" style="font-size:12px;font-weight:700;color:#0a7a63;cursor:pointer">Change</span>
+                  </sc-if>
+                </div>
+
+                <sc-if value="{{ hasClient }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="width:38px;height:38px;border-radius:50%;background:#000b49;color:#6cf3d5;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex:0 0 auto">{{ clientInitials }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:15px;font-weight:700;color:#000b49">{{ clientName }}</div>
+                      <div style="font-size:12.5px;color:#9aa0a6;margin-top:3px">{{ clientMeta }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:9px;background:#eafaf5;border-radius:9px;padding:10px 12px;margin-top:12px;font-size:12.5px;color:#0a4f3f;line-height:1.5">{{ clientStampNote }}</div>
+                </sc-if>
+
+                <sc-if value="{{ noClient }}" hint-placeholder-val="{{ true }}">
+                  <div>
+                    <input value="{{ clientQuery }}" onChange="{{ onClientQuery }}" placeholder="Search by name, email or phone" style="{{ inputStyleFull }}">
+                    <div style="display:flex;flex-direction:column;gap:7px;margin-top:10px">
+                      <sc-for list="{{ clientResults }}" as="c" hint-placeholder-count="3">
+                        <div onClick="{{ c.onPick }}" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;cursor:pointer">
+                          <div style="width:32px;height:32px;border-radius:50%;background:#f0f2f6;color:#000b49;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:0 0 auto">{{ c.initials }}</div>
+                          <div style="flex:1;min-width:0">
+                            <div style="font-size:13.5px;font-weight:700;color:#000b49">{{ c.name }}</div>
+                            <div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">{{ c.meta }}</div>
+                          </div>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:12.5px;color:#9aa0a6;padding:6px 2px">No match. Create a new client instead.</div>
+                      </sc-if>
+                    </div>
+                    <button onClick="{{ pickNewClient }}" style="{{ dashedBtnStyle }};margin-top:10px">+ New client</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <div style="font-size:13px;color:#6b7280;margin-bottom:10px">What are we cleaning?</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px">
+              <sc-for list="{{ rugTypes }}" as="rt" hint-placeholder-count="4">
+                <button onClick="{{ rt.select }}" style="{{ rt.cardStyle }}">
+                  <image-slot id="{{ rt.slotId }}" shape="rounded" radius="10" placeholder="{{ rt.placeholder }}" style="width:100%;height:64px;margin-bottom:8px"></image-slot>
+                  <div style="font-weight:700;font-size:13px;color:#000b49">{{ rt.label }}</div>
+                  <div style="font-size:11px;color:#6b7280">from R{{ rt.basePrice }}</div>
+                </button>
+              </sc-for>
+            </div>
+
+            <div style="border-top:1px solid #eceef1;padding-top:16px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+                <div style="font-weight:700;font-size:14px;color:#000b49">Dimensions</div>
+                <div style="font-size:11px;font-weight:600;color:#9aa0a6;background:#f2f3f6;padding:2px 8px;border-radius:999px">optional</div>
+              </div>
+              <sc-if value="{{ notSkipSize }}" hint-placeholder-val="{{ true }}">
+                <div>
+                  <div style="display:flex;gap:10px;margin-bottom:10px">
+                    <input value="{{ width }}" onChange="{{ onWidthChange }}" placeholder="Width (cm)" inputMode="numeric" style="{{ inputStyle }}">
+                    <input value="{{ length }}" onChange="{{ onLengthChange }}" placeholder="Length (cm)" inputMode="numeric" style="{{ inputStyle }}">
+                  </div>
+                  <div style="background:#f7f8fa;border-radius:10px;padding:10px 12px;font-size:13px;color:#32373c;margin-bottom:12px">Estimated area: <b>{{ areaLabel }}</b></div>
+                  <button onClick="{{ toggleSkipSize }}" style="{{ dashedBtnStyle }}">Skip — I don't have a tape measure</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ skipSize }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="background:#eafaf5;border:1.5px solid #0a7a63;border-radius:10px;padding:12px;font-size:13px;color:#0a4f3f;margin-bottom:10px;display:flex;gap:8px;align-items:flex-start">
+                    <span style="font-size:16px;line-height:1">✓</span>
+                    <span>Sizing skipped — no problem, our driver will measure the rug on pickup.</span>
+                  </div>
+                  <button onClick="{{ toggleSkipSize }}" style="{{ dashedBtnStyle }}">Undo — I'll enter dimensions</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep1 }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+              <div style="font-weight:700;font-size:14px;color:#000b49">Condition photos</div>
+              <div style="font-size:11px;font-weight:600;color:#000b49;background:#ffdc39;padding:2px 8px;border-radius:999px">required · min 1</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:24px">
+              <image-slot id="cond-1" shape="rounded" radius="10" placeholder="+ add photo" style="width:100%;height:84px"></image-slot>
+              <image-slot id="cond-2" shape="rounded" radius="10" placeholder="+ add photo" style="width:100%;height:84px"></image-slot>
+              <image-slot id="cond-3" shape="rounded" radius="10" placeholder="+ add photo" style="width:100%;height:84px"></image-slot>
+            </div>
+
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+              <div style="font-weight:700;font-size:14px;color:#000b49">Back-of-rug label</div>
+              <div style="font-size:11px;font-weight:600;color:#9aa0a6;background:#f2f3f6;padding:2px 8px;border-radius:999px">optional</div>
+            </div>
+            <sc-if value="{{ notNoLabel }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <image-slot id="label-photo" shape="rounded" radius="10" placeholder="+ add label photo" style="width:100%;height:84px;margin-bottom:10px"></image-slot>
+                <button onClick="{{ toggleNoLabel }}" style="{{ dashedBtnStyle }}">No label on this rug — skip</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noLabel }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="background:#f7f8fa;border:1.5px dashed #c6cad2;border-radius:10px;padding:16px;text-align:center;color:#6b7280;font-size:13px;margin-bottom:10px">No label photo — that's fine, not all rugs have one</div>
+                <button onClick="{{ toggleNoLabel }}" style="{{ dashedBtnStyle }}">Actually, I do have one</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep2 }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="font-size:13px;color:#6b7280;margin-bottom:10px">Collection city: <b style="color:#000b49">{{ cityLabel }}</b></div>
+            <input value="{{ address }}" onChange="{{ onAddressChange }}" placeholder="Street address, suburb..." style="{{ inputStyleFull }}">
+            <div style="position:relative;margin:12px 0;border-radius:12px;overflow:hidden;{{ mapBorderStyle }}">
+              <image-slot id="pickup-map" shape="rect" placeholder="Map preview" style="width:100%;height:160px"></image-slot>
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);font-size:28px;pointer-events:none">📍</div>
+            </div>
+            <sc-if value="{{ addressConfirmed }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="background:#eafaf5;border:1.5px solid #0a7a63;border-radius:10px;padding:12px;font-size:13px;color:#0a4f3f;margin-bottom:10px;display:flex;gap:8px;align-items:center">
+                  <span style="font-size:16px">✓</span><span>Pin confirmed — driver will collect from this location</span>
+                </div>
+                <button onClick="{{ toggleAddressConfirmed }}" style="{{ dashedBtnStyle }}">Change location</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ notAddressConfirmed }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ toggleAddressConfirmed }}" style="{{ primaryBtnStyleFull }}">Confirm this location</button>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep3 }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <sc-if value="{{ showLoyaltyBanner }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:12px;background:#000b49;border-radius:12px;padding:14px 16px;margin-bottom:18px">
+                <div style="width:34px;height:34px;border-radius:50%;background:#6cf3d5;color:#000b49;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex:0 0 auto">4</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13.5px;font-weight:800;color:#fff">One clean from a free rug</div>
+                  <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:3px">This booking earns your 4th stamp. Your next one gets a rug free, up to R500.</div>
+                </div>
+              </div>
+            </sc-if>
+            <div style="font-weight:700;font-size:14px;color:#000b49;margin-bottom:10px">Recommended add-ons</div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+              <sc-for list="{{ addons }}" as="ad" hint-placeholder-count="3">
+                <button onClick="{{ ad.toggle }}" style="{{ ad.rowStyle }}">
+                  <span style="display:flex;align-items:center;gap:10px">
+                    <span style="{{ ad.checkStyle }}">{{ ad.checkMark }}</span>{{ ad.label }}
+                    <sc-if value="{{ ad.staffOnly }}" hint-placeholder-val="{{ false }}">
+                      <span style="padding:3px 7px;border-radius:5px;background:#ffdc39;color:#000b49;font-size:9.5px;font-weight:800;letter-spacing:.08em">STAFF</span>
+                    </sc-if>
+                  </span>
+                  <span style="font-weight:700;color:#000b49">+R{{ ad.price }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="font-weight:700;font-size:14px;color:#000b49;margin-bottom:8px">Coupon code</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <input value="{{ couponCode }}" onChange="{{ onCouponChange }}" placeholder="e.g. WELCOME10" style="{{ inputStyle }}">
+              <button onClick="{{ applyCoupon }}" style="{{ outlineBtnStyle }}">Apply</button>
+            </div>
+            <sc-if value="{{ couponError }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#b3261e;margin-bottom:6px">{{ couponError }}</div></sc-if>
+            <sc-if value="{{ couponApplied }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#0a7a63;font-weight:600">✓ 10% discount applied</div></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep4 }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="{{ reviewRowStyle }}"><span>Rug type</span><b>{{ selectedRugLabel }}</b></div>
+            <sc-if value="{{ skipSize }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ warnRowStyle }}"><span>⚠ Sizing skipped</span><span>driver will measure</span></div>
+            </sc-if>
+            <sc-if value="{{ notSkipSize }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ reviewRowStyle }}"><span>Size</span><b>{{ areaLabel }}</b></div>
+            </sc-if>
+            <sc-if value="{{ noLabel }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ warnRowStyle }}"><span>⚠ Label photo skipped</span><span>no label on rug</span></div>
+            </sc-if>
+            <div style="{{ reviewRowStyle }}"><span>Pickup</span><b>{{ cityLabel }}{{ addressSuffix }}</b></div>
+            <div style="{{ reviewRowStyle }}"><span>Add-ons</span><b>{{ addonsSummary }}</b></div>
+            <sc-if value="{{ couponApplied }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ reviewRowStyle }}"><span>Coupon</span><b>{{ couponCode }} (−10%)</b></div>
+            </sc-if>
+            <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1.5px solid #000b49;border-radius:12px;padding:16px;margin-top:6px">
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:.12em;color:#9aa0a6;margin-bottom:13px">STAFF OVERRIDES</div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 0">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#000b49">Waive collection &amp; delivery</div>
+                    <div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">Outside-area fee of R95</div>
+                  </div>
+                  <div onClick="{{ toggleWaiveFee }}" style="width:42px;height:24px;border-radius:999px;cursor:pointer;position:relative;transition:.18s;flex:0 0 auto;{{ waiveTrack }}">
+                    <div style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.18s;{{ waiveKnob }}"></div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 0;border-top:1px solid #f0f2f6">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:700;color:#000b49">Add a loyalty stamp</div>
+                    <div style="font-size:11.5px;color:#9aa0a6;margin-top:3px">Service recovery · logged against you</div>
+                  </div>
+                  <div onClick="{{ toggleGoodwillStamp }}" style="width:42px;height:24px;border-radius:999px;cursor:pointer;position:relative;transition:.18s;flex:0 0 auto;{{ stampTrack }}">
+                    <div style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.18s;{{ stampKnob }}"></div>
+                  </div>
+                </div>
+
+                <div style="padding:12px 0 2px;border-top:1px solid #f0f2f6">
+                  <div style="font-size:13.5px;font-weight:700;color:#000b49;margin-bottom:8px">Override total</div>
+                  <div style="display:flex;gap:8px">
+                    <input value="{{ priceOverride }}" onChange="{{ onPriceOverride }}" placeholder="Leave blank to use R{{ calculatedTotal }}" inputMode="numeric" style="{{ inputStyle }}">
+                  </div>
+                  <input value="{{ overrideReason }}" onChange="{{ onOverrideReason }}" placeholder="Reason (required for an override)" style="{{ inputStyleFull }};margin-top:8px">
+                  <sc-if value="{{ overrideWarning }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12px;color:#b3261e;margin-top:8px">{{ overrideWarning }}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+            <div style="{{ totalRowStyle }}"><span>{{ totalLabel }}</span><span>R{{ total }}</span></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep5 }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <sc-if value="{{ isStaff }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="font-size:13px;color:#6b7280;margin-bottom:10px">How is this booking settled?</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+                  <sc-for list="{{ settlementOptions }}" as="o" hint-placeholder-count="3">
+                    <button onClick="{{ o.onClick }}" style="{{ o.style }}">
+                      <span style="display:block;font-weight:700;font-size:14px;color:#000b49">{{ o.label }}</span>
+                      <span style="display:block;font-size:11.5px;color:#6b7280;margin-top:3px">{{ o.note }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="font-weight:700;font-size:14px;color:#000b49;margin-bottom:8px">Note for the facility</div>
+                <input value="{{ staffNote }}" onChange="{{ onStaffNote }}" placeholder="Anything the cleaning team should know" style="{{ inputStyleFull }}">
+                <div style="font-size:12px;color:#9aa0a6;line-height:1.6;margin-top:12px">The client gets a confirmation email and SMS as soon as you confirm.</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ isClientMode }}" hint-placeholder-val="{{ true }}">
+            <div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+              <button onClick="{{ selectAccount }}" style="{{ accountCardStyle }}">
+                <div style="font-size:20px;margin-bottom:6px">🔐</div>
+                <div style="font-weight:700;font-size:14px;color:#000b49">Create account</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Track bookings & reorder faster</div>
+              </button>
+              <button onClick="{{ selectGuest }}" style="{{ guestCardStyle }}">
+                <div style="font-size:20px;margin-bottom:6px">✉️</div>
+                <div style="font-weight:700;font-size:14px;color:#000b49">Continue as guest</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Just get an email receipt</div>
+              </button>
+            </div>
+            <sc-if value="{{ isAccountChoiceAccount }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+                <input placeholder="Full name" style="{{ inputStyleFull }}">
+                <input placeholder="Email" style="{{ inputStyleFull }}">
+                <input placeholder="Password" type="password" style="{{ inputStyleFull }}">
+              </div>
+            </sc-if>
+            <sc-if value="{{ isAccountChoiceGuest }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+                <input placeholder="Email for your receipt" style="{{ inputStyleFull }}">
+              </div>
+            </sc-if>
+            </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+
+    <div style="{{ sidebarStyle }}">
+      <div style="font-weight:800;font-size:14px;color:#000b49;margin-bottom:12px">Your booking</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Rug</span><b>{{ selectedRugLabel }}</b></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">City</span><b>{{ cityLabel }}</b></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Add-ons</span><b>{{ addonsCountLabel }}</b></div>
+      </div>
+      <div style="border-top:1px solid #eceef1;margin:14px 0;padding-top:12px;display:flex;justify-content:space-between;font-weight:800;color:#000b49;font-size:16px">
+        <span>Estimate</span><span>R{{ total }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="{{ footerStyle }}">
+    <div style="font-weight:800;color:#000b49;font-size:15px">R{{ total }}</div>
+    <div style="display:flex;gap:10px">
+      <sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ goBack }}" style="{{ outlineBtnStyle }}">Back</button>
+      </sc-if>
+      <sc-if value="{{ isLastStep }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ submit }}" disabled="{{ submitDisabled }}" style="{{ submitBtnStyle }}">Confirm booking →</button>
+      </sc-if>
+      <sc-if value="{{ isNotLastStep }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ goNext }}" style="{{ primaryBtnStyle }}">Continue →</button>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ submitted }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(0,11,73,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px">
+      <div style="background:#fff;border-radius:16px;padding:28px;max-width:360px;text-align:center">
+        <div style="font-size:36px;margin-bottom:10px">🎉</div>
+        <div style="font-weight:800;font-size:18px;color:#000b49;margin-bottom:6px">Booking confirmed!</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:18px">We'll be in touch to schedule your {{ cityLabel }} pickup.</div>
+        <button onClick="{{ restart }}" style="{{ primaryBtnStyleFull }}">Start another booking</button>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const RUG_TYPES = [
+  { id: 'persian', label: 'Persian / Oriental', basePrice: 450, slotId: 'rug-persian', placeholder: 'Persian rug photo' },
+  { id: 'shaggy', label: 'Shaggy / Fluffy', basePrice: 380, slotId: 'rug-shaggy', placeholder: 'Shaggy rug photo' },
+  { id: 'area', label: 'Area / Berber', basePrice: 320, slotId: 'rug-area', placeholder: 'Area rug photo' },
+  { id: 'runner', label: 'Runner', basePrice: 250, slotId: 'rug-runner', placeholder: 'Runner photo' },
+];
+const ADDONS = [
+  { id: 'stain', label: 'Stain protection', price: 150 },
+  { id: 'deodorize', label: 'Deodorizing treatment', price: 90 },
+  { id: 'rush', label: 'Rush 48h service', price: 200 },
+  { id: 'moth', label: 'Moth protection', price: 180, staffOnly: true },
+];
+const STEP_TITLES = ['Rug & size', 'Photos', 'Pickup address', 'Extras', 'Review your booking', 'Almost done!'];
+const STAFF_STEP_TITLES = ['Client & rug', 'Photos', 'Collection address', 'Extras', 'Review & adjust', 'Confirm booking'];
+const CLIENT_BOOK = [
+  { id: 'nk', name: 'Nomsa Khumalo', initials: 'NK', meta: '082 445 9012 · Sandton · 7 bookings', stamps: 3 },
+  { id: 'rp', name: 'Ridwaan Patel', initials: 'RP', meta: '083 112 4408 · Fourways · 1 booking', stamps: 1 },
+  { id: 'aw', name: 'Anke van Wyk', initials: 'AW', meta: '072 908 3311 · Randburg · 4 bookings', stamps: 3 },
+  { id: 'sn', name: 'Sipho Ndlovu', initials: 'SN', meta: '079 220 1145 · Midrand · 12 bookings', stamps: 4 },
+];
+
+class Component extends DCLogic {
+  state = {
+    step: 0, city: 'JHB', rugType: 'persian',
+    skipSize: false, width: '', length: '',
+    noLabel: false,
+    address: '', addressConfirmed: false,
+    addonIds: [], couponCode: '', couponApplied: false, couponError: '',
+    accountChoice: null, submitted: false, isDesktop: false,
+    staff: false, clientId: null, clientQuery: '',
+    waiveFee: false, goodwillStamp: false, priceOverride: '', overrideReason: '',
+    settlement: null, staffNote: '',
+  };
+
+  componentDidMount() {
+    this.onResize = () => this.setState({ isDesktop: window.innerWidth >= 1024 });
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); }
+
+  area() {
+    const w = parseFloat(this.state.width), l = parseFloat(this.state.length);
+    if (!w || !l) return null;
+    return (w * l) / 10000;
+  }
+  subtotal() {
+    const rug = RUG_TYPES.find(r => r.id === this.state.rugType);
+    let sub = rug ? rug.basePrice : 0;
+    const a = this.area();
+    if (a && a > 2) sub += Math.round((a - 2) * 80);
+    this.state.addonIds.forEach(id => { const ad = ADDONS.find(x => x.id === id); if (ad) sub += ad.price; });
+    return sub;
+  }
+  calculatedTotal() {
+    let t = this.subtotal();
+    if (this.state.couponApplied) t = Math.round(t * 0.9);
+    if (this.state.staff && this.state.waiveFee) t = Math.max(0, t - 95);
+    return t;
+  }
+  total() {
+    const o = parseInt(this.state.priceOverride, 10);
+    if (this.state.staff && !isNaN(o) && o >= 0) return o;
+    return this.calculatedTotal();
+  }
+  client() { return CLIENT_BOOK.find(c => c.id === this.state.clientId) || null; }
+
+  renderVals() {
+    const s = this.state;
+    const step = s.step;
+    const dot = (i) => ({ style: `width:26px;height:5px;border-radius:3px;background:${i <= step ? '#000b49' : '#e5e7eb'}` });
+    const rug = RUG_TYPES.find(r => r.id === s.rugType);
+    const a = this.area();
+    const areaLabel = s.skipSize ? '—' : (a ? `${a.toFixed(2)} m²` : 'enter width & length');
+    const inputStyle = 'flex:1;padding:11px 12px;border:1.5px solid #dfe2e7;border-radius:10px;font-size:14px;color:#32373c;outline:none';
+    const inputStyleFull = inputStyle + ';width:100%;box-sizing:border-box';
+    const dashedBtnStyle = 'width:100%;padding:10px;border:1.5px dashed #9aa0a6;border-radius:10px;background:#fff;color:#6b7280;font-size:13px;font-weight:600;cursor:pointer';
+    const outlineBtnStyle = 'padding:11px 16px;border:1.5px solid #000b49;border-radius:999px;background:#fff;color:#000b49;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap';
+    const primaryBtnStyle = 'padding:11px 20px;border:none;border-radius:999px;background:#000b49;color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap';
+    const primaryBtnStyleFull = primaryBtnStyle + ';width:100%;box-sizing:border-box;text-align:center';
+    const canSubmit = s.staff ? !!(this.client() && s.settlement) : !!s.accountChoice;
+    const submitBtnStyle = primaryBtnStyle + (canSubmit ? '' : ';opacity:.45;cursor:not-allowed');
+
+    const cityBtn = (active) => `padding:7px 14px;border-radius:999px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:${active ? '#000b49' : 'transparent'};color:${active ? '#fff' : '#32373c'}`;
+
+    const rugTypes = RUG_TYPES.map(rt => ({
+      ...rt,
+      cardStyle: `text-align:left;padding:10px;border-radius:12px;border:2px solid ${s.rugType === rt.id ? '#0a7a63' : '#e5e7eb'};background:${s.rugType === rt.id ? '#eafaf5' : '#fff'};cursor:pointer`,
+      select: () => this.setState({ rugType: rt.id }),
+    }));
+
+    const addons = ADDONS.filter(ad => s.staff || !ad.staffOnly).map(ad => {
+      const on = s.addonIds.includes(ad.id);
+      return {
+        ...ad,
+        rowStyle: `display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:10px;border:1.5px solid ${on ? '#0a7a63' : '#e5e7eb'};background:${on ? '#eafaf5' : '#fff'};cursor:pointer;font-size:13px;color:#32373c;text-align:left`,
+        checkStyle: `display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;border:1.5px solid ${on ? '#0a7a63' : '#c6cad2'};background:${on ? '#0a7a63' : '#fff'};color:#fff;font-size:12px`,
+        checkMark: on ? '✓' : '',
+        toggle: () => this.setState({ addonIds: s.addonIds.includes(ad.id) ? s.addonIds.filter(x => x !== ad.id) : [...s.addonIds, ad.id] }),
+      };
+    });
+
+    const client = this.client();
+    const q = s.clientQuery.trim().toLowerCase();
+    const clientResults = (q ? CLIENT_BOOK.filter(c => (c.name + ' ' + c.meta).toLowerCase().includes(q)) : CLIENT_BOOK.slice(0, 3))
+      .map(c => ({ ...c, onPick: () => this.setState({ clientId: c.id, clientQuery: '' }) }));
+
+    const addonsSummary = s.addonIds.length ? s.addonIds.map(id => ADDONS.find(x => x.id === id).label).join(', ') : 'none';
+    const addonsCountLabel = s.addonIds.length ? `${s.addonIds.length} selected` : 'none';
+
+    return {
+      rootStyle: 'max-width:1200px;margin:0 auto;font-family:Inter,sans-serif;position:relative;padding-bottom:78px',
+      bodyRowStyle: `display:flex;flex-direction:${s.isDesktop ? 'row' : 'column'};gap:24px;align-items:flex-start`,
+      mainColStyle: s.isDesktop ? 'flex:1;min-width:0;max-width:640px' : 'width:100%',
+      sidebarStyle: s.isDesktop
+        ? 'width:280px;flex-shrink:0;position:sticky;top:78px;background:#f7f8fa;border-radius:14px;padding:18px;margin-top:18px'
+        : 'display:none',
+      footerStyle: `position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #eceef1;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;z-index:20`,
+
+      stepDots: [0, 1, 2, 3, 4, 5].map(dot),
+      stepNum: step + 1,
+      stepTitle: (s.staff ? STAFF_STEP_TITLES : STEP_TITLES)[step],
+
+      isStaff: s.staff, isClientMode: !s.staff,
+      clientModeStyle: s.staff ? 'background:transparent;color:#6b7280;' : 'background:#000b49;color:#fff;',
+      staffModeStyle: s.staff ? 'background:#000b49;color:#fff;' : 'background:transparent;color:#6b7280;',
+      setClientMode: () => this.setState({ staff: false }),
+      setStaffMode: () => this.setState({ staff: true }),
+
+      hasClient: !!client, noClient: !client,
+      clientName: client ? client.name : '',
+      clientInitials: client ? client.initials : '',
+      clientMeta: client ? client.meta : '',
+      clientStampNote: client
+        ? (client.stamps >= 4
+            ? 'Reward ready — one rug free, up to R500, applies to this booking.'
+            : client.stamps + ' of 4 stamps · ' + (4 - client.stamps) + ' more to a free clean')
+        : '',
+      clientQuery: s.clientQuery,
+      onClientQuery: (e) => this.setState({ clientQuery: e.target.value }),
+      clientResults,
+      noResults: s.clientQuery.trim().length > 0 && clientResults.length === 0,
+      pickNewClient: () => this.setState({ clientId: 'rp', clientQuery: '' }),
+      clearClient: () => this.setState({ clientId: null, clientQuery: '' }),
+
+      showLoyaltyBanner: !s.staff || (client && client.stamps === 3),
+
+      waiveTrack: s.waiveFee ? 'background:#0a7a63;' : 'background:#dfe2e7;',
+      waiveKnob: s.waiveFee ? 'left:21px;' : 'left:3px;',
+      toggleWaiveFee: () => this.setState({ waiveFee: !s.waiveFee }),
+      stampTrack: s.goodwillStamp ? 'background:#0a7a63;' : 'background:#dfe2e7;',
+      stampKnob: s.goodwillStamp ? 'left:21px;' : 'left:3px;',
+      toggleGoodwillStamp: () => this.setState({ goodwillStamp: !s.goodwillStamp }),
+      priceOverride: s.priceOverride, overrideReason: s.overrideReason,
+      calculatedTotal: this.calculatedTotal(),
+      onPriceOverride: (e) => this.setState({ priceOverride: e.target.value.replace(/[^0-9]/g, '') }),
+      onOverrideReason: (e) => this.setState({ overrideReason: e.target.value }),
+      overrideWarning: (s.priceOverride && !s.overrideReason) ? 'Give a reason before confirming — it is logged on the booking.' : '',
+      totalLabel: (s.staff && s.priceOverride) ? 'Overridden total' : 'Total estimate',
+
+      settlementOptions: [
+        ['card', 'Card on delivery', 'Driver takes payment at the door'],
+        ['eft', 'EFT before delivery', 'Invoice emailed now, delivery on payment'],
+        ['account', 'On account', 'Invoiced monthly · account clients only'],
+      ].map(([k, label, note]) => ({
+        label, note,
+        style: 'width:100%;text-align:left;padding:14px;border-radius:12px;border:2px solid ' + (s.settlement === k ? '#0a7a63' : '#e5e7eb') + ';background:' + (s.settlement === k ? '#eafaf5' : '#fff') + ';cursor:pointer',
+        onClick: () => this.setState({ settlement: k }),
+      })),
+      staffNote: s.staffNote,
+      onStaffNote: (e) => this.setState({ staffNote: e.target.value }),
+      isStep0: step === 0, isStep1: step === 1, isStep2: step === 2, isStep3: step === 3, isStep4: step === 4, isStep5: step === 5,
+      isLastStep: step === 5, isNotLastStep: step !== 5,
+      showBack: step > 0,
+      submitDisabled: s.staff ? !(client && s.settlement) : !s.accountChoice,
+
+      cityLabel: s.city === 'JHB' ? 'Johannesburg' : 'Cape Town',
+      cityBtnStyle_jhb: cityBtn(s.city === 'JHB'), cityBtnStyle_cpt: cityBtn(s.city === 'CPT'),
+      setCityJhb: () => this.setState({ city: 'JHB' }), setCityCpt: () => this.setState({ city: 'CPT' }),
+
+      rugTypes, selectedRugLabel: rug ? rug.label : '—',
+
+      notSkipSize: !s.skipSize, skipSize: s.skipSize, toggleSkipSize: () => this.setState({ skipSize: !s.skipSize }),
+      width: s.width, length: s.length, areaLabel,
+      onWidthChange: (e) => this.setState({ width: e.target.value }),
+      onLengthChange: (e) => this.setState({ length: e.target.value }),
+
+      noLabel: s.noLabel, notNoLabel: !s.noLabel, toggleNoLabel: () => this.setState({ noLabel: !s.noLabel }),
+
+      address: s.address, onAddressChange: (e) => this.setState({ address: e.target.value }),
+      addressSuffix: s.address ? ` · ${s.address}` : '',
+      addressConfirmed: s.addressConfirmed, notAddressConfirmed: !s.addressConfirmed,
+      toggleAddressConfirmed: () => this.setState({ addressConfirmed: !s.addressConfirmed }),
+      mapBorderStyle: `border:2px solid ${s.addressConfirmed ? '#0a7a63' : '#e5e7eb'}`,
+
+      addons,
+      couponCode: s.couponCode, couponError: s.couponError, couponApplied: s.couponApplied,
+      onCouponChange: (e) => this.setState({ couponCode: e.target.value.toUpperCase(), couponError: '', couponApplied: false }),
+      applyCoupon: () => {
+        const code = s.couponCode.trim();
+        if (!/^[A-Z0-9]{4,12}$/.test(code)) this.setState({ couponError: 'Enter a valid code (4-12 letters/numbers)', couponApplied: false });
+        else this.setState({ couponApplied: true, couponError: '' });
+      },
+
+      addonsSummary, addonsCountLabel,
+      reviewRowStyle: 'display:flex;justify-content:space-between;font-size:13px;padding:10px 12px;background:#f7f8fa;border-radius:10px',
+      warnRowStyle: 'display:flex;justify-content:space-between;font-size:13px;padding:10px 12px;background:#fff8d6;border:1px solid #e8cf5a;border-radius:10px;color:#6b5a00',
+      totalRowStyle: 'display:flex;justify-content:space-between;font-size:16px;font-weight:800;color:#000b49;padding:12px 12px 0',
+      total: this.total(),
+
+      accountChoice: s.accountChoice,
+      selectAccount: () => this.setState({ accountChoice: 'account' }),
+      selectGuest: () => this.setState({ accountChoice: 'guest' }),
+      isAccountChoiceAccount: s.accountChoice === 'account', isAccountChoiceGuest: s.accountChoice === 'guest',
+      accountCardStyle: `padding:16px;border-radius:12px;border:2px solid ${s.accountChoice === 'account' ? '#0a7a63' : '#e5e7eb'};background:${s.accountChoice === 'account' ? '#eafaf5' : '#fff'};text-align:left;cursor:pointer`,
+      guestCardStyle: `padding:16px;border-radius:12px;border:2px solid ${s.accountChoice === 'guest' ? '#0a7a63' : '#e5e7eb'};background:${s.accountChoice === 'guest' ? '#eafaf5' : '#fff'};text-align:left;cursor:pointer`,
+
+      inputStyle, inputStyleFull, dashedBtnStyle, outlineBtnStyle, primaryBtnStyle, primaryBtnStyleFull, submitBtnStyle,
+
+      goBack: () => this.setState({ step: Math.max(0, s.step - 1) }),
+      goNext: () => this.setState({ step: Math.min(5, s.step + 1) }),
+      submit: () => {
+        const ok = s.staff ? (client && s.settlement && !(s.priceOverride && !s.overrideReason)) : s.accountChoice;
+        if (ok) this.setState({ submitted: true });
+      },
+      submitted: s.submitted,
+      restart: () => this.setState({
+        step: 0, submitted: false, accountChoice: null,
+        clientId: null, settlement: null, priceOverride: '', overrideReason: '',
+        waiveFee: false, goodwillStamp: false, staffNote: '',
+      }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

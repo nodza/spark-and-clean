@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',sans-serif}
+a{text-decoration:none}
+</style>
+</helmet>
+
+<div style="min-height:100vh;width:100%;background:#e6eaf0;font-family:'Inter',sans-serif">
+
+  <!-- CONTROL BAR -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:11px;padding:24px 20px 6px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;background:#fff;border:1px solid #e3e7ed;border-radius:12px;box-shadow:0 4px 16px rgba(0,11,73,.07);padding:6px;max-width:960px">
+      <span style="font-size:10px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;padding:0 10px 0 6px">EMAIL</span>
+      <sc-for list="{{ typeChips }}" as="t" hint-placeholder-count="6">
+        <div onClick="{{ t.onClick }}" style="padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700;transition:.15s;{{ t.style }}">{{ t.label }}</div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:10px;font-weight:800;letter-spacing:.12em;color:#9aa0a6">APPEARANCE</span>
+      <div style="display:flex;background:#fff;border:1px solid #e3e7ed;border-radius:9px;padding:3px">
+        <sc-for list="{{ modeChips }}" as="m" hint-placeholder-count="2">
+          <div onClick="{{ m.onClick }}" style="padding:7px 14px;border-radius:6px;cursor:pointer;font-size:11.5px;font-weight:700;transition:.15s;{{ m.style }}">{{ m.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE -->
+  <div style="{{ sceneStyle }}">
+
+    <!-- INBOX PREVIEW -->
+    <div style="width:600px;max-width:100%;margin-bottom:14px;padding:0 4px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.14em;color:{{ metaColor }};margin-bottom:7px">SUBJECT LINE</div>
+      <div style="font-size:15px;font-weight:700;color:{{ subjectColor }};line-height:1.4">{{ subject }}</div>
+      <div style="font-size:13px;color:{{ metaColor }};line-height:1.5;margin-top:5px">{{ preheader }}</div>
+    </div>
+
+    <!-- EMAIL CARD -->
+    <div style="width:600px;max-width:100%;background:{{ cardBg }};border:1px solid {{ borderColor }};border-radius:14px;box-shadow:0 22px 56px rgba(0,11,73,.18);overflow:hidden">
+
+      <div style="background:#000b49;padding:26px 0 24px;text-align:center">
+        <span style="display:inline-flex;align-items:center;padding:9px 13px;border-radius:10px;background:#fff"><img src="uploads/spark-and-clean-22.png" alt="Spark &amp; Clean" style="height:26px;width:auto;object-fit:contain;display:block"></span>
+      </div>
+      <div style="height:3px;background:#6cf3d5"></div>
+
+      <div style="padding:38px 44px 6px">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.16em;color:{{ eyebrowColor }}">{{ eyebrow }}</div>
+        <div style="font-size:27px;font-weight:800;line-height:1.2;color:{{ textColor }};margin-top:14px;letter-spacing:-.02em">{{ heading }}</div>
+        <div style="font-size:15px;line-height:1.65;color:{{ softColor }};margin-top:14px">{{ intro }}</div>
+
+        <!-- HERO PANEL -->
+        <sc-if value="{{ hasHero }}" hint-placeholder-val="{{ true }}">
+        <div style="text-align:center;border:1px solid {{ borderColor }};background:{{ panelBg }};border-radius:12px;padding:26px;margin-top:24px">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:{{ metaColor }}">{{ heroLabel }}</div>
+          <div style="font-size:38px;font-weight:800;color:{{ heroColor }};margin-top:11px;letter-spacing:-.02em">{{ heroValue }}</div>
+          <div style="font-size:13.5px;font-weight:600;color:{{ softColor }};margin-top:10px">{{ heroNote }}</div>
+        </div>
+        </sc-if>
+
+        <!-- STAMP STRIP -->
+        <sc-if value="{{ hasStamps }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid {{ borderColor }};background:{{ panelBg }};border-radius:12px;padding:22px;margin-top:24px">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.13em;color:{{ metaColor }};margin-bottom:13px">YOUR CARD</div>
+          <div style="display:flex;gap:7px">
+            <sc-for list="{{ stamps }}" as="s" hint-placeholder-count="4">
+              <div style="flex:1;height:10px;border-radius:99px;{{ s.style }}"></div>
+            </sc-for>
+          </div>
+          <div style="font-size:13.5px;color:{{ softColor }};line-height:1.6;margin-top:13px">{{ stampNote }}</div>
+        </div>
+        </sc-if>
+
+        <!-- TIMELINE -->
+        <sc-if value="{{ hasTimeline }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:26px">
+          <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="4">
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;align-items:center;flex:0 0 auto">
+                <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;{{ t.dotStyle }}">{{ t.mark }}</div>
+                <div style="width:2px;flex:1;min-height:24px;{{ t.lineStyle }}"></div>
+              </div>
+              <div style="padding-bottom:16px;flex:1">
+                <div style="font-size:14.5px;font-weight:700;{{ t.titleStyle }}">{{ t.title }}</div>
+                <div style="font-size:12.5px;color:{{ metaColor }};margin-top:4px">{{ t.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <!-- LEDGER -->
+        <sc-if value="{{ hasLedger }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:24px">
+          <sc-for list="{{ ledger }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 2px;border-bottom:1px solid {{ borderColor }}">
+              <span style="font-size:14px;color:{{ metaColor }}">{{ r.k }}</span>
+              <span style="font-size:14px;font-weight:700;color:{{ r.strong }};text-align:right">{{ r.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <div style="margin:28px 0 6px">
+          <a href="#" style="display:inline-block;background:{{ btnBg }};color:{{ btnText }};font-size:14.5px;font-weight:800;padding:16px 32px;border-radius:999px">{{ ctaLabel }}</a>
+        </div>
+        <div style="font-size:13px;line-height:1.65;color:{{ metaColor }};margin-top:16px">{{ footnote }}</div>
+      </div>
+
+      <div style="height:1px;background:{{ borderColor }};margin:32px 44px 0"></div>
+      <div style="padding:24px 44px 32px;text-align:center">
+        <div style="font-size:12.5px;color:{{ metaColor }};line-height:1.7">Spark &amp; Clean · Gauteng 064 289 2384 · Cape Town 064 043 6902</div>
+        <div style="font-size:12px;color:{{ metaColor }};margin-top:9px">
+          <a href="#" style="color:{{ linkColor }};font-weight:600">Manage notifications</a>
+          <span style="opacity:.4"> · </span>
+          <a href="#" style="color:{{ linkColor }};font-weight:600">Contact us</a>
+        </div>
+        <div style="font-size:11.5px;color:{{ metaColor }};opacity:.7;margin-top:12px">Copyright 2026 Spark &amp; Clean. Rugs cleaned and dried in 7 minutes.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:1200}}">
+class Component extends DCLogic {
+  state = { type: 'confirmed', mode: 'light' };
+
+  renderVals() {
+    const st = this.state;
+    const dark = st.mode === 'dark';
+    const set = (o) => () => this.setState(o);
+
+    const ON = 'background:#000b49;color:#fff;';
+    const OFF = 'background:transparent;color:#6b7280;';
+    const types = [
+      ['confirmed', 'Booking confirmed'],
+      ['reminder', 'Collection reminder'],
+      ['delivery', 'Out for delivery'],
+      ['receipt', 'Delivered + invoice'],
+      ['reward', 'Reward unlocked'],
+      ['reset', 'Password reset'],
+    ];
+    const typeChips = types.map(([k, label]) => ({ label, style: st.type === k ? ON : OFF, onClick: set({ type: k }) }));
+    const modeChips = [['light', 'Light'], ['dark', 'Dark']].map(([k, label]) =>
+      ({ label, style: st.mode === k ? ON : OFF, onClick: set({ mode: k }) }));
+
+    const cardBg = dark ? '#101a3d' : '#ffffff';
+    const borderColor = dark ? 'rgba(255,255,255,.12)' : '#e9edf2';
+    const panelBg = dark ? 'rgba(255,255,255,.04)' : '#f7f9fb';
+    const textColor = dark ? '#ffffff' : '#000b49';
+    const softColor = dark ? 'rgba(255,255,255,.72)' : '#5a626c';
+    const metaColor = dark ? 'rgba(255,255,255,.5)' : '#9aa0a6';
+    const heroColor = dark ? '#6cf3d5' : '#000b49';
+    const eyebrowColor = dark ? '#6cf3d5' : '#0a7a63';
+    const linkColor = dark ? '#6cf3d5' : '#0a7a63';
+    const btnBg = dark ? '#6cf3d5' : '#000b49';
+    const btnText = dark ? '#000b49' : '#ffffff';
+
+    const DONE = { dotStyle: 'background:#0a7a63;color:#fff;', lineStyle: 'background:#0a7a63;', mark: '✓' };
+    const NOW = { dotStyle: 'background:#6cf3d5;color:#000b49;', lineStyle: dark ? 'background:rgba(255,255,255,.14);' : 'background:#e3e7ed;', mark: '●' };
+    const NEXT = { dotStyle: dark ? 'background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);' : 'background:#eef1f5;color:#b3b9c2;', lineStyle: dark ? 'background:rgba(255,255,255,.14);' : 'background:#e3e7ed;', mark: '' };
+    const tl = (title, meta, tag) => ({ title, meta, ...tag, titleStyle: 'color:' + (tag === NEXT ? metaColor : textColor) + ';' });
+
+    const stampsFor = (earned, total) => {
+      const out = [];
+      for (let n = 0; n < total; n++) out.push({ style: n < earned ? 'background:#0a7a63;' : (dark ? 'background:rgba(255,255,255,.12);' : 'background:#eef1f5;') });
+      return out;
+    };
+
+    const strong = textColor;
+    const C = {
+      confirmed: {
+        subject: 'Your collection is booked — Tuesday 2 September',
+        preheader: 'SC-2418 · 3 rugs · 08:00–12:00 window',
+        eyebrow: 'BOOKING CONFIRMED',
+        heading: "You're booked in, Nomsa",
+        intro: "We'll collect from 18 Fredman Drive, Sandton. You'll get an SMS with a one-hour window the morning of collection.",
+        hasHero: true, heroLabel: 'COLLECTION', heroValue: 'Tue 2 Sep', heroNote: '08:00 – 12:00 window',
+        hasLedger: true,
+        ledger: [
+          { k: 'Booking reference', v: 'SC-2418', strong },
+          { k: 'Items', v: '3 rugs · Persian & wool', strong },
+          { k: 'Estimate', v: 'R1 640.00', strong },
+          { k: 'Payment', v: 'On delivery', strong: '#0a7a63' },
+        ],
+        ctaLabel: 'View my booking',
+        footnote: 'Need to change the date? Reply to this email or call us before 16:00 the day before.',
+      },
+      reminder: {
+        subject: 'We collect tomorrow morning — SC-2418',
+        preheader: 'Please have your rugs rolled and ready by 08:00',
+        eyebrow: 'COLLECTION TOMORROW',
+        heading: 'We arrive tomorrow between 08:00 and 12:00',
+        intro: 'Thabo will collect from 18 Fredman Drive, Sandton. Roll the rugs loosely and leave them somewhere he can reach.',
+        hasLedger: true,
+        ledger: [
+          { k: 'Technician', v: 'Thabo Mokoena', strong },
+          { k: 'Contact', v: '064 289 2384', strong },
+          { k: 'Items to collect', v: '3 rugs', strong },
+        ],
+        ctaLabel: 'Track my booking',
+        footnote: "If tomorrow no longer works, let us know today and we'll move it at no charge.",
+      },
+      delivery: {
+        subject: 'Your rugs are on the way back',
+        preheader: 'Out for delivery · arriving between 08:00 and 12:00',
+        eyebrow: 'OUT FOR DELIVERY',
+        heading: 'Clean, dry and heading home',
+        intro: 'Your three rugs are on the van and arriving this morning. Payment is taken on delivery — card or EFT.',
+        hasTimeline: true,
+        timeline: [
+          tl('Booking confirmed', '26 Aug', DONE),
+          tl('Collected', '28 Aug · Thabo Mokoena', DONE),
+          tl('Cleaned and quality checked', '1 Sep · Midrand facility', DONE),
+          tl('Out for delivery', 'Today · 08:00 – 12:00', NOW),
+        ],
+        ctaLabel: 'Track my delivery',
+        footnote: 'Total due on delivery: R1 640.00.',
+      },
+      receipt: {
+        subject: 'Delivered — invoice for SC-2418',
+        preheader: 'R1 640.00 paid · thank you',
+        eyebrow: 'DELIVERED',
+        heading: 'All done — thank you, Nomsa',
+        intro: 'Your rugs were delivered and signed for this morning. Your invoice is below and a PDF is attached.',
+        hasHero: true, heroLabel: 'PAID IN FULL', heroValue: 'R1 640.00', heroNote: 'Card on delivery · 2 Sep 2026',
+        hasLedger: true,
+        ledger: [
+          { k: '3 rugs cleaned', v: 'R1 540.00', strong },
+          { k: 'Stain treatment', v: 'R150.00', strong },
+          { k: 'Collection & delivery', v: 'Free', strong: '#0a7a63' },
+          { k: 'Coupon SPARK10', v: '−R50.00', strong: '#0a7a63' },
+        ],
+        hasStamps: true, stamps: stampsFor(4, 4),
+        stampNote: "That's your fourth stamp. Your next rug clean is free, up to R500.",
+        ctaLabel: 'Download invoice',
+        footnote: 'Not happy with something? Tell us within 7 days and we will re-clean at no charge.',
+      },
+      reward: {
+        subject: 'Your next rug clean is free',
+        preheader: 'Four cleans done — the fifth is on us',
+        eyebrow: 'REWARD UNLOCKED',
+        heading: 'Your fifth clean is on us',
+        intro: "You've completed four qualifying cleans with us. Your next booking gets one rug cleaned free, up to R500 — applied automatically, no code needed.",
+        hasStamps: true, stamps: stampsFor(4, 4),
+        stampNote: 'Card complete · reward valid for 24 months',
+        hasLedger: true,
+        ledger: [
+          { k: 'Reward', v: 'One rug free', strong },
+          { k: 'Maximum value', v: 'R500', strong },
+          { k: 'Applies to', v: 'Rug cleaning', strong },
+          { k: 'Valid until', v: '31 Aug 2028', strong },
+        ],
+        ctaLabel: 'Book my free clean',
+        footnote: 'The discount appears in your price summary at checkout. One reward per booking.',
+      },
+      reset: {
+        subject: 'Reset your Spark & Clean password',
+        preheader: 'This link expires in 15 minutes',
+        eyebrow: 'PASSWORD RESET',
+        heading: 'Reset your password',
+        intro: 'Tap the button below to choose a new password. For your security this link expires in 15 minutes and can only be used once.',
+        ctaLabel: 'Reset my password',
+        footnote: "If you didn't request this, you can safely ignore this email — your account stays secure.",
+      },
+    };
+
+    const c = C[st.type];
+
+    return {
+      typeChips, modeChips,
+      sceneStyle: 'display:flex;flex-direction:column;align-items:center;padding:30px 20px 60px;background:' + (dark ? '#0a1030' : '#e6eaf0') + ';',
+      cardBg, borderColor, panelBg, textColor, softColor, metaColor, heroColor,
+      eyebrowColor, linkColor, btnBg, btnText,
+      subjectColor: dark ? '#ffffff' : '#000b49',
+      subject: c.subject, preheader: c.preheader,
+      eyebrow: c.eyebrow, heading: c.heading, intro: c.intro,
+      hasHero: !!c.hasHero, heroLabel: c.heroLabel, heroValue: c.heroValue, heroNote: c.heroNote,
+      hasLedger: !!c.hasLedger, ledger: c.ledger || [],
+      hasTimeline: !!c.hasTimeline, timeline: c.timeline || [],
+      hasStamps: !!c.hasStamps, stamps: c.stamps || [], stampNote: c.stampNote,
+      ctaLabel: c.ctaLabel, footnote: c.footnote,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
