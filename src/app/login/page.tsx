@@ -80,8 +80,9 @@ function LoginForm() {
       portalLabel="CLIENT PORTAL"
       tagline={
         <>
-          Cleaned in <span className="text-yellow">7 minutes</span>. Booked in
-          about the same.
+          Cleaned in{" "}
+          <span style={{ color: "#ffdc39" }}>7 minutes</span>. Booked in about
+          the same.
         </>
       }
       subtext="Book collections, track your rugs and reorder past cleans across Gauteng and Cape Town."
