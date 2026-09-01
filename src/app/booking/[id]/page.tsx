@@ -1,247 +1,155 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useBookingStore } from "@/store/useBookingStore";
-import { Booking, BookingStatus } from "@/types/booking";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle, Clock, MapPin, Truck } from "lucide-react";
 import { format } from "date-fns";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CalendarDays,
+  Clock,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  ShieldAlert,
+  Sparkles,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BOOKING_STATUS_STEPS,
+  BookingStatusTimeline,
+} from "@/components/booking/BookingStatusTimeline";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
+import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
+import { cn } from "@/lib/utils";
 
-const STATUS_STEPS: { id: BookingStatus; label: string }[] = [
-  { id: "BOOKED", label: "Booked" },
-  { id: "SCHEDULED", label: "Scheduled" },
-  { id: "COLLECTED", label: "Collected" },
-  { id: "CLEANING", label: "Cleaning" },
-  { id: "DRYING", label: "Drying" },
-  { id: "READY", label: "Ready" },
-  { id: "DELIVERED", label: "Delivered" },
-];
+function slotLabel(slot: "MORNING" | "AFTERNOON") {
+  return slot === "MORNING" ? "08:00 – 12:00" : "12:00 – 16:00";
+}
+
+function formatDimensions(widthM: number | null, lengthM: number | null) {
+  if (
+    typeof widthM === "number" &&
+    typeof lengthM === "number" &&
+    widthM > 0 &&
+    lengthM > 0
+  ) {
+    return `${widthM}m × ${lengthM}m`;
+  }
+  return "To be measured on collection";
+}
 
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
   const { email, ready: authReady } = useRequireClientAuth();
-  const { bookings, fetchBookingById, isLoading } = useBookingStore();
-  const [booking, setBooking] = useState<Booking | undefined>();
-  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    if (!authReady) return;
-    const cached = bookings.find((b) => b.id === id);
-    if (cached) {
-      setBooking(cached);
-      setLoaded(true);
-      return;
-    }
-    void fetchBookingById(id).then((b) => {
-      setBooking(b);
-      setLoaded(true);
-    });
-  }, [authReady, bookings, fetchBookingById, id]);
+  const {
+    booking,
+    loading,
+    error,
+    lastSyncedAt,
+    isRefreshing,
+    refresh,
+  } = useBookingLiveTracking(id, authReady && !!email);
 
   if (!authReady || !email) return null;
 
-  if (!loaded || (isLoading && !booking)) {
+  if (loading && !booking) {
     return (
-      <div className="container py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Loading Booking...</h1>
+      <div className="container mx-auto max-w-3xl px-4 py-16 sm:py-20">
+        <div
+          className="flex flex-col items-center justify-center gap-3 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+          <h1 className="text-xl font-semibold sm:text-2xl">Loading…</h1>
+          <p className="text-sm text-muted-foreground">
+            Fetching the latest status for your booking.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!booking) {
     return (
-      <div className="container py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Booking not found</h1>
-        <p className="text-muted-foreground">
-          No booking exists for this ID, or it does not belong to your account.
+      <div className="container mx-auto max-w-lg px-4 py-16 sm:py-20 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <AlertCircle className="h-6 w-6 text-muted-foreground" aria-hidden />
+        </div>
+        <h1 className="text-xl font-semibold sm:text-2xl mb-2">Booking not found</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          We couldn&apos;t find a booking with this ID, or it isn&apos;t linked to
+          your account.
         </p>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">
+            <ArrowLeft className="h-4 w-4" />
+            Back to My Bookings
+          </Link>
+        </Button>
       </div>
     );
   }
 
   if (booking.customer.email.toLowerCase() !== email.toLowerCase()) {
     return (
-      <div className="container py-20 text-center">
-        <h1 className="text-2xl font-bold mb-4">Access denied</h1>
-        <p className="text-muted-foreground mb-6">
-          This booking belongs to another account.
+      <div className="container mx-auto max-w-lg px-4 py-16 sm:py-20 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+          <ShieldAlert className="h-6 w-6 text-destructive" aria-hidden />
+        </div>
+        <h1 className="text-xl font-semibold sm:text-2xl mb-2">Access denied</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          This booking belongs to another account. Sign in with the email used at
+          checkout to view it.
         </p>
-        <a href="/dashboard" className="text-primary underline-offset-4 hover:underline">
-          Back to My Bookings
-        </a>
+        <Button asChild>
+          <Link href="/dashboard">Go to My Bookings</Link>
+        </Button>
       </div>
     );
   }
 
-  const currentStepIndex = STATUS_STEPS.findIndex((s) => s.id === booking.status);
-
-  const paymentLabel =
-    booking.paymentStatus === "PAID"
-      ? "Paid in full"
-      : booking.paymentStatus === "DEPOSIT"
-        ? "Deposit received"
-        : "Payment outstanding";
+  const statusMeta = BOOKING_STATUS_STEPS.find((s) => s.id === booking.status);
+  const isDelivered = booking.status === "DELIVERED";
 
   return (
-    <div className="container max-w-3xl mx-auto py-10 px-4">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">Booking Status</h1>
-        <p className="text-muted-foreground">Order #{booking.id}</p>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <Badge variant={booking.status === "DELIVERED" ? "default" : "secondary"}>
-            {STATUS_STEPS.find((s) => s.id === booking.status)?.label}
-          </Badge>
-          <Badge
-            variant={
-              booking.paymentStatus === "PAID"
-                ? "default"
-                : booking.paymentStatus === "DEPOSIT"
-                  ? "secondary"
-                  : "outline"
-            }
-            className={
-              booking.paymentStatus === "UNPAID"
-                ? "border-destructive text-destructive"
-                : undefined
-            }
-          >
-            {booking.paymentStatus}
-          </Badge>
+    <div className="container mx-auto max-w-3xl px-4 py-8 sm:py-10 pb-16">
+      {/* Header */}
+      <div className="mb-6 sm:mb-8">
+        <div className="mb-4">
+          <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
+            <Link href="/dashboard">
+              <ArrowLeft className="h-4 w-4" />
+              My Bookings
+            </Link>
+          </Button>
         </div>
-      </div>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex justify-between items-center">
-            <span>Current Status</span>
-            <Badge
-              variant={booking.status === "DELIVERED" ? "default" : "secondary"}
-              className="text-lg px-4 py-1"
-            >
-              {STATUS_STEPS.find((s) => s.id === booking.status)?.label}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-secondary" />
-            <div className="space-y-8 relative">
-              {STATUS_STEPS.map((step, index) => {
-                const isCompleted = index <= currentStepIndex;
-                const isCurrent = index === currentStepIndex;
-                return (
-                  <div key={step.id} className="flex items-center gap-4">
-                    <div
-                      className={`z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                        isCompleted
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "bg-background border-muted-foreground text-muted-foreground"
-                      }`}
-                    >
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5" />
-                      ) : (
-                        <Circle className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div
-                      className={
-                        isCompleted ? "text-foreground" : "text-muted-foreground"
-                      }
-                    >
-                      <p
-                        className={`font-medium ${
-                          isCurrent ? "text-lg font-bold text-primary" : ""
-                        }`}
-                      >
-                        {step.label}
-                      </p>
-                      {isCurrent && (
-                        <p className="text-sm text-muted-foreground animate-pulse">
-                          In Progress...
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              Live order tracking
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-balance">
+              Booking status
+            </h1>
+            <p className="mt-1 font-mono text-sm text-muted-foreground break-all">
+              #{booking.id}
+            </p>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" /> Collection Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-start gap-2">
-              <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{booking.addressLine1}</p>
-                <p className="text-sm text-muted-foreground">
-                  {booking.suburb}, {booking.city}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm">
-                {format(new Date(booking.collectionDate), "PPP")} -{" "}
-                {booking.collectionSlot === "MORNING"
-                  ? "08:00 - 12:00"
-                  : "12:00 - 16:00"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5" /> Order Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Rug Type</span>
-              <span className="font-medium">{booking.rug.type}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Size</span>
-              <span className="font-medium">
-                {typeof booking.rug.widthM === "number" &&
-                typeof booking.rug.lengthM === "number" &&
-                booking.rug.widthM > 0 &&
-                booking.rug.lengthM > 0
-                  ? `${booking.rug.widthM}m x ${booking.rug.lengthM}m`
-                  : "To be measured by driver"}
-              </span>
-            </div>
-            <div className="flex justify-between border-t pt-2 mt-2">
-              <span className="font-semibold">Est. Total</span>
-              <span className="font-bold text-primary">
-                R{booking.estimatedPriceMin} - R{booking.estimatedPriceMax}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Payment details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Payment status</span>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Badge
+              variant={isDelivered ? "default" : "secondary"}
+              className="text-sm px-3 py-1"
+            >
+              {statusMeta?.label ?? booking.status}
+            </Badge>
             <Badge
               variant={
                 booking.paymentStatus === "PAID"
@@ -250,20 +158,167 @@ export default function BookingStatusPage() {
                     ? "secondary"
                     : "outline"
               }
-              className={
-                booking.paymentStatus === "UNPAID"
-                  ? "border-destructive text-destructive"
-                  : undefined
-              }
+              className={cn(
+                "text-sm",
+                booking.paymentStatus === "UNPAID" &&
+                  "border-destructive text-destructive"
+              )}
             >
               {booking.paymentStatus}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{paymentLabel}</p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {lastSyncedAt && (
+            <span aria-live="polite">
+              Last checked {format(lastSyncedAt, "HH:mm:ss")}
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => void refresh()}
+            disabled={isRefreshing}
+            aria-label="Refresh booking status"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
+            />
+            Refresh
+          </Button>
+        </div>
+
+        {error && (
+          <p
+            className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Timeline */}
+      <Card className="mb-6 sm:mb-8 overflow-hidden">
+        <CardHeader className="border-b bg-muted/30 pb-4">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Sparkles className="h-5 w-5 text-primary shrink-0" aria-hidden />
+            Cleaning journey
+          </CardTitle>
+          <p className="text-sm text-muted-foreground font-normal">
+            Follow your rug from booking through delivery — status updates appear
+            here within a few seconds.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-6 sm:pt-8 px-4 sm:px-6">
+          <BookingStatusTimeline status={booking.status} />
+        </CardContent>
+      </Card>
+
+      {/* Details grid */}
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
+        <Card className="min-w-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className="h-4 w-4 text-primary shrink-0" aria-hidden />
+              Collection details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Address
+              </p>
+              <p className="font-medium break-words">{booking.addressLine1}</p>
+              <p className="text-muted-foreground break-words">
+                {booking.suburb}, {booking.city}
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CalendarDays
+                className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0"
+                aria-hidden
+              />
+              <div>
+                <p className="font-medium">
+                  {format(new Date(booking.collectionDate), "EEEE, d MMMM yyyy")}
+                </p>
+                <p className="text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {slotLabel(booking.collectionSlot)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" aria-hidden />
+              Order summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between gap-3">
+              <span className="text-muted-foreground shrink-0">Rug type</span>
+              <span className="font-medium text-right break-words">
+                {booking.rug.type}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-muted-foreground shrink-0">Dimensions</span>
+              <span className="font-medium text-right">
+                {formatDimensions(booking.rug.widthM, booking.rug.lengthM)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3 border-t pt-3">
+              <span className="font-semibold">Estimated total</span>
+              <span className="font-bold text-primary text-right tabular-nums">
+                R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment */}
+      <Card className="mt-4 sm:mt-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Payment</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Status</span>
+            <Badge
+              variant={
+                booking.paymentStatus === "PAID"
+                  ? "default"
+                  : booking.paymentStatus === "DEPOSIT"
+                    ? "secondary"
+                    : "outline"
+              }
+              className={cn(
+                booking.paymentStatus === "UNPAID" &&
+                  "border-destructive text-destructive"
+              )}
+            >
+              {booking.paymentStatus}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">
+            {booking.paymentStatus === "PAID"
+              ? "Paid in full"
+              : booking.paymentStatus === "DEPOSIT"
+                ? "Deposit received — balance due before or on delivery"
+                : "Payment outstanding — settle after inspection or when ready for delivery"}
+          </p>
           {booking.paymentStatus === "UNPAID" && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              Outstanding balance — pay after inspection or when your rug is ready
-              for delivery.
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">
+              Outstanding balance on this order.
             </p>
           )}
         </CardContent>
