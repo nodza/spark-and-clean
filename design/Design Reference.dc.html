@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',sans-serif;color:#32373c;background:#f5f7fa}
+input,button,select{font-family:'Inter',sans-serif}
+a{color:#0a7a63;text-decoration:none}
+a:hover{color:#000b49}
+</style>
+</helmet>
+
+<div style="max-width:1180px;margin:0 auto;padding:0 32px 90px">
+
+  <header style="padding:54px 0 34px;border-bottom:1px solid #e3e7ed">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:.2em;color:#9aa0a6">SPARK &amp; CLEAN — DEVELOPER REFERENCE</div>
+    <h1 style="font-size:40px;font-weight:900;color:#000b49;margin:14px 0 0;letter-spacing:-.02em">Design system &amp; screen index</h1>
+    <p style="font-size:15px;line-height:1.6;color:#6b7280;max-width:640px;margin:14px 0 0">Treat the linked mockups as a pixel-perfect spec. Every value below is copyable — click any swatch, token or snippet. Target stack is React + Tailwind; the config block at the bottom maps these tokens to Tailwind names.</p>
+  </header>
+
+  <section style="padding:44px 0 0">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;margin-bottom:18px">SCREENS</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:14px">
+      <sc-for list="{{ screens }}" as="s" hint-placeholder-count="9">
+        <a href="{{ s.href }}" style="display:block;background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:20px" style-hover="border-color:#6cf3d5;box-shadow:0 8px 24px rgba(0,11,73,.08)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="padding:3px 9px;border-radius:999px;background:#f0f2f6;color:#6b7280;font-size:9.5px;font-weight:800;letter-spacing:.08em">{{ s.kind }}</span>
+          </div>
+          <div style="font-size:17px;font-weight:800;color:#000b49;margin-top:12px">{{ s.name }}</div>
+          <div style="font-size:13px;line-height:1.55;color:#6b7280;margin-top:7px">{{ s.desc }}</div>
+          <div style="font-size:11.5px;font-weight:700;color:#0a7a63;margin-top:13px">{{ s.file }}</div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding:52px 0 0">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;margin-bottom:18px">COLOUR</div>
+    <sc-for list="{{ colorGroups }}" as="g" hint-placeholder-count="3">
+      <div style="margin-bottom:26px">
+        <div style="font-size:13px;font-weight:800;color:#000b49;margin-bottom:11px">{{ g.title }}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:12px">
+          <sc-for list="{{ g.items }}" as="c" hint-placeholder-count="4">
+            <div onClick="{{ c.onCopy }}" style="background:#fff;border:1px solid #e3e7ed;border-radius:12px;overflow:hidden;cursor:pointer" style-hover="border-color:#9aa0a6">
+              <div style="height:64px;{{ c.swatch }}"></div>
+              <div style="padding:11px 13px 13px">
+                <div style="font-size:12.5px;font-weight:800;color:#000b49">{{ c.name }}</div>
+                <div style="font-size:12px;font-weight:600;color:#6b7280;margin-top:4px;font-variant-numeric:tabular-nums">{{ c.hex }}</div>
+                <div style="font-size:11px;color:#9aa0a6;margin-top:6px;line-height:1.45">{{ c.use }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="padding:26px 0 0">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;margin-bottom:18px">TYPOGRAPHY — INTER</div>
+    <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;overflow:hidden">
+      <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="7">
+        <div onClick="{{ t.onCopy }}" style="display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2.1fr) 190px;gap:18px;align-items:center;padding:16px 22px;border-bottom:1px solid #f0f2f6;cursor:pointer" style-hover="background:#f7f9fb">
+          <div style="font-size:12.5px;font-weight:800;color:#000b49">{{ t.name }}</div>
+          <div style="{{ t.sample }};color:#000b49;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Spark &amp; Clean</div>
+          <div style="font-size:11.5px;font-weight:600;color:#6b7280;text-align:right;font-variant-numeric:tabular-nums">{{ t.spec }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="padding:38px 0 0">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:22px">
+        <div style="font-size:13px;font-weight:800;color:#000b49;margin-bottom:14px">Radius</div>
+        <sc-for list="{{ radii }}" as="r" hint-placeholder-count="5">
+          <div onClick="{{ r.onCopy }}" style="display:flex;align-items:center;gap:14px;padding:9px 0;cursor:pointer">
+            <div style="width:52px;height:34px;background:#eafaf5;border:1px solid #bfe9dc;flex:0 0 auto;{{ r.box }}"></div>
+            <div style="font-size:12.5px;font-weight:700;color:#000b49;flex:1">{{ r.name }}</div>
+            <div style="font-size:12px;font-weight:600;color:#6b7280;font-variant-numeric:tabular-nums">{{ r.value }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:22px">
+        <div style="font-size:13px;font-weight:800;color:#000b49;margin-bottom:14px">Spacing scale</div>
+        <div style="font-size:12.5px;line-height:1.6;color:#6b7280;margin-bottom:14px">4px base. Card padding 20–22px, page gutter 32px, grid gap 14px, row padding 14px 22px.</div>
+        <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;padding:5px 0">
+            <div style="height:10px;border-radius:3px;background:#6cf3d5;flex:0 0 auto;{{ s.bar }}"></div>
+            <div style="font-size:11.5px;font-weight:700;color:#6b7280;font-variant-numeric:tabular-nums">{{ s.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:22px">
+        <div style="font-size:13px;font-weight:800;color:#000b49;margin-bottom:14px">Elevation &amp; borders</div>
+        <sc-for list="{{ shadows }}" as="sh" hint-placeholder-count="3">
+          <div onClick="{{ sh.onCopy }}" style="display:flex;align-items:center;gap:14px;padding:11px 0;cursor:pointer">
+            <div style="width:52px;height:34px;background:#fff;border-radius:10px;flex:0 0 auto;{{ sh.box }}"></div>
+            <div style="min-width:0">
+              <div style="font-size:12.5px;font-weight:700;color:#000b49">{{ sh.name }}</div>
+              <div style="font-size:11px;color:#9aa0a6;margin-top:3px">{{ sh.value }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:52px 0 0">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;margin-bottom:18px">COMPONENTS</div>
+
+    <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:24px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:800;color:#000b49">Buttons</div>
+      <div style="font-size:12px;color:#9aa0a6;margin-top:5px;line-height:1.5">All pill (radius 999px), font-weight 800, 13.5px. Primary 12px 26px; small 9px 16px at 13px.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:18px;align-items:center">
+        <button style="padding:12px 26px;border:none;border-radius:999px;background:#000b49;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer">Primary</button>
+        <button style="padding:12px 26px;border:none;border-radius:999px;background:#6cf3d5;color:#000b49;font-size:13.5px;font-weight:800;cursor:pointer">Accent</button>
+        <button style="padding:12px 26px;border:1px solid #e3e7ed;border-radius:999px;background:#fff;color:#000b49;font-size:13.5px;font-weight:800;cursor:pointer">Secondary</button>
+        <button style="padding:12px 26px;border:none;border-radius:999px;background:#ffdc39;color:#000b49;font-size:13.5px;font-weight:800;cursor:pointer">Highlight</button>
+        <span style="font-size:12.5px;font-weight:700;color:#0a7a63;cursor:pointer">Text link action</span>
+      </div>
+      <div style="font-size:11.5px;color:#6b7280;margin-top:16px;line-height:1.6">Hover: primary → <b>#0a1a6b</b>, accent → <b>#4fe4c4</b>, secondary border → <b>#9aa0a6</b>. Transition <b>.15s</b> ease. Disabled: background <b>#f0f2f6</b>, colour <b>#9aa0a6</b>.</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:24px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:800;color:#000b49">Status badges</div>
+      <div style="font-size:12px;color:#9aa0a6;margin-top:5px;line-height:1.5">padding 5px 11px · radius 999px · 10.5px / 800 · letter-spacing .04em</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px">
+        <sc-for list="{{ badges }}" as="b" hint-placeholder-count="6">
+          <span onClick="{{ b.onCopy }}" style="padding:5px 11px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.04em;cursor:pointer;{{ b.style }}">{{ b.label }}</span>
+        </sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:18px">
+        <sc-for list="{{ badges }}" as="b" hint-placeholder-count="6">
+          <div style="font-size:11px;color:#6b7280;font-variant-numeric:tabular-nums">{{ b.label }} — {{ b.spec }}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px">
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:24px">
+        <div style="font-size:13px;font-weight:800;color:#000b49">Inputs</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:7px">Label</div>
+            <input placeholder="Placeholder text" style="width:100%;padding:12px 14px;border:1px solid #e3e7ed;border-radius:10px;font-size:13.5px;color:#32373c;outline:none;background:#fff" style-focus="border-color:#6cf3d5;box-shadow:0 0 0 3px rgba(108,243,213,.25)">
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;background:#f5f7fa;border:1px solid #e3e7ed;border-radius:999px;padding:9px 15px">
+            <span style="font-size:13px;color:#9aa0a6">Search field — pill, background #f5f7fa</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:11px">
+            <div style="width:38px;height:22px;border-radius:999px;background:#0a7a63;position:relative;flex:0 0 auto">
+              <div style="position:absolute;top:3px;left:19px;width:16px;height:16px;border-radius:50%;background:#fff"></div>
+            </div>
+            <span style="font-size:12.5px;color:#6b7280">Toggle 38×22, knob 16px, on #0a7a63 / off #d8dde4</span>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:#6b7280;margin-top:16px;line-height:1.6">Error state: border <b>#d64545</b>, message 12px / 600 in <b>#d64545</b> below the field.</div>
+      </div>
+      <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:24px">
+        <div style="font-size:13px;font-weight:800;color:#000b49">Cards &amp; surfaces</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:16px">
+            <div style="font-size:12.5px;font-weight:800;color:#000b49">Standard card</div>
+            <div style="font-size:11.5px;color:#6b7280;margin-top:5px">#fff · 1px #e3e7ed · radius 14px · padding 20–22px</div>
+          </div>
+          <div style="background:#000b49;border-radius:14px;padding:16px;color:#fff">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.14em;color:#6cf3d5">FEATURE PANEL</div>
+            <div style="font-size:11.5px;color:rgba(255,255,255,.6);margin-top:6px">Navy card, teal eyebrow, white body</div>
+          </div>
+          <div style="background:#f7f9fb;border:1px solid #e3e7ed;border-radius:10px;padding:14px">
+            <div style="font-size:11.5px;color:#6b7280">Table header row — #f7f9fb, 10.5px / 800, letter-spacing .08em, colour #9aa0a6</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e3e7ed;border-radius:14px;padding:24px">
+      <div style="font-size:13px;font-weight:800;color:#000b49">Sidebar navigation</div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:16px">
+        <div style="width:230px;background:#000b49;border-radius:12px;padding:14px 12px">
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:9px;background:#6cf3d5;color:#000b49;font-size:13.5px;font-weight:800">Active item</div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:9px;color:rgba(255,255,255,.72);font-size:13.5px;font-weight:600;margin-top:3px">Inactive item</div>
+          <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:9px;color:rgba(255,255,255,.72);font-size:13.5px;font-weight:600">Badged item<span style="margin-left:auto;padding:2px 7px;border-radius:999px;background:#ffdc39;color:#000b49;font-size:10.5px;font-weight:800">12</span></div>
+        </div>
+        <div style="flex:1;min-width:260px;font-size:12px;line-height:1.75;color:#6b7280">
+          Sidebar width <b>246px</b>, background <b>#000b49</b>, nav padding <b>18px 12px</b>, item padding <b>10px 13px</b>, radius <b>9px</b>, gap between items <b>3px</b>, icon <b>17px</b> stroke 2 currentColor.<br>
+          Active: background <b>#6cf3d5</b>, colour <b>#000b49</b>, weight 800. Inactive: transparent, <b>rgba(255,255,255,.72)</b>, weight 600. Dividers <b>1px rgba(255,255,255,.09)</b>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:52px 0 0">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.16em;color:#9aa0a6;margin-bottom:18px">TAILWIND CONFIG</div>
+    <div onClick="{{ copyTailwind }}" style="background:#000b49;border-radius:14px;padding:22px 24px;cursor:pointer;position:relative" style-hover="background:#001063">
+      <div style="position:absolute;top:16px;right:20px;font-size:10.5px;font-weight:800;letter-spacing:.1em;color:#6cf3d5">CLICK TO COPY</div>
+      <pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.7;color:#cdd6ff;white-space:pre-wrap">{{ tailwindSnippet }}</pre>
+    </div>
+  </section>
+
+  <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);padding:11px 20px;border-radius:999px;background:#000b49;color:#6cf3d5;font-size:12.5px;font-weight:800;pointer-events:none;transition:.18s;{{ toastStyle }}">{{ toast }}</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { toast: '' };
+
+  copy(text, label) {
+    return () => {
+      try { navigator.clipboard.writeText(text); } catch (e) {}
+      this.setState({ toast: (label || text) + ' copied' });
+      clearTimeout(this._t);
+      this._t = setTimeout(() => this.setState({ toast: '' }), 1400);
+    };
+  }
+
+  renderVals() {
+    const screens = [
+      { name: 'Landing Page', file: 'Landing Page.dc.html', kind: 'MARKETING', desc: 'Public homepage — hero, services, pricing, booking CTA.' },
+      { name: 'Landing Page — Site Style', file: 'Landing Page - Site Style.dc.html', kind: 'MARKETING', desc: 'Alternate landing treatment matched to the existing site.' },
+      { name: 'Booking Flow', file: 'Booking Flow.dc.html', kind: 'CUSTOMER', desc: 'Multi-step quote and booking wizard with pricing logic.' },
+      { name: 'Client Portal', file: 'Client Portal.dc.html', kind: 'CUSTOMER', desc: 'Logged-in customer view — orders, tracking, invoices.' },
+      { name: 'Auth', file: 'Auth.dc.html', kind: 'CUSTOMER', desc: 'Sign in, sign up and password reset screens.' },
+      { name: 'Admin Portal', file: 'Admin Portal.dc.html', kind: 'INTERNAL', desc: 'Operations console — dispatch, bookings, clients, pricing.' },
+      { name: 'Technician Portal', file: 'Technician Portal.dc.html', kind: 'INTERNAL', desc: 'Field app — job list, route, on-site capture.' },
+      { name: 'Transactional Emails', file: 'Transactional Emails.dc.html', kind: 'COMMS', desc: 'Confirmation, status and invoice email templates.' },
+      { name: 'Wireframes', file: 'Wireframes.dc.html', kind: 'LO-FI', desc: 'Early structure and flow exploration for reference.' }
+    ].map(s => ({ ...s, href: s.file }));
+
+    const mk = (name, hex, use, extra) => ({
+      name, hex, use,
+      swatch: 'background:' + hex + (extra || ''),
+      onCopy: this.copy(hex, hex)
+    });
+
+    const colorGroups = [
+      { title: 'Brand', items: [
+        mk('Navy', '#000b49', 'Primary surface, headings, primary button'),
+        mk('Teal', '#6cf3d5', 'Accent, active nav, progress, eyebrow text on navy'),
+        mk('Yellow', '#ffdc39', 'Counts, highlights, attention badges'),
+        mk('Deep green', '#0a7a63', 'Links, inline actions, success text')
+      ]},
+      { title: 'Neutrals', items: [
+        mk('Ink', '#32373c', 'Body text'),
+        mk('Grey 600', '#6b7280', 'Secondary text'),
+        mk('Grey 400', '#9aa0a6', 'Meta, labels, placeholders'),
+        mk('Border', '#e3e7ed', 'All 1px borders', ';border:1px solid #d8dde4'),
+        mk('Divider', '#f0f2f6', 'Inner rules, disabled fills'),
+        mk('Table head', '#f7f9fb', 'Table header, subtle rows'),
+        mk('Page', '#f5f7fa', 'App background'),
+        mk('White', '#ffffff', 'Cards, top bar', ';border:1px solid #e3e7ed')
+      ]},
+      { title: 'Status', items: [
+        mk('Success bg', '#eafaf5', 'Success badge fill'),
+        mk('Success border', '#bfe9dc', 'Success badge border'),
+        mk('Info', '#2c4fa6', 'Collected / in-transit dot'),
+        mk('Error', '#d64545', 'Validation, destructive')
+      ]}
+    ];
+
+    const typeScale = [
+      ['Display', '40px / 900 / -.02em', 'font-size:40px;font-weight:900;letter-spacing:-.02em'],
+      ['H1 page title', '26px / 800', 'font-size:26px;font-weight:800'],
+      ['H2 section', '22px / 800', 'font-size:22px;font-weight:800'],
+      ['Card title', '15px / 800', 'font-size:15px;font-weight:800'],
+      ['Body', '13.5px / 600', 'font-size:13.5px;font-weight:600'],
+      ['Meta', '12.5px / 500', 'font-size:12.5px;font-weight:500'],
+      ['Eyebrow / label', '10.5px / 800 / .14em uppercase', 'font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase']
+    ].map(([name, spec, sample]) => ({ name, spec, sample, onCopy: this.copy(sample, name) }));
+
+    const radii = [
+      ['Pill', '999px'], ['Card', '14px'], ['Control', '10px'], ['Nav item', '9px'], ['Chip', '8px']
+    ].map(([name, value]) => ({ name, value, box: 'border-radius:' + value, onCopy: this.copy(value, name) }));
+
+    const spacing = [4, 8, 12, 14, 20, 22, 32].map(n => ({ label: n + 'px', bar: 'width:' + (n * 2.2) + 'px' }));
+
+    const shadows = [
+      ['Card', 'none — 1px solid #e3e7ed', 'border:1px solid #e3e7ed'],
+      ['Raised', '0 4px 16px rgba(0,11,73,.06)', 'box-shadow:0 4px 16px rgba(0,11,73,.06)'],
+      ['Overlay', '0 18px 48px rgba(0,11,73,.18)', 'box-shadow:0 18px 48px rgba(0,11,73,.18)']
+    ].map(([name, value, box]) => ({ name, value, box, onCopy: this.copy(value, name) }));
+
+    const badges = [
+      ['New', 'background:#fff7d1;color:#8a6d00;border:1px solid #ffe98a', '#fff7d1 / #8a6d00'],
+      ['Collected', 'background:#eef2ff;color:#2c4fa6;border:1px solid #cbd7ff', '#eef2ff / #2c4fa6'],
+      ['In cleaning', 'background:#eafaf5;color:#0a7a63;border:1px solid #bfe9dc', '#eafaf5 / #0a7a63'],
+      ['Out for delivery', 'background:#e6fbf6;color:#046b57;border:1px solid #a9ecdc', '#e6fbf6 / #046b57'],
+      ['Completed', 'background:#f0f2f6;color:#6b7280;border:1px solid #e3e7ed', '#f0f2f6 / #6b7280'],
+      ['Overdue', 'background:#fdecec;color:#b33232;border:1px solid #f6c9c9', '#fdecec / #b33232']
+    ].map(([label, style, spec]) => ({ label, style, spec, onCopy: this.copy(style, label) }));
+
+    const tailwindSnippet = [
+      "// tailwind.config.js — theme.extend",
+      "colors: {",
+      "  navy:   '#000b49',",
+      "  teal:   '#6cf3d5',",
+      "  yellow: '#ffdc39',",
+      "  green:  '#0a7a63',",
+      "  ink:    '#32373c',",
+      "  grey:   { 400: '#9aa0a6', 600: '#6b7280' },",
+      "  line:   '#e3e7ed',",
+      "  rule:   '#f0f2f6',",
+      "  surface:{ page: '#f5f7fa', head: '#f7f9fb' },",
+      "},",
+      "fontFamily: { sans: ['Inter', 'sans-serif'] },",
+      "borderRadius: { card: '14px', control: '10px', nav: '9px', chip: '8px' },",
+      "boxShadow: {",
+      "  raised:  '0 4px 16px rgba(0,11,73,.06)',",
+      "  overlay: '0 18px 48px rgba(0,11,73,.18)',",
+      "},"
+    ].join('\n');
+
+    return {
+      screens, colorGroups, typeScale, radii, spacing, shadows, badges, tailwindSnippet,
+      copyTailwind: this.copy(tailwindSnippet, 'Tailwind config'),
+      toast: this.state.toast || ' ',
+      toastStyle: this.state.toast ? 'opacity:1;transform:translateX(-50%) translateY(0)' : 'opacity:0;transform:translateX(-50%) translateY(8px)'
+    };
+  }
+}
+
+</script>
+</body>
+</html>
