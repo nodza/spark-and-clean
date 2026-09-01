@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',sans-serif;color:#32373c;background:#fff}
+a{color:#6cf3d5;text-decoration:none}
+a:hover{color:#ffdc39}
+button{font-family:'Inter',sans-serif}
+</style>
+</helmet>
+
+<div style="max-width:100%;overflow-x:hidden">
+
+  <!-- UTILITY BAR -->
+  <div style="background:#000b49;color:rgba(255,255,255,.75);font-size:11px;font-weight:600;padding:8px 0">
+    <div style="{{ utilInnerStyle }}">
+      <span>GAUTENG <span style="color:#6cf3d5">064 289 2384</span></span>
+      <span>CAPE TOWN <span style="color:#6cf3d5">064 043 6902</span></span>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <div style="position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid #eceef1">
+    <div style="{{ navInnerStyle }}">
+      <img src="uploads/spark-and-clean-22.png" alt="Spark & Clean" style="height:40px;width:auto">
+      <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ false }}">
+        <nav style="display:flex;gap:26px;align-items:center;font-size:13px;font-weight:700;color:#000b49">
+          <a href="#rugs" style="color:#000b49">Automatic Rug Cleaning</a>
+          <a href="#services" style="color:#000b49">Other Services</a>
+          <a href="#contact" style="color:#000b49">Contact</a>
+        </nav>
+      </sc-if>
+      <a href="Booking Flow.dc.html" style="{{ navCtaStyle }}">Book A Collection</a>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div id="rugs" style="{{ heroWrapStyle }}">
+    <div style="{{ heroInnerStyle }}">
+      <div style="{{ heroTextColStyle }}">
+        <div style="{{ heroEyebrowStyle }}">A FIRST IN SOUTH AFRICA</div>
+        <h1 style="{{ heroHeadlineStyle }}">Our system fully cleans a rug in <span style="color:#ffdc39">7 minutes</span> and dries it to 96% in 7 minutes.</h1>
+        <p style="{{ heroSubStyle }}">Serving all Gauteng and Cape Town surrounding areas. Results You Can See, Service You Can Trust.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:26px">
+          <a href="Booking Flow.dc.html" style="{{ heroPrimaryBtnStyle }}">Book A Collection</a>
+          <a href="#services" style="{{ heroSecondaryBtnStyle }}">View Services</a>
+        </div>
+      </div>
+      <div style="{{ heroImgColStyle }}">
+        <image-slot id="hero-truck" shape="rounded" radius="14" placeholder="Spark & Clean collection truck / rug wash system" style="width:100%;height:100%"></image-slot>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div id="services" style="{{ sectionPad }}">
+    <div style="{{ sectionEyebrowStyle }}">Our Services</div>
+    <h2 style="{{ sectionHeadingStyle }}">Specialist care for every rug and fabric in your home</h2>
+    <p style="{{ sectionSubStyle }}">From delicate Persian and Kilim designs to plush Shaggy, Paco and Hertex weaves — plus couch, mattress and fitted carpet cleaning, all in the comfort of your home.</p>
+    <div style="{{ servicesGridStyle }}">
+      <sc-for list="{{ serviceCards }}" as="sv" hint-placeholder-count="2">
+        <div style="{{ sv.cardStyle }}">
+          <image-slot id="{{ sv.slotId }}" shape="rounded" radius="14" placeholder="{{ sv.placeholder }}" style="width:100%;height:200px;margin-bottom:16px"></image-slot>
+          <div style="font-weight:800;font-size:19px;color:#000b49;margin-bottom:8px">{{ sv.label }}</div>
+          <div style="font-size:13.5px;color:#6b7280;line-height:1.6;margin-bottom:14px">{{ sv.desc }}</div>
+          <a href="#" style="font-size:13px;font-weight:800;color:#000b49">VIEW SERVICES →</a>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- PROCESS -->
+  <div style="{{ processWrapStyle }}">
+    <div style="max-width:1120px;margin:0 auto;padding:0 20px">
+      <h2 style="{{ processHeadingStyle }}">Booking is as easy as 1-2-3</h2>
+      <div style="{{ processGridStyle }}">
+        <sc-for list="{{ steps }}" as="stp" hint-placeholder-count="3">
+          <div style="{{ stp.cardStyle }}">
+            <image-slot id="{{ stp.slotId }}" shape="rounded" radius="12" placeholder="{{ stp.placeholder }}" style="width:100%;height:120px;margin-bottom:16px"></image-slot>
+            <div style="font-size:14px;font-weight:800;margin-bottom:6px"><span style="color:#6cf3d5">Step {{ stp.num }}:</span> <span style="color:#fff">{{ stp.title }}</span></div>
+            <div style="font-size:13px;color:rgba(255,255,255,.72);line-height:1.6">{{ stp.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="text-align:center;padding:8px 0 60px">
+        <a href="Booking Flow.dc.html" style="{{ heroPrimaryBtnStyle }}">Book A Collection</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- TESTIMONIALS -->
+  <div style="{{ sectionPad }}">
+    <div style="{{ sectionEyebrowStyle }}">What Customers Say</div>
+    <h2 style="{{ sectionHeadingStyle }}">Rated 5 stars by homeowners across Gauteng & Cape Town</h2>
+    <div style="{{ testimonialsGridStyle }}">
+      <sc-for list="{{ testimonials }}" as="tm" hint-placeholder-count="3">
+        <div style="{{ tm.cardStyle }}">
+          <div style="color:#ffdc39;font-size:14px;letter-spacing:2px;margin-bottom:12px">★★★★★</div>
+          <div style="font-size:14px;line-height:1.6;color:#32373c;margin-bottom:16px">{{ tm.quote }}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="{{ tm.avatarStyle }}">{{ tm.initial }}</div>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#000b49">{{ tm.name }}</div>
+              <div style="font-size:11px;color:#9aa0a6">{{ tm.meta }}</div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- CLIENT LOGOS -->
+  <div style="{{ clientsWrapStyle }}">
+    <div style="max-width:1120px;margin:0 auto;padding:0 20px">
+      <div style="{{ clientsHeadingStyle }}">Some of Our Clients</div>
+      <div style="{{ clientsGridStyle }}">
+        <sc-for list="{{ clients }}" as="cl" hint-placeholder-count="6">
+          <image-slot id="{{ cl.slotId }}" shape="rect" placeholder="{{ cl.placeholder }}" style="width:100%;height:56px"></image-slot>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="contact" style="{{ footerStyle }}">
+    <div style="{{ footerGridStyle }}">
+      <div>
+        <img src="uploads/spark-and-clean-22.png" alt="Spark & Clean" style="height:36px;width:auto;margin-bottom:14px">
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;max-width:260px">Automatic rug, carpet, upholstery and office cleaning across Gauteng and Cape Town.</div>
+        <div style="display:flex;gap:14px;margin-top:16px">
+          <a href="https://www.instagram.com/sparkandcleansa/" style="color:rgba(255,255,255,.7)">Instagram</a>
+          <a href="https://www.facebook.com/sparkandcleansa" style="color:rgba(255,255,255,.7)">Facebook</a>
+          <a href="https://www.linkedin.com/company/spark-and-clean/" style="color:rgba(255,255,255,.7)">LinkedIn</a>
+        </div>
+      </div>
+      <div>
+        <div style="{{ footerHeadStyle }}">Gauteng</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.8">064 289 2384<br>068 729 2869</div>
+      </div>
+      <div>
+        <div style="{{ footerHeadStyle }}">Cape Town</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.8">064 043 6902<br>063 853 4499</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.12);margin-top:36px;padding-top:20px;text-align:center;font-size:12px;color:rgba(255,255,255,.45)">Copyright 2026 Spark & Clean.</div>
+  </footer>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const SERVICE_CARDS = [
+  { id: 'rug', slotId: 'svc-card-rug', label: 'Automatic Rug Cleaning & Drying', placeholder: 'Rug wash system photo', desc: 'Our advanced automatic system cleans and dries rugs in minutes — Persian, Turkish, Shaggy, Kilim and more.' },
+  { id: 'residential', slotId: 'svc-card-res', label: 'Residential & Commercial Services', placeholder: 'Upholstery/carpet cleaning photo', desc: 'Carpet, upholstery, tile & grout, mattress cleaning and fogging/disinfecting — at home or in the office.' },
+];
+const STEPS = [
+  { num: '1', slotId: 'step-1', placeholder: 'Rug photo & details', title: 'Tell Us About Your Rug', desc: "Pick your rug type and add a few photos — dimensions are optional, our driver can measure on pickup." },
+  { num: '2', slotId: 'step-2', placeholder: 'Map pin on address', title: 'Book Your Collection', desc: 'Confirm your pickup address in Gauteng or Cape Town and pick your add-ons — see your price instantly.' },
+  { num: '3', slotId: 'step-3', placeholder: 'Collection truck', title: "We Collect, Clean & Deliver", desc: "We'll collect your rug, clean it with our 7-minute system, and drop it back looking brand new." },
+];
+const TESTIMONIALS = [
+  { name: 'Erica Langley', meta: 'Upholstery & carpet cleaning', initial: 'E', avatarStyle: 'width:34px;height:34px;border-radius:50%;background:#1a73c7;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px', quote: '"Professional and punctual. My couches look and smell amazing. I am very happy with this service and will definitely use them again."' },
+  { name: 'Jenna Howell', meta: 'Rug cleaning', initial: 'J', avatarStyle: 'width:34px;height:34px;border-radius:50%;background:#7b3fc4;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px', quote: '"By the time the Spark & Clean guys were done, my rugs were spotless. I had booked for 2 rugs but added in another 3 — I could not be happier!"' },
+  { name: 'Dezere Barnard', meta: 'Rug cleaning · 5 reviews', initial: 'D', avatarStyle: 'width:34px;height:34px;border-radius:50%;background:#0a7a63;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px', quote: '"Thank you for cleaning my 30 year old rug, I was so scared to wash it. What a surprise, I love my rug again! THANK YOU!"' },
+];
+const CLIENTS = [
+  { id: 'radisson', slotId: 'client-radisson', placeholder: 'Radisson logo' },
+  { id: 'torga', slotId: 'client-torga', placeholder: 'Torga logo' },
+  { id: 'sefar', slotId: 'client-sefar', placeholder: 'Sefar logo' },
+  { id: 'ukko', slotId: 'client-ukko', placeholder: 'Ukko logo' },
+  { id: 'jonsson', slotId: 'client-jonsson', placeholder: 'Jonsson Workwear logo' },
+  { id: 'skye', slotId: 'client-skye', placeholder: 'Skye College logo' },
+];
+
+class Component extends DCLogic {
+  state = { isDesktop: false };
+  componentDidMount() {
+    this.onResize = () => this.setState({ isDesktop: window.innerWidth >= 1024 });
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); }
+
+  renderVals() {
+    const d = this.state.isDesktop;
+    return {
+      isDesktop: d,
+      utilInnerStyle: `max-width:1200px;margin:0 auto;display:flex;flex-direction:${d ? 'row' : 'column'};gap:${d ? '28px' : '4px'};align-items:center;justify-content:center;padding:0 16px;white-space:nowrap;text-align:center`,
+      navInnerStyle: `max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px ${d ? '32px' : '18px'};gap:16px`,
+      navCtaStyle: 'background:#000b49;color:#fff;font-size:13px;font-weight:700;padding:10px 18px;border-radius:999px;white-space:nowrap',
+
+      heroWrapStyle: 'background:#000b49;background:linear-gradient(160deg,#000b49,#000f68)',
+      heroInnerStyle: `max-width:1200px;margin:0 auto;display:flex;flex-direction:${d ? 'row' : 'column'};align-items:center;gap:${d ? '48px' : '32px'};padding:${d ? '80px 32px' : '44px 20px 36px'}`,
+      heroTextColStyle: d ? 'flex:1.1;min-width:0' : 'width:100%',
+      heroImgColStyle: d ? 'flex:1;min-width:0;height:380px' : 'width:100%;height:220px',
+      heroEyebrowStyle: 'display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;color:#ffdc39;margin-bottom:16px',
+      heroHeadlineStyle: `font-size:${d ? '42px' : '28px'};line-height:1.2;font-weight:800;color:#fff;margin:0 0 16px`,
+      heroSubStyle: `font-size:${d ? '16px' : '14.5px'};line-height:1.6;color:rgba(255,255,255,.75);margin:0;max-width:480px`,
+      heroPrimaryBtnStyle: 'display:inline-flex;align-items:center;background:#fff;color:#000b49;font-size:14px;font-weight:800;padding:15px 26px;border-radius:999px',
+      heroSecondaryBtnStyle: 'display:inline-flex;align-items:center;background:transparent;color:#fff;font-size:14px;font-weight:700;padding:15px 26px;border-radius:999px;border:1.5px solid rgba(255,255,255,.35)',
+
+      sectionPad: `max-width:1200px;margin:0 auto;padding:${d ? '64px 32px' : '48px 20px'}`,
+      sectionEyebrowStyle: 'font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#0a7a63;margin-bottom:10px',
+      sectionHeadingStyle: `font-size:${d ? '30px' : '22px'};font-weight:800;color:#000b49;margin:0 0 14px;max-width:720px`,
+      sectionSubStyle: `font-size:${d ? '15px' : '14px'};color:#6b7280;line-height:1.6;max-width:640px;margin:0 0 32px`,
+      servicesGridStyle: `display:grid;grid-template-columns:repeat(${d ? 2 : 1},1fr);gap:22px`,
+      serviceCards: SERVICE_CARDS.map(sv => ({ ...sv, cardStyle: 'border:1px solid #eceef1;border-radius:16px;padding:20px' })),
+
+      processWrapStyle: 'background:#000b49',
+      processHeadingStyle: `font-size:${d ? '30px' : '22px'};font-weight:800;color:#fff;margin:0;padding:56px 0 32px`,
+      processGridStyle: `display:grid;grid-template-columns:repeat(${d ? 3 : 1},1fr);gap:${d ? '26px' : '20px'}`,
+      steps: STEPS,
+
+      testimonialsGridStyle: `display:grid;grid-template-columns:repeat(${d ? 3 : 1},1fr);gap:18px`,
+      testimonials: TESTIMONIALS.map(tm => ({ ...tm, cardStyle: 'background:#f7f8fa;border-radius:16px;padding:22px' })),
+
+      clientsWrapStyle: `background:#f7f8fa;padding:${d ? '56px 0' : '40px 0'}`,
+      clientsHeadingStyle: 'text-align:center;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9aa0a6;margin-bottom:28px',
+      clientsGridStyle: `display:grid;grid-template-columns:repeat(${d ? 6 : 2},1fr);gap:24px;align-items:center`,
+      clients: CLIENTS,
+
+      footerStyle: `background:#000b49;padding:${d ? '56px 32px 32px' : '40px 20px 28px'}`,
+      footerGridStyle: `max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(${d ? 3 : 1},1fr);gap:${d ? '32px' : '28px'}`,
+      footerHeadStyle: 'font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6cf3d5;margin-bottom:14px',
+    };
+  }
+}
+
+</script>
+</body>
+</html>
