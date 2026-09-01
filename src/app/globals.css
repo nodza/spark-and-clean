@@ -41,95 +41,99 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* ─── Spark & Clean design tokens ─────────────────────────────────────── */
+
+  /* Brand colours */
+  --color-navy:   #000b49;
+  --color-teal:   #6cf3d5;
+  --color-yellow: #ffdc39;
+  --color-green:  #0a7a63;
+
+  /* Neutrals */
+  --color-ink:           #32373c;
+  --color-grey-600:      #6b7280;
+  --color-grey-400:      #9aa0a6;
+  --color-line:          #e3e7ed;
+  --color-rule:          #f0f2f6;
+  --color-surface-page:  #f5f7fa;
+  --color-surface-head:  #f7f9fb;
+
+  /* Status fills + borders */
+  --color-status-new-bg:       #fff7d1;
+  --color-status-new-fg:       #8a6d00;
+  --color-status-new-border:   #ffe98a;
+  --color-status-collected-bg:     #eef2ff;
+  --color-status-collected-fg:     #2c4fa6;
+  --color-status-collected-border: #cbd7ff;
+  --color-status-cleaning-bg:     #eafaf5;
+  --color-status-cleaning-fg:     #0a7a63;
+  --color-status-cleaning-border: #bfe9dc;
+  --color-status-delivering-bg:     #e6fbf6;
+  --color-status-delivering-fg:     #046b57;
+  --color-status-delivering-border: #a9ecdc;
+  --color-status-completed-bg:     #f0f2f6;
+  --color-status-completed-fg:     #6b7280;
+  --color-status-completed-border: #e3e7ed;
+  --color-status-overdue-bg:     #fdecec;
+  --color-status-overdue-fg:     #b33232;
+  --color-status-overdue-border: #f6c9c9;
+
+  /* Border radii */
+  --radius-pill:    999px;
+  --radius-card:    14px;
+  --radius-control: 10px;
+  --radius-nav:     9px;
+  --radius-chip:    8px;
+
+  /* Elevation */
+  --shadow-raised:  0 4px 16px rgba(0, 11, 73, 0.06);
+  --shadow-overlay: 0 18px 48px rgba(0, 11, 73, 0.18);
 }
 
+/* ─── Semantic CSS custom properties (shadcn-compatible) ─────────────────── */
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.98 0.01 260);
-  /* Very light cool gray */
-  --foreground: oklch(0.2 0.05 260);
-  /* Deep Navy */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.05 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.05 260);
-  --primary: oklch(0.25 0.08 260);
-  /* Brand Navy */
-  --primary-foreground: oklch(0.98 0.01 260);
-  --secondary: oklch(0.75 0.15 180);
-  /* Brand Cyan/Turquoise */
-  --secondary-foreground: oklch(0.2 0.05 260);
-  --muted: oklch(0.96 0.01 260);
-  --muted-foreground: oklch(0.5 0.05 260);
-  --accent: oklch(0.85 0.18 95);
-  /* Brand Yellow */
-  --accent-foreground: oklch(0.2 0.05 260);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.02 260);
-  --input: oklch(0.9 0.02 260);
-  --ring: oklch(0.75 0.15 180);
-  /* Cyan Ring */
-  --chart-1: oklch(0.25 0.08 260);
-  /* Navy */
-  --chart-2: oklch(0.75 0.15 180);
-  /* Cyan */
-  --chart-3: oklch(0.85 0.18 95);
-  /* Yellow */
-  --chart-4: oklch(0.6 0.15 180);
-  /* Darker Cyan */
-  --chart-5: oklch(0.9 0.1 95);
-  /* Lighter Yellow */
-  --sidebar: oklch(0.98 0.01 260);
-  --sidebar-foreground: oklch(0.2 0.05 260);
-  --sidebar-primary: oklch(0.25 0.08 260);
-  --sidebar-primary-foreground: oklch(0.98 0.01 260);
-  --sidebar-accent: oklch(0.96 0.01 260);
-  --sidebar-accent-foreground: oklch(0.2 0.05 260);
-  --sidebar-border: oklch(0.9 0.02 260);
-  --sidebar-ring: oklch(0.75 0.15 180);
+  --radius: 0.625rem;
+
+  /* Map shadcn tokens to exact Spark & Clean design values */
+  --background:          #ffffff;
+  --foreground:          #32373c;
+  --card:                #ffffff;
+  --card-foreground:     #32373c;
+  --popover:             #ffffff;
+  --popover-foreground:  #32373c;
+  --primary:             #000b49;
+  --primary-foreground:  #ffffff;
+  --secondary:           #f0f2f6;
+  --secondary-foreground:#000b49;
+  --muted:               #f5f7fa;
+  --muted-foreground:    #6b7280;
+  --accent:              #6cf3d5;
+  --accent-foreground:   #000b49;
+  --destructive:         #d64545;
+  --border:              #e3e7ed;
+  --input:               #dfe2e7;
+  --ring:                #6cf3d5;
+
+  --chart-1: #000b49;
+  --chart-2: #6cf3d5;
+  --chart-3: #ffdc39;
+  --chart-4: #0a7a63;
+  --chart-5: #9aa0a6;
+
+  --sidebar:                    #000b49;
+  --sidebar-foreground:         rgba(255, 255, 255, 0.72);
+  --sidebar-primary:            #6cf3d5;
+  --sidebar-primary-foreground: #000b49;
+  --sidebar-accent:             #6cf3d5;
+  --sidebar-accent-foreground:  #000b49;
+  --sidebar-border:             rgba(255, 255, 255, 0.09);
+  --sidebar-ring:               #6cf3d5;
 }
 
-.dark {
-  --background: oklch(0.15 0.05 260);
-  /* Dark Navy Background */
-  --foreground: oklch(0.98 0.01 260);
-  --card: oklch(0.2 0.05 260);
-  /* Slightly lighter Navy */
-  --card-foreground: oklch(0.98 0.01 260);
-  --popover: oklch(0.2 0.05 260);
-  --popover-foreground: oklch(0.98 0.01 260);
-  --primary: oklch(0.75 0.15 180);
-  /* Cyan Primary in Dark Mode */
-  --primary-foreground: oklch(0.15 0.05 260);
-  --secondary: oklch(0.25 0.08 260);
-  --secondary-foreground: oklch(0.98 0.01 260);
-  --muted: oklch(0.25 0.08 260);
-  --muted-foreground: oklch(0.7 0.05 260);
-  --accent: oklch(0.85 0.18 95);
-  /* Yellow Accent */
-  --accent-foreground: oklch(0.15 0.05 260);
-  --destructive: oklch(0.7 0.19 22);
-  --border: oklch(0.3 0.05 260);
-  --input: oklch(0.3 0.05 260);
-  --ring: oklch(0.75 0.15 180);
-  --chart-1: oklch(0.75 0.15 180);
-  /* Cyan */
-  --chart-2: oklch(0.85 0.18 95);
-  /* Yellow */
-  --chart-3: oklch(0.4 0.1 260);
-  /* Light Navy */
-  --chart-4: oklch(0.6 0.15 180);
-  --chart-5: oklch(0.9 0.1 95);
-  --sidebar: oklch(0.15 0.05 260);
-  --sidebar-foreground: oklch(0.98 0.01 260);
-  --sidebar-primary: oklch(0.75 0.15 180);
-  --sidebar-primary-foreground: oklch(0.15 0.05 260);
-  --sidebar-accent: oklch(0.25 0.08 260);
-  --sidebar-accent-foreground: oklch(0.98 0.01 260);
-  --sidebar-border: oklch(0.3 0.05 260);
-  --sidebar-ring: oklch(0.75 0.15 180);
-}
+/* Portals are light-only — no dark mode overrides needed */
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -137,5 +141,106 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* ─── Design type scale ──────────────────────────────────────────────────── */
+@layer utilities {
+  /* 40px / 900 / -0.02em */
+  .text-display {
+    font-size: 40px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+  }
+  /* 26px / 800 */
+  .text-page-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  /* 22px / 800 */
+  .text-section {
+    font-size: 22px;
+    font-weight: 800;
+  }
+  /* 15px / 800 */
+  .text-card-title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+  /* 13.5px / 600 */
+  .text-body {
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.55;
+  }
+  /* 12.5px / 500 */
+  .text-meta {
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  /* 10.5px / 800 / 0.14em uppercase — form labels, eyebrows */
+  .text-eyebrow {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  /* 10.5px / 800 / 0.08em uppercase grey — table column headers */
+  .text-th {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-grey-400);
+  }
+
+  /* ─── Structural helpers ─────────────────────────────────────────────── */
+  /* Page padding inside portal main */
+  .portal-page { padding: 28px 32px 56px; }
+
+  /* Standard white card */
+  .ds-card {
+    background: #ffffff;
+    border: 1px solid #e3e7ed;
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  /* Header row inside a .ds-card */
+  .ds-card-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid #f0f2f6;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  /* Navy feature panel */
+  .ds-panel-navy {
+    background: #000b49;
+    border-radius: 14px;
+    padding: 20px 22px;
+    color: #ffffff;
+  }
+  /* Green text-action link */
+  .ds-text-action {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0a7a63;
+    cursor: pointer;
+  }
+  .ds-text-action:hover { color: #000b49; }
+  /* Pill search input wrapper */
+  .ds-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f5f7fa;
+    border: 1px solid #e3e7ed;
+    border-radius: 999px;
+    padding: 8px 14px;
   }
 }

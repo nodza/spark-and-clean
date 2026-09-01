@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Booking, PaymentStatus } from "@/types/booking";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
   AlertCircle,
   Calendar,
   Loader2,
+  LogOut,
   MapPin,
   Plus,
   RefreshCw,
@@ -19,6 +21,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const PAST_STATUSES = new Set(["DELIVERED", "CANCELLED"]);
 
@@ -100,8 +103,8 @@ function BookingCard({
             ) : (
               <>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4 shrink-0" />
-                  <span>{format(new Date(booking.collectionDate), "PPP")}</span>
+                  <Calendar className="h-4 w-4" />
+                  <span>{formatCollectionDate(booking.collectionDate)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4 shrink-0" />
@@ -127,7 +130,14 @@ function BookingCard({
   );
 }
 
+function formatCollectionDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date pending" : format(date, "PPP");
+}
+
 export default function ClientDashboard() {
+  const router = useRouter();
+  const { logout } = useAuth();
   const { user, email, ready } = useRequireClientAuth();
   const {
     bookings,
@@ -139,6 +149,11 @@ export default function ClientDashboard() {
   } = useBookingsLiveList(ready && !!email);
 
   const displayName = user?.name?.trim() || email;
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
 
   const { activeBookings, pastBookings } = useMemo(() => {
     if (!email) {
@@ -190,11 +205,21 @@ export default function ClientDashboard() {
             </Button>
           </div>
         </div>
-        <Link href="/book/rug">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> New Booking
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleLogout()}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
           </Button>
-        </Link>
+          <Link href="/book/rug">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> New Booking
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {error && (
