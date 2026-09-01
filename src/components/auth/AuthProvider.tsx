@@ -121,8 +121,10 @@ export function useAuthOptional() {
 
 export function useRequireAuth(
   roles: UserRole[] = ["CUSTOMER"],
-  loginPath = "/login"
+  loginPath = "/login",
+  options?: { allowGuest?: boolean }
 ) {
+  const allowGuest = options?.allowGuest ?? true;
   const rolesKey = roles.join("|");
   const allowed = useMemo(
     () => rolesKey.split("|") as UserRole[],
@@ -136,7 +138,10 @@ export function useRequireAuth(
   useEffect(() => {
     if (!ready) return;
 
-    const ok = !!user && allowed.includes(user.role);
+    const roleOk = !!user && allowed.includes(user.role);
+    const guestOk = allowGuest || !user?.guest;
+    const ok = roleOk && guestOk;
+
     if (!ok) {
       if (!redirected.current) {
         redirected.current = true;
@@ -145,9 +150,11 @@ export function useRequireAuth(
       return;
     }
     redirected.current = false;
-  }, [ready, user, allowed, loginPath, router]);
+  }, [ready, user, allowed, allowGuest, loginPath, router]);
 
-  const ok = ready && !!user && allowed.includes(user.role);
+  const roleOk = ready && !!user && allowed.includes(user.role);
+  const guestOk = allowGuest || !user?.guest;
+  const ok = roleOk && guestOk;
 
   return {
     user: ok ? user : null,

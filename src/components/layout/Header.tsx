@@ -4,17 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { usePortalEntry } from "@/components/auth/PortalEntryLink";
 
 export function Header() {
   const router = useRouter();
   const { user, ready, logout } = useAuth();
+  const portal = usePortalEntry();
 
   const handleLogout = async () => {
     await logout();
     router.push("/login");
   };
 
-  const isCustomer = user?.role === "CUSTOMER";
   const isAdmin = user?.role === "ADMIN";
   const isDriver = user?.role === "DRIVER";
 
@@ -43,19 +44,16 @@ export function Header() {
           <Link href="/contact" className="hover:text-primary transition-colors">
             Contact
           </Link>
-          {ready && isCustomer ? (
+          {portal.show ? (
             <Link
-              href="/dashboard"
-              className="hover:text-primary transition-colors text-foreground font-semibold"
+              href={portal.href}
+              className={
+                portal.href === "/dashboard"
+                  ? "hover:text-primary transition-colors text-foreground font-semibold"
+                  : "hover:text-primary transition-colors"
+              }
             >
-              My Bookings
-            </Link>
-          ) : ready && !user ? (
-            <Link
-              href="/login"
-              className="hover:text-primary transition-colors"
-            >
-              View My Booking
+              {portal.label}
             </Link>
           ) : null}
           {isAdmin && (
@@ -79,14 +77,14 @@ export function Header() {
         <div className="flex items-center gap-2 sm:gap-4">
           {ready && user ? (
             <>
-              {isCustomer && (
+              {portal.show ? (
                 <Link
-                  href="/dashboard"
+                  href={portal.href}
                   className="md:hidden text-sm font-semibold text-foreground hover:text-primary"
                 >
-                  My Bookings
+                  {portal.label}
                 </Link>
-              )}
+              ) : null}
               <Button
                 variant="ghost"
                 size="sm"
@@ -95,12 +93,12 @@ export function Header() {
                 Log out
               </Button>
             </>
-          ) : ready ? (
+          ) : ready && portal.show ? (
             <Link
-              href="/login"
+              href={portal.href}
               className="md:hidden text-sm font-medium text-muted-foreground hover:text-primary"
             >
-              View My Booking
+              {portal.label}
             </Link>
           ) : null}
           <Link href="/book/rug">

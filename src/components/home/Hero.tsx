@@ -4,12 +4,14 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { usePortalEntry } from "@/components/auth/PortalEntryLink";
 
 const HERO_VIDEO = "/videos/hero.mp4";
 const HERO_POSTER = "/videos/hero-poster.jpeg";
 
 export function Hero() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const portal = usePortalEntry();
 
   useEffect(() => {
     const video = videoRef.current;
@@ -84,16 +86,28 @@ export function Hero() {
             surrounding areas.
           </p>
 
-          <Button
-            asChild
-            size="lg"
-            className="min-h-12 w-full px-8 text-base font-semibold shadow-lg sm:w-auto sm:min-w-[240px] bg-accent text-accent-foreground hover:bg-accent/90"
-          >
-            <Link href="/book/rug">
-              Book a Rug Collection
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
+          <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Button
+              asChild
+              size="lg"
+              className="min-h-12 w-full px-8 text-base font-semibold shadow-lg sm:w-auto sm:min-w-[240px] bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              <Link href="/book/rug">
+                Book a Rug Collection
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+            {portal.show ? (
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="min-h-12 w-full border-primary-foreground/40 bg-transparent px-8 text-base font-semibold text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground sm:w-auto sm:min-w-[200px]"
+              >
+                <Link href={portal.href}>{portal.label}</Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>

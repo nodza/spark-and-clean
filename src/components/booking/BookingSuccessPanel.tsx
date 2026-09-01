@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, UserPlus, Eye, LogIn } from "lucide-react";
+import { CheckCircle2, Package, UserPlus } from "lucide-react";
 import { continueAsGuest, registerUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
 
@@ -19,7 +20,9 @@ type BookingSuccessPanelProps = {
 };
 
 /**
- * Post-submission: track as guest, sign in, or register with checkout details.
+ * Post-booking confirmation — same card UI pattern as real-time tracking branch.
+ * Track now / sign in later = one guest path (email only). Create account = password.
+ * Provisional CTA copy — Noel to confirm before launch.
  */
 export function BookingSuccessPanel({
   bookingId,
@@ -28,35 +31,43 @@ export function BookingSuccessPanel({
   phone = "",
 }: BookingSuccessPanelProps) {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, refresh } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
+  const [tracking, setTracking] = useState(false);
 
-  const goSignIn = () => {
-    router.push(`/login?next=/booking/${bookingId}`);
-  };
+  const checkoutEmail = email.trim().toLowerCase();
+  const sessionMatchesCheckout =
+    !!user &&
+    user.role === "CUSTOMER" &&
+    user.email.toLowerCase() === checkoutEmail;
 
-  const trackAsGuest = async () => {
+  const trackMyOrder = async () => {
     setError(null);
-    if (!email.trim()) {
+
+    if (sessionMatchesCheckout) {
+      router.push(`/booking/${bookingId}`);
+      return;
+    }
+
+    if (!checkoutEmail) {
       setError("No checkout email found. Go back and add your email in Step 3.");
       return;
     }
 
-    setGuestLoading(true);
+    setTracking(true);
     const result = await continueAsGuest({
-      email: email.trim().toLowerCase(),
+      email: checkoutEmail,
       name: name.trim() || undefined,
       phone: phone.trim() || undefined,
       bookingId,
     });
-    setGuestLoading(false);
+    setTracking(false);
 
     if (result.error || !result.user) {
-      setError(result.error || "Could not continue as guest");
+      setError(result.error || "Could not open tracking");
       return;
     }
 
@@ -68,7 +79,7 @@ export function BookingSuccessPanel({
     e.preventDefault();
     setError(null);
 
-    if (!email.trim()) {
+    if (!checkoutEmail) {
       setError("No checkout email found. Go back and add your email in Step 3.");
       return;
     }
@@ -83,7 +94,7 @@ export function BookingSuccessPanel({
 
     setRegistering(true);
     const result = await registerUser({
-      email: email.trim().toLowerCase(),
+      email: checkoutEmail,
       password,
       name: name.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -92,7 +103,9 @@ export function BookingSuccessPanel({
     if (result.error) {
       setRegistering(false);
       if (result.error.toLowerCase().includes("already")) {
-        setError("Account exists — sign in to view this booking.");
+        setError(
+          "Account exists — use Track My Order with this email, or sign in from the header."
+        );
         return;
       }
       setError(result.error);
@@ -114,33 +127,45 @@ export function BookingSuccessPanel({
         <p className="mt-2 text-muted-foreground">
           Thanks — we&apos;ve saved your collection request to our system.
         </p>
-        <p className="mt-4 text-sm text-muted-foreground">Your booking reference</p>
-        <p className="mt-1 font-mono text-xl font-bold tracking-wide text-primary">
+        <p className="mt-4 text-sm text-muted-foreground">Your booking ID</p>
+        <p className="mt-1 font-mono text-xl font-bold tracking-wide text-primary break-all">
           {bookingId}
         </p>
+        {sessionMatchesCheckout ? (
+          <p className="mt-4 text-sm text-foreground">
+            You&apos;re signed in with this email — this booking is already on{" "}
+            <Link
+              href="/dashboard"
+              className="font-medium underline underline-offset-2"
+            >
+              My Bookings
+            </Link>
+            .
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Eye className="h-5 w-5 text-primary" />
-              Continue as guest
+              <Package className="h-5 w-5 text-primary" aria-hidden />
+              Track my order
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              View this booking&apos;s status without creating a password account.
-              We&apos;ll use <strong>{email || "your checkout email"}</strong>.
+              Save this booking ID, or come back later and sign in with{" "}
+              <strong>{checkoutEmail || "the email you used at checkout"}</strong>
+              . No password needed — track now or later with the same email.
             </p>
             <Button
               type="button"
-              variant="outline"
               className="w-full"
-              onClick={() => void trackAsGuest()}
-              disabled={guestLoading}
+              onClick={() => void trackMyOrder()}
+              disabled={tracking || registering}
             >
-              {guestLoading ? "Opening…" : "Track Booking as Guest"}
+              {tracking ? "Opening…" : "Track My Order"}
             </Button>
           </CardContent>
         </Card>
@@ -148,32 +173,18 @@ export function BookingSuccessPanel({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <LogIn className="h-5 w-5 text-primary" />
-              Already have an account?
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Sign in with <strong>{email || "your checkout email"}</strong> to track
-              this booking.
-            </p>
-            <Button type="button" variant="outline" className="w-full" onClick={goSignIn}>
-              Sign in to track booking
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <UserPlus className="h-5 w-5 text-primary" />
+              <UserPlus className="h-5 w-5 text-primary" aria-hidden />
               Create an account
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={(e) => void registerAccount(e)} className="space-y-4">
+            <form
+              onSubmit={(e) => void registerAccount(e)}
+              className="space-y-4"
+            >
               <p className="text-sm text-muted-foreground">
-                We&apos;ll save your checkout name and phone with your account.
+                Optional — set a password and we&apos;ll save your checkout name
+                and phone with your account.
               </p>
 
               <div className="space-y-2">
@@ -235,18 +246,22 @@ export function BookingSuccessPanel({
                 />
               </div>
 
-              {error && (
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
-                </p>
-              )}
-
-              <Button type="submit" className="w-full" disabled={registering}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={registering || tracking}
+              >
                 {registering ? "Creating account…" : "Register & track booking"}
               </Button>
             </form>
           </CardContent>
         </Card>
+
+        {error ? (
+          <p className="text-sm text-destructive text-center" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
     </div>
   );

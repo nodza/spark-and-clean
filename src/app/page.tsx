@@ -1,6 +1,7 @@
 import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { PromoVideos } from "@/components/home/PromoVideos";
+import { HomePortalCta } from "@/components/home/HomePortalCta";
 import { ChatFAB } from "@/components/ChatFAB";
 import TrustSection from "@/components/TrustSection";
 import { buildMetadata, pageSeo } from "@/lib/seo";
@@ -89,20 +90,8 @@ export default function Home() {
       {/* Social Proof & Areas */}
       <TrustSection />
 
-      {/* Returning customers — email gate to dashboard */}
-      <section className="border-t py-16">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-6 px-4 text-center sm:flex-row sm:text-left">
-          <div>
-            <h2 className="text-2xl font-bold">Already booked with us?</h2>
-            <p className="mt-2 text-muted-foreground">
-              Sign in with your email to see your collection status.
-            </p>
-          </div>
-          <Button asChild size="lg" className="min-h-12 px-8">
-            <Link href="/login">View My Booking</Link>
-          </Button>
-        </div>
-      </section>
+      {/* Returning customers — same portal destinations as header / hero */}
+      <HomePortalCta />
 
       {/* FAB Chat Widget */}
       <ChatFAB />
