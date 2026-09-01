@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',sans-serif;color:#32373c;background:#fff}
+a{color:#000b49;text-decoration:none}
+a:hover{color:#0a7a63}
+button{font-family:'Inter',sans-serif}
+</style>
+</helmet>
+
+<div style="max-width:100%;overflow-x:hidden">
+
+  <!-- NAV -->
+  <div style="position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid #eceef1">
+    <div style="{{ navInnerStyle }}">
+      <img src="uploads/spark-and-clean-22.png" alt="Spark & Clean" style="height:38px;width:auto">
+      <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ false }}">
+        <nav style="display:flex;gap:28px;align-items:center;font-size:14px;font-weight:600">
+          <a href="#services">Services</a><a href="#process">How it works</a><a href="#cities">Locations</a><a href="#contact">Contact</a>
+        </nav>
+      </sc-if>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;background:#f2f3f6;border-radius:999px;padding:3px;font-size:12px;font-weight:600">
+          <button onClick="{{ setCityJhb }}" style="{{ cityBtnStyle_jhb }}">JHB</button>
+          <button onClick="{{ setCityCpt }}" style="{{ cityBtnStyle_cpt }}">CPT</button>
+        </div>
+        <a href="#book" style="{{ navCtaStyle }}">Request A Quote</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div style="{{ heroWrapStyle }}">
+    <div style="{{ heroTextColStyle }}">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#eafaf5;color:#0a7a63;font-size:12px;font-weight:700;letter-spacing:.03em;padding:6px 12px;border-radius:999px;margin-bottom:18px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#0a7a63"></span>Now serving {{ cityLabel }}
+      </div>
+      <h1 style="{{ heroHeadlineStyle }}">Results You Can See, <span style="color:#0a7a63">Service You Can Trust.</span></h1>
+      <p style="{{ heroSubStyle }}">Professional rug, upholstery, carpet, tile and office cleaning across Johannesburg and Cape Town. Book a free collection in minutes.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:26px">
+        <a href="#book" style="{{ heroPrimaryBtnStyle }}">Request A Quote</a>
+        <a href="#services" style="{{ heroSecondaryBtnStyle }}">View Services</a>
+      </div>
+      <div style="{{ statsRowStyle }}">
+        <sc-for list="{{ stats }}" as="st" hint-placeholder-count="3">
+          <div>
+            <div style="font-size:22px;font-weight:800;color:#000b49">{{ st.value }}</div>
+            <div style="font-size:12px;color:#6b7280;font-weight:600">{{ st.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="{{ heroImgColStyle }}">
+      <image-slot id="hero-photo" shape="rounded" radius="18" placeholder="Rug being professionally cleaned" style="width:100%;height:100%"></image-slot>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div id="services" style="{{ sectionPad }}">
+    <div style="{{ sectionEyebrowStyle }}">What we clean</div>
+    <h2 style="{{ sectionHeadingStyle }}">Five services, one standard of care</h2>
+    <div style="{{ servicesGridStyle }}">
+      <sc-for list="{{ services }}" as="sv" hint-placeholder-count="5">
+        <div style="{{ sv.cardStyle }}">
+          <image-slot id="{{ sv.slotId }}" shape="rounded" radius="14" placeholder="{{ sv.placeholder }}" style="width:100%;height:150px;margin-bottom:14px"></image-slot>
+          <div style="font-weight:700;font-size:16px;color:#000b49;margin-bottom:6px">{{ sv.label }}</div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.5">{{ sv.desc }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- PROCESS -->
+  <div id="process" style="{{ processWrapStyle }}">
+    <div style="max-width:1120px;margin:0 auto;padding:0 20px">
+      <div style="{{ sectionEyebrowStyleLight }}">How it works</div>
+      <h2 style="{{ sectionHeadingStyleLight }}">Three steps. Zero hassle.</h2>
+      <div style="{{ processGridStyle }}">
+        <sc-for list="{{ steps }}" as="stp" hint-placeholder-count="3">
+          <div style="{{ stp.cardStyle }}">
+            <div style="{{ processNumStyle }}">{{ stp.num }}</div>
+            <div style="font-weight:700;font-size:16px;color:#fff;margin:14px 0 6px">{{ stp.title }}</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.5">{{ stp.desc }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- CITIES -->
+  <div id="cities" style="{{ sectionPad }}">
+    <div style="{{ sectionEyebrowStyle }}">Where we operate</div>
+    <h2 style="{{ sectionHeadingStyle }}">Two cities, one standard</h2>
+    <div style="{{ citiesGridStyle }}">
+      <sc-for list="{{ cities }}" as="ct" hint-placeholder-count="2">
+        <div style="{{ ct.cardStyle }}">
+          <image-slot id="{{ ct.slotId }}" shape="rounded" radius="14" placeholder="{{ ct.placeholder }}" style="width:100%;height:130px;margin-bottom:14px"></image-slot>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+            <div style="font-weight:800;font-size:18px;color:#000b49">{{ ct.name }}</div>
+            <div style="font-size:11px;font-weight:700;color:#0a7a63;background:#eafaf5;padding:3px 9px;border-radius:999px">{{ ct.status }}</div>
+          </div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.5">{{ ct.areas }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- TESTIMONIAL -->
+  <div style="{{ sectionPad }}padding-top:0">
+    <div style="{{ testimonialCardStyle }}">
+      <image-slot id="testimonial-photo" shape="circle" placeholder="Customer photo" style="width:64px;height:64px;flex-shrink:0"></image-slot>
+      <div>
+        <div style="font-size:16px;line-height:1.6;color:#000b49;font-weight:500;margin-bottom:10px">"Our Persian rug came back looking brand new — collection and delivery were both on time. Easily the most professional cleaning service we've used in Joburg."</div>
+        <div style="font-size:13px;font-weight:700;color:#32373c">Lindiwe Khumalo</div>
+        <div style="font-size:12px;color:#9aa0a6">Sandton, Johannesburg</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA BANNER -->
+  <div id="book" style="{{ ctaBannerStyle }}">
+    <h2 style="font-size:26px;font-weight:800;color:#fff;margin:0 0 10px">Ready for results you can see?</h2>
+    <p style="font-size:14px;color:rgba(255,255,255,.75);margin:0 0 22px;max-width:440px">Free collection across {{ cityLabel }}. Get an instant estimate before you book.</p>
+    <a href="Booking Flow.dc.html" style="{{ ctaBannerBtnStyle }}">Request A Quote →</a>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="contact" style="{{ footerStyle }}">
+    <div style="{{ footerGridStyle }}">
+      <div>
+        <img src="uploads/spark-and-clean-22.png" alt="Spark & Clean" style="height:34px;width:auto;margin-bottom:14px">
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.6;max-width:260px">Professional rug, upholstery, carpet, tile and office cleaning in Johannesburg and Cape Town.</div>
+      </div>
+      <div>
+        <div style="{{ footerHeadStyle }}">Company</div>
+        <div style="{{ footerLinksStyle }}"><a href="#services" style="color:rgba(255,255,255,.7)">Services</a><a href="#process" style="color:rgba(255,255,255,.7)">How it works</a><a href="#cities" style="color:rgba(255,255,255,.7)">Locations</a></div>
+      </div>
+      <div>
+        <div style="{{ footerHeadStyle }}">Johannesburg</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7">Sandton & surrounds<br>Mon–Sat, 8am–5pm</div>
+      </div>
+      <div>
+        <div style="{{ footerHeadStyle }}">Cape Town</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7">City Bowl & surrounds<br>Mon–Sat, 8am–5pm</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,.12);margin-top:36px;padding-top:20px;text-align:center;font-size:12px;color:rgba(255,255,255,.45)">© 2026 Spark & Clean. All rights reserved.</div>
+  </footer>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const SERVICES = [
+  { id: 'rug', label: 'Rug Cleaning', slotId: 'svc-rug', placeholder: 'Rug cleaning photo', desc: 'Deep cleaning for Persian, shaggy, Berber and area rugs of every size.' },
+  { id: 'upholstery', label: 'Upholstery Cleaning', slotId: 'svc-upholstery', placeholder: 'Upholstery cleaning photo', desc: 'Sofas, armchairs and fabric furniture, refreshed on-site.' },
+  { id: 'carpet', label: 'Carpet Cleaning', slotId: 'svc-carpet', placeholder: 'Carpet cleaning photo', desc: 'Wall-to-wall carpet cleaning for homes and offices.' },
+  { id: 'tile', label: 'Tile & Grout Cleaning', slotId: 'svc-tile', placeholder: 'Tile cleaning photo', desc: 'Restoring tile and grout in kitchens, bathrooms and floors.' },
+  { id: 'office', label: 'Office Cleaning', slotId: 'svc-office', placeholder: 'Office cleaning photo', desc: 'Scheduled commercial cleaning for offices of any size.' },
+];
+const STEPS = [
+  { num: '01', title: 'Find your service', desc: 'Tell us what needs cleaning and where you\'re based.' },
+  { num: '02', title: 'Send your request', desc: 'Add photos and pick a pickup time that works for you.' },
+  { num: '03', title: 'We collect & deliver', desc: 'We collect, clean, and drop it back looking brand new.' },
+];
+const CITIES = [
+  { id: 'jhb', name: 'Johannesburg', slotId: 'city-jhb', placeholder: 'Johannesburg skyline', status: 'Active', areas: 'Sandton, Rosebank, Melrose, Bryanston and surrounding suburbs.' },
+  { id: 'cpt', name: 'Cape Town', slotId: 'city-cpt', placeholder: 'Cape Town skyline', status: 'New', areas: 'City Bowl, Southern Suburbs, Atlantic Seaboard and surrounds.' },
+];
+const STATS = [
+  { value: '15,000+', label: 'Rugs cleaned' },
+  { value: '4.9★', label: 'Average rating' },
+  { value: '2 cities', label: 'JHB & Cape Town' },
+];
+
+class Component extends DCLogic {
+  state = { city: 'JHB', isDesktop: false };
+
+  componentDidMount() {
+    this.onResize = () => this.setState({ isDesktop: window.innerWidth >= 1024 });
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); }
+
+  renderVals() {
+    const s = this.state;
+    const d = s.isDesktop;
+    const cityBtn = (active) => `padding:5px 12px;border-radius:999px;border:none;cursor:pointer;font-size:12px;font-weight:700;background:${active ? '#000b49' : 'transparent'};color:${active ? '#fff' : '#32373c'}`;
+
+    return {
+      isDesktop: d,
+      navInnerStyle: `max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px ${d ? '32px' : '18px'};gap:16px`,
+      cityLabel: s.city === 'JHB' ? 'Johannesburg' : 'Cape Town',
+      cityBtnStyle_jhb: cityBtn(s.city === 'JHB'), cityBtnStyle_cpt: cityBtn(s.city === 'CPT'),
+      setCityJhb: () => this.setState({ city: 'JHB' }), setCityCpt: () => this.setState({ city: 'CPT' }),
+      navCtaStyle: `background:#ffdc39;color:#000b49;font-size:13px;font-weight:700;padding:9px 16px;border-radius:999px;white-space:nowrap`,
+
+      heroWrapStyle: `max-width:1200px;margin:0 auto;display:flex;flex-direction:${d ? 'row' : 'column'};align-items:center;gap:${d ? '48px' : '32px'};padding:${d ? '72px 32px' : '40px 20px 32px'}`,
+      heroTextColStyle: d ? 'flex:1;min-width:0' : 'width:100%',
+      heroImgColStyle: d ? 'flex:1;min-width:0;height:420px' : 'width:100%;height:220px',
+      heroHeadlineStyle: `font-size:${d ? '48px' : '32px'};line-height:1.12;font-weight:800;color:#000b49;margin:0 0 16px;letter-spacing:-.01em`,
+      heroSubStyle: `font-size:${d ? '17px' : '15px'};line-height:1.6;color:#6b7280;margin:0;max-width:460px`,
+      heroPrimaryBtnStyle: 'display:inline-flex;align-items:center;background:#ffdc39;color:#000b49;font-size:14px;font-weight:700;padding:14px 24px;border-radius:999px',
+      heroSecondaryBtnStyle: 'display:inline-flex;align-items:center;background:#fff;color:#000b49;font-size:14px;font-weight:700;padding:14px 24px;border-radius:999px;border:1.5px solid #000b49',
+      statsRowStyle: `display:flex;gap:${d ? '32px' : '22px'};margin-top:34px;padding-top:24px;border-top:1px solid #eceef1`,
+      stats: STATS,
+
+      sectionPad: `max-width:1200px;margin:0 auto;padding:${d ? '64px 32px' : '48px 20px'}`,
+      sectionEyebrowStyle: 'font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0a7a63;margin-bottom:8px',
+      sectionHeadingStyle: `font-size:${d ? '32px' : '24px'};font-weight:800;color:#000b49;margin:0 0 32px`,
+      servicesGridStyle: `display:grid;grid-template-columns:repeat(${d ? 3 : 1},1fr);gap:20px`,
+      services: SERVICES.map(sv => ({ ...sv, cardStyle: 'border:1px solid #eceef1;border-radius:16px;padding:18px' })),
+
+      processWrapStyle: 'background:#000b49;padding:0',
+      sectionEyebrowStyleLight: 'font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6cf3d5;margin-bottom:8px;padding-top:56px',
+      sectionHeadingStyleLight: `font-size:${d ? '32px' : '24px'};font-weight:800;color:#fff;margin:0 0 32px`,
+      processGridStyle: `display:grid;grid-template-columns:repeat(${d ? 3 : 1},1fr);gap:${d ? '24px' : '18px'};padding-bottom:56px`,
+      steps: STEPS.map(stp => ({ ...stp, cardStyle: 'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:22px' })),
+      processNumStyle: 'display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:#6cf3d5;color:#000b49;font-weight:800;font-size:15px',
+
+      citiesGridStyle: `display:grid;grid-template-columns:repeat(${d ? 2 : 1},1fr);gap:20px`,
+      cities: CITIES.map(ct => ({ ...ct, cardStyle: 'border:1px solid #eceef1;border-radius:16px;padding:20px' })),
+
+      testimonialCardStyle: `display:flex;gap:${d ? '20px' : '14px'};align-items:flex-start;background:#f7f8fa;border-radius:18px;padding:${d ? '32px' : '22px'};max-width:1200px;margin:0 auto`,
+
+      ctaBannerStyle: `background:#000f68;text-align:center;padding:${d ? '72px 32px' : '52px 20px'};display:flex;flex-direction:column;align-items:center`,
+      ctaBannerBtnStyle: 'display:inline-flex;align-items:center;background:#ffdc39;color:#000b49;font-size:15px;font-weight:700;padding:15px 28px;border-radius:999px',
+
+      footerStyle: `background:#000b49;padding:${d ? '56px 32px 32px' : '40px 20px 28px'}`,
+      footerGridStyle: `max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(${d ? 4 : 1},1fr);gap:${d ? '32px' : '28px'}`,
+      footerHeadStyle: 'font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6cf3d5;margin-bottom:14px',
+      footerLinksStyle: 'display:flex;flex-direction:column;gap:10px;font-size:13px',
+    };
+  }
+}
+
+</script>
+</body>
+</html>

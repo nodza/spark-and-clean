@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<style>
+  html,body{margin:0;padding:0;height:100%;font-family:'Inter',-apple-system,sans-serif}
+  #map{height:100%;width:100%;background:#eef1f5}
+  .leaflet-container{font-family:'Inter',-apple-system,sans-serif}
+  .pin{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 6px rgba(0,11,73,.35);border:2px solid #fff}
+  .van{width:30px;height:30px;border-radius:50%;background:#000b49;color:#6cf3d5;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border:2.5px solid #6cf3d5;box-shadow:0 3px 9px rgba(0,11,73,.4)}
+  .legend{background:#fff;border:1px solid #e3e7ed;border-radius:11px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,11,73,.1);font-size:11.5px;color:#32373c;line-height:1.9}
+  .legend b{display:block;font-size:9.5px;font-weight:800;letter-spacing:.12em;color:#9aa0a6;margin-bottom:7px}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle}
+  .leaflet-popup-content{margin:11px 13px;font-size:12.5px;line-height:1.5}
+  .leaflet-popup-content b{color:#000b49;font-size:13.5px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+const COLORS = { collect: '#c79a00', deliver: '#2c4fa6', done: '#0a7a63', late: '#b3261e', facility: '#000b49' };
+
+const stops = [
+  { name: 'Nomsa Khumalo', ref: 'SC-2418', area: 'Sandton',      time: '08:00', kind: 'done',    label: '1', ll: [-26.1076, 28.0567] },
+  { name: 'Lebo Sithole',  ref: 'SC-2416', area: 'Morningside',  time: '08:45', kind: 'done',    label: '2', ll: [-26.0836, 28.0575] },
+  { name: 'Ridwaan Patel', ref: 'SC-2417', area: 'Fourways',     time: '09:30', kind: 'collect', label: '3', ll: [-26.0186, 28.0106] },
+  { name: 'Anke van Wyk',  ref: 'SC-2415', area: 'Randburg',     time: '11:00', kind: 'collect', label: '4', ll: [-26.0936, 28.0064] },
+  { name: 'Sipho Ndlovu',  ref: 'SC-2411', area: 'Midrand',      time: '13:15', kind: 'deliver', label: '5', ll: [-25.9992, 28.1263] },
+  { name: 'Claire Bester', ref: 'SC-2408', area: 'Bryanston',    time: '15:00', kind: 'late',    label: '6', ll: [-26.0525, 28.0175] },
+];
+
+const vans = [
+  { initials: 'TM', name: 'Thabo Mokoena', note: 'En route to Fourways', ll: [-26.0512, 28.0270] },
+  { initials: 'SD', name: 'Sifiso Dube',   note: 'At Randburg stop',     ll: [-26.0905, 28.0110] },
+];
+
+const facility = { name: 'Midrand facility', ll: [-25.9895, 28.1288] };
+
+const map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([-26.055, 28.055], 11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19,
+}).addTo(map);
+
+L.polyline(stops.map(s => s.ll), { color: '#000b49', weight: 2, opacity: .35, dashArray: '5 6' }).addTo(map);
+
+stops.forEach(s => {
+  L.marker(s.ll, {
+    icon: L.divIcon({
+      className: '',
+      html: '<div class="pin" style="background:' + COLORS[s.kind] + '">' + s.label + '</div>',
+      iconSize: [26, 26], iconAnchor: [13, 13],
+    }),
+  }).addTo(map).bindPopup('<b>' + s.name + '</b><br>' + s.ref + ' · ' + s.area + '<br>' + s.time + ' · ' + s.kind);
+});
+
+vans.forEach(v => {
+  L.marker(v.ll, {
+    icon: L.divIcon({ className: '', html: '<div class="van">' + v.initials + '</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+  }).addTo(map).bindPopup('<b>' + v.name + '</b><br>' + v.note);
+});
+
+L.marker(facility.ll, {
+  icon: L.divIcon({ className: '', html: '<div class="pin" style="background:' + COLORS.facility + ';border-radius:7px">F</div>', iconSize: [26, 26], iconAnchor: [13, 13] }),
+}).addTo(map).bindPopup('<b>' + facility.name + '</b><br>Cleaning and drying');
+
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function () {
+  const div = L.DomUtil.create('div', 'legend');
+  div.innerHTML = '<b>TODAY\'S ROUTE</b>'
+    + '<i style="background:' + COLORS.collect + '"></i>Collection<br>'
+    + '<i style="background:' + COLORS.deliver + '"></i>Delivery<br>'
+    + '<i style="background:' + COLORS.done + '"></i>Completed<br>'
+    + '<i style="background:' + COLORS.late + '"></i>Late<br>'
+    + '<i style="background:' + COLORS.facility + '"></i>Facility / van';
+  return div;
+};
+legend.addTo(map);
+
+map.fitBounds(L.latLngBounds(stops.map(s => s.ll).concat([facility.ll])), { padding: [42, 42] });
+</script>
+</body>
+</html>

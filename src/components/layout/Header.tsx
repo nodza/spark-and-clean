@@ -71,7 +71,7 @@ export function Header() {
               href="/tech/dashboard"
               className="hover:text-primary transition-colors text-foreground font-semibold"
             >
-              Driver jobs
+              Technician
             </Link>
           )}
         </nav>
