@@ -285,7 +285,7 @@ export function Step3Location({
             <FieldError id="name-error" message={nameError} />
           ) : (
             <p id="name-hint" className="text-xs text-muted-foreground">
-              Multi-word names are welcome (e.g. van der Merwe, Smith Jr.).
+              Multi-word names are welcome (e.g. Sipho Bhekizizwe Dlamini, Smith Jr.).
             </p>
           )}
         </div>
