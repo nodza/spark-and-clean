@@ -1,6 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import type { UserRole } from "@/types/user";
+import {
+  normalizeUserRole,
+  type AdminTier,
+  type UserRole,
+} from "@/types/user";
 
 export const SESSION_COOKIE = "sc_session";
 
@@ -10,6 +14,7 @@ export type SessionUser = {
   name?: string;
   phone?: string;
   role: UserRole;
+  adminTier?: AdminTier | null;
   driverProfileId?: string;
   /** Checkout guest session — no password account yet */
   guest?: boolean;
@@ -29,6 +34,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     name: user.name,
     phone: user.phone,
     role: user.role,
+    adminTier: user.adminTier ?? null,
     driverProfileId: user.driverProfileId,
     guest: user.guest === true,
   })
@@ -50,7 +56,11 @@ export async function verifySessionToken(
       email: payload.email,
       name: typeof payload.name === "string" ? payload.name : undefined,
       phone: typeof payload.phone === "string" ? payload.phone : undefined,
-      role: (payload.role as UserRole) || "CUSTOMER",
+      role: normalizeUserRole(payload.role),
+      adminTier:
+        payload.adminTier === "full" || payload.adminTier === "marketing-only"
+          ? payload.adminTier
+          : null,
       driverProfileId:
         typeof payload.driverProfileId === "string"
           ? payload.driverProfileId

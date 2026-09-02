@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 
 function redirectForRole(role: string, next?: string | null) {
   if (next && next.startsWith("/")) return next;
-  if (role === "ADMIN") return "/admin";
-  if (role === "DRIVER") return "/tech/dashboard";
+  if (role === "admin") return "/admin";
+  if (role === "technician") return "/tech/dashboard";
   return "/dashboard";
 }
 

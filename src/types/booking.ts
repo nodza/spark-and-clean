@@ -33,6 +33,8 @@ export interface Coordinates {
 
 export interface Booking {
   id: string;
+  /** Registered client User id (ObjectId string). Guests omit this. */
+  userId?: string;
   customer: Customer;
   suburb: string;
   addressLine1: string;

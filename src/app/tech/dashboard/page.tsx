@@ -13,7 +13,7 @@ import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
 export default function TechDashboard() {
   const router = useRouter();
   const { logout } = useAuth();
-  const { user, ready } = useRequireAuth(["DRIVER"], "/tech");
+  const { user, ready } = useRequireAuth(["technician"], "/tech");
   const { bookings, fetchBookings } = useBookingStore();
 
   useEffect(() => {

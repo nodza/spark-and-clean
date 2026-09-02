@@ -3,7 +3,7 @@
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import type { UserRole } from "@/types/user";
 
-const ADMIN_ROLES: UserRole[] = ["ADMIN"];
+const ADMIN_ROLES: UserRole[] = ["admin"];
 
 export default function AdminLayout({
   children,

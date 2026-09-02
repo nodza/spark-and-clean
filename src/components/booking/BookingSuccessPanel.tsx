@@ -41,7 +41,7 @@ export function BookingSuccessPanel({
   const checkoutEmail = email.trim().toLowerCase();
   const sessionMatchesCheckout =
     !!user &&
-    user.role === "CUSTOMER" &&
+    user.role === "client" &&
     user.email.toLowerCase() === checkoutEmail;
 
   const trackMyOrder = async () => {
