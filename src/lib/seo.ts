@@ -50,7 +50,7 @@ export const pageSeo = {
   contact: {
     title: "Spark & Clean | Contact Us — Cape Town & Johannesburg",
     description:
-      "Get in touch with Spark & Clean for rug collection, quotes and commercial cleaning. Cape Town and Johannesburg phone lines, email and branch locations in Kya Sand & Maitland.",
+      "Get in touch with Spark & Clean for support, drop-off, and help with online booking. Cape Town and Johannesburg phone, WhatsApp support, email, and branch locations in Kya Sand & Maitland.",
     path: "/contact",
   },
   bookRug: {
