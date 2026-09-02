@@ -1,6 +1,7 @@
 import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { PromoVideos } from "@/components/home/PromoVideos";
+import { HomePortalCta } from "@/components/home/HomePortalCta";
 import { ChatFAB } from "@/components/ChatFAB";
 import TrustSection from "@/components/TrustSection";
 import { buildMetadata, pageSeo } from "@/lib/seo";
@@ -88,6 +89,9 @@ export default function Home() {
 
       {/* Social Proof & Areas */}
       <TrustSection />
+
+      {/* Returning customers — same portal destinations as header / hero */}
+      <HomePortalCta />
 
       {/* FAB Chat Widget */}
       <ChatFAB />

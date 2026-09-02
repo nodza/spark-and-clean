@@ -9,6 +9,8 @@ type AuthGuardProps = {
   children: ReactNode;
   roles?: UserRole[];
   loginPath?: string;
+  /** When false, guest checkout sessions cannot access this route */
+  allowGuest?: boolean;
 };
 
 /**
@@ -18,6 +20,7 @@ export function AuthGuard({
   children,
   roles = ["CUSTOMER"],
   loginPath = "/login",
+  allowGuest = true,
 }: AuthGuardProps) {
   const router = useRouter();
   const { user, ready } = useAuth();
@@ -32,7 +35,10 @@ export function AuthGuard({
   useEffect(() => {
     if (!ready) return;
 
-    const ok = !!user && allowed.includes(user.role);
+    const roleOk = !!user && allowed.includes(user.role);
+    const guestOk = allowGuest || !user?.guest;
+    const ok = roleOk && guestOk;
+
     if (!ok) {
       if (!redirected.current) {
         redirected.current = true;
@@ -41,10 +47,13 @@ export function AuthGuard({
       return;
     }
     redirected.current = false;
-  }, [ready, user, allowed, loginPath, router]);
+  }, [ready, user, allowed, allowGuest, loginPath, router]);
 
   if (!ready) return null;
-  if (!user || !allowed.includes(user.role)) return null;
+
+  const roleOk = !!user && allowed.includes(user.role);
+  const guestOk = allowGuest || !user?.guest;
+  if (!roleOk || !guestOk) return null;
 
   return <>{children}</>;
 }

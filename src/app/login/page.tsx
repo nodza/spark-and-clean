@@ -24,20 +24,40 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
+  const emailFromQuery = searchParams.get("email") || "";
   const { user, ready, refresh } = useAuth();
 
   const [method, setMethod] = useState<LoginMethod>("pwd");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [linkSent, setLinkSent] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (emailFromQuery) setEmail(emailFromQuery);
+  }, [emailFromQuery]);
 
   useEffect(() => {
     if (ready && user) {
       router.replace(redirectForRole(user.role, next));
     }
   }, [ready, user, router, next]);
+
+  const completeLogin = async (result: Awaited<ReturnType<typeof loginUser>>) => {
+    if (result.requiresPassword) {
+      setMethod("pwd");
+      setError("Enter your staff password to continue.");
+      return;
+    }
+
+    if (result.error || !result.user) {
+      setError(result.error || "Login failed");
+      return;
+    }
+
+    await refresh();
+    router.push(redirectForRole(result.user.role, next));
+  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,28 +71,23 @@ function LoginForm() {
     setLoading(true);
     const result = await loginUser({ email, password });
     setLoading(false);
-
-    if (result.error || !result.user) {
-      setError(result.error || "Login failed");
-      return;
-    }
-
-    await refresh();
-    router.push(redirectForRole(result.user.role, next));
+    await completeLogin(result);
   };
 
-  const handleSendLink = (e: React.FormEvent) => {
+  const handleEmailOnlyLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLinkSent(false);
 
     if (!email.trim()) {
-      setError("Enter your email to receive a sign-in link.");
+      setError("Enter your email to continue.");
       return;
     }
 
-    // Phase 1 stub — UI matches Auth.dc.html; magic-link API not wired yet
-    setLinkSent(true);
+    setLoading(true);
+    // Customers / guests: email-only. Staff accounts return requiresPassword.
+    const result = await loginUser({ email });
+    setLoading(false);
+    await completeLogin(result);
   };
 
   return (
@@ -80,8 +95,8 @@ function LoginForm() {
       portalLabel="CLIENT PORTAL"
       tagline={
         <>
-          Cleaned in <span className="text-yellow">7 minutes</span>. Booked in
-          about the same.
+          Cleaned in <span style={{ color: "#ffdc39" }}>7 minutes</span>. Booked
+          in about the same.
         </>
       }
       subtext="Book collections, track your rugs and reorder past cleans across Gauteng and Cape Town."
@@ -91,14 +106,12 @@ function LoginForm() {
         Log in to manage your bookings.
       </p>
 
-      {/* Password / Email link tabs */}
       <div className="mt-[26px] flex rounded-[10px] bg-rule p-1">
         <button
           type="button"
           onClick={() => {
             setMethod("pwd");
             setError(null);
-            setLinkSent(false);
           }}
           className={cn(
             "flex-1 cursor-pointer rounded-[7px] py-2.5 text-center text-[13px] font-bold transition-all duration-150",
@@ -114,7 +127,7 @@ function LoginForm() {
           onClick={() => {
             setMethod("link");
             setError(null);
-            setLinkSent(false);
+            setPassword("");
           }}
           className={cn(
             "flex-1 cursor-pointer rounded-[7px] py-2.5 text-center text-[13px] font-bold transition-all duration-150",
@@ -140,7 +153,10 @@ function LoginForm() {
               autoComplete="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
               aria-invalid={Boolean(error)}
               required
             />
@@ -154,7 +170,9 @@ function LoginForm() {
               type="button"
               className="text-[12px] font-bold text-green hover:text-navy"
               onClick={() =>
-                setError("Password reset is coming soon. Use your demo password for now.")
+                setError(
+                  "Password reset is coming soon. Use your staff password for now."
+                )
               }
             >
               Forgot?
@@ -165,7 +183,10 @@ function LoginForm() {
             autoComplete="current-password"
             placeholder="••••••••"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError(null);
+            }}
             aria-invalid={Boolean(error)}
             required
             minLength={6}
@@ -189,7 +210,10 @@ function LoginForm() {
           </Button>
         </form>
       ) : (
-        <form onSubmit={handleSendLink} className="mt-[22px]">
+        <form
+          onSubmit={(e) => void handleEmailOnlyLogin(e)}
+          className="mt-[22px]"
+        >
           <label className="flex flex-col gap-2">
             <span className="text-eyebrow text-grey-600">EMAIL</span>
             <Input
@@ -198,13 +222,17 @@ function LoginForm() {
               autoComplete="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
               aria-invalid={Boolean(error)}
               required
             />
           </label>
           <p className="mt-3 text-[13px] leading-relaxed text-grey-600">
-            We&apos;ll email a secure one-time link. No password needed.
+            Continue with your email — no password needed for customer
+            accounts.
           </p>
 
           {error && (
@@ -216,15 +244,12 @@ function LoginForm() {
             </div>
           )}
 
-          {linkSent && !error && (
-            <div className="mt-3.5 rounded-[10px] border-[1.5px] border-[#bfe9dc] bg-[#eafaf5] px-3 py-2.5 text-[12.5px] text-green">
-              If an account exists for {email}, a sign-in link would be sent
-              (demo stub).
-            </div>
-          )}
-
-          <Button type="submit" className="mt-[18px] w-full justify-center py-[14px]">
-            Send sign-in link
+          <Button
+            type="submit"
+            className="mt-[18px] w-full justify-center py-[14px]"
+            disabled={loading}
+          >
+            {loading ? "Continuing…" : "Continue with email"}
           </Button>
         </form>
       )}
@@ -237,7 +262,10 @@ function LoginForm() {
 
       <p className="text-center text-[13.5px] text-grey-600">
         New to Spark &amp; Clean?{" "}
-        <Link href="/register" className="font-extrabold text-green hover:text-navy">
+        <Link
+          href="/register"
+          className="font-extrabold text-green hover:text-navy"
+        >
           Create an account
         </Link>
       </p>

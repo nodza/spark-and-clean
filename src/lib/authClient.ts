@@ -28,9 +28,14 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
 
 export async function loginUser(input: {
   email: string;
-  password: string;
+  /** Required for ADMIN / DRIVER; optional for CUSTOMER */
+  password?: string;
   role?: UserRole;
-}): Promise<{ user?: AuthUser; error?: string }> {
+}): Promise<{
+  user?: AuthUser;
+  error?: string;
+  requiresPassword?: boolean;
+}> {
   const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,7 +43,12 @@ export async function loginUser(input: {
     body: JSON.stringify(input),
   });
   const data = await res.json();
-  if (!res.ok) return { error: data.error || "Login failed" };
+  if (!res.ok) {
+    return {
+      error: data.error || "Login failed",
+      requiresPassword: data.requiresPassword === true,
+    };
+  }
   return { user: data.user };
 }
 
