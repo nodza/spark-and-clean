@@ -2,7 +2,6 @@ import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { PromoVideos } from "@/components/home/PromoVideos";
 import { HomePortalCta } from "@/components/home/HomePortalCta";
-import { ChatFAB } from "@/components/ChatFAB";
 import TrustSection from "@/components/TrustSection";
 import { buildMetadata, pageSeo } from "@/lib/seo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +21,7 @@ export default function Home() {
       <HowItWorks />
 
       {/* Why Tech-Enabled? */}
-      <section className="py-20 bg-primary text-primary-foreground">
+      <section data-contrast="dark" className="py-20 bg-primary text-primary-foreground">
         <div className="container px-4 mx-auto text-center">
           <h2 className="text-3xl font-bold mb-12">Why Tech-Enabled Cleaning?</h2>
           <div className="grid md:grid-cols-3 gap-8">
@@ -92,9 +91,6 @@ export default function Home() {
 
       {/* Returning customers — same portal destinations as header / hero */}
       <HomePortalCta />
-
-      {/* FAB Chat Widget */}
-      <ChatFAB />
     </div>
   );
 }

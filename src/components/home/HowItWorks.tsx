@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { ChatWithSupportLink } from "@/components/support/ChatWithSupportLink";
 
 const STEPS = [
   {
@@ -15,18 +16,18 @@ const STEPS = [
   },
   {
     step: 2,
-    title: "Send Them to Us",
+    title: "Fill Out Our Online Booking Form",
     description:
-      "Contact us with the measurements by sending a quick message on WhatsApp or by filling out our online booking form.",
+      "Fill out our online booking form with your measurements — you'll also add photos and a collection address so we can price and schedule in one go.",
     image:
       "https://www.sparkandclean.co.za/wp-content/uploads/2025/08/Untitled-3-copy.png",
-    alt: "Send rug measurements to Spark and Clean",
+    alt: "Enter rug measurements in the online booking form",
   },
   {
     step: 3,
     title: "We'll Handle the Rest",
     description:
-      "A member of our team will promptly get back to you with your personalised quote and arrange a convenient day for collection, or provide you with directions to our nearest branch for an easy drop-off.",
+      "See your estimated price instantly, pick a collection slot, and confirm. We'll collect from your door — or you can drop off at a branch — then track your rug as we clean it.",
     image:
       "https://www.sparkandclean.co.za/wp-content/uploads/2025/08/spark-and-clean-booking3-1.png",
     alt: "Collection or drop-off arranged for your rug",
@@ -48,7 +49,7 @@ export function HowItWorks() {
             Booking is as easy as 1-2-3
           </h2>
           <p className="text-base text-muted-foreground sm:text-lg">
-            Measurements → Submission → Collection / Drop-off
+            Measure → Book online → We collect
           </p>
         </div>
 
@@ -80,6 +81,13 @@ export function HowItWorks() {
               <p className="flex-1 text-sm leading-relaxed text-muted-foreground sm:text-base text-pretty">
                 {item.description}
               </p>
+
+              {item.step === 2 && (
+                <p className="mt-3 text-sm text-muted-foreground sm:text-base">
+                  Have a question first?{" "}
+                  <ChatWithSupportLink />
+                </p>
+              )}
 
               {item.step === 3 && (
                 <div className="mt-6 md:mt-8">
