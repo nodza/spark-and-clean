@@ -1,6 +1,6 @@
 /**
- * Generate a booking reference like SC-KYA-2026-0810.
- * Branch code is derived from city when available.
+ * Generate a booking reference like SC-KYA-2026-0810-4821.
+ * Branch code is derived from city; suffix avoids Mongo unique-index collisions.
  */
 export function generateBookingReference(city?: string): string {
   const now = new Date();
@@ -8,8 +8,9 @@ export function generateBookingReference(city?: string): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   const branch = resolveBranchCode(city);
+  const suffix = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
 
-  return `SC-${branch}-${year}-${month}${day}`;
+  return `SC-${branch}-${year}-${month}${day}-${suffix}`;
 }
 
 function resolveBranchCode(city?: string): string {

@@ -26,9 +26,10 @@ import { cn } from "@/lib/utils";
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
+  emailReadOnly?: boolean;
 }
 
-export function Step3Location({ data, update }: StepProps) {
+export function Step3Location({ data, update, emailReadOnly = false }: StepProps) {
   const customer = data.customer || { id: "", name: "", email: "", phone: "" };
   const [latInput, setLatInput] = useState(
     data.coordinates?.lat != null ? String(data.coordinates.lat) : ""
@@ -231,6 +232,8 @@ export function Step3Location({ data, update }: StepProps) {
               type="email"
               placeholder="john@example.com"
               value={customer.email}
+              readOnly={emailReadOnly}
+              className={emailReadOnly ? "bg-muted" : undefined}
               onChange={(e) =>
                 update({ customer: { ...customer, email: e.target.value } })
               }

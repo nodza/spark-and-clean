@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Step1Details } from "@/components/booking/Step1Details";
@@ -10,8 +11,20 @@ import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
 import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
 import { generateBookingReference } from "@/lib/bookingReference";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking } from "@/types/booking";
+import { Booking, Customer } from "@/types/booking";
+
+function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
+  const needle = email.toLowerCase();
+  return bookings
+    .filter((b) => b.customer.email.toLowerCase() === needle)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )[0];
+}
 
 function buildSubmittedBooking(
   formData: Partial<Booking>,
@@ -57,12 +70,21 @@ function buildSubmittedBooking(
 }
 
 export default function BookingWizard() {
+  const router = useRouter();
+  const { user, ready } = useAuth();
+  const sessionEmail = user?.email?.trim() || null;
+  const isLoggedInCustomer = Boolean(sessionEmail && user?.role === "CUSTOMER");
+
   const addBooking = useBookingStore((s) => s.addBooking);
+  const fetchBookings = useBookingStore((s) => s.fetchBookings);
+  const bookings = useBookingStore((s) => s.bookings);
+
   const [step, setStep] = useState(1);
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: {
@@ -71,6 +93,55 @@ export default function BookingWizard() {
     },
     customer: { id: "", name: "", email: "", phone: "" },
   });
+
+  useEffect(() => {
+    if (!ready || !sessionEmail) return;
+    void fetchBookings({ silent: true });
+  }, [ready, sessionEmail, fetchBookings]);
+
+  useEffect(() => {
+    if (!ready || !sessionEmail) return;
+
+    const prior = latestBookingForEmail(bookings, sessionEmail);
+    const sessionName = user?.name?.trim() || "";
+    const sessionPhone = user?.phone?.trim() || "";
+
+    setFormData((prev) => {
+      const customer: Customer = prev.customer || {
+        id: "",
+        name: "",
+        email: "",
+        phone: "",
+      };
+
+      const looksAutoName =
+        !customer.name || customer.name === sessionName;
+      const looksAutoPhone =
+        !customer.phone || customer.phone === sessionPhone;
+
+      const next: Customer = {
+        id: customer.id || prior?.customer.id || user?.id || "",
+        email: sessionEmail,
+        name: looksAutoName
+          ? prior?.customer.name || sessionName
+          : customer.name,
+        phone: looksAutoPhone
+          ? prior?.customer.phone || sessionPhone
+          : customer.phone,
+      };
+
+      if (
+        next.email === customer.email &&
+        next.name === customer.name &&
+        next.phone === customer.phone &&
+        next.id === customer.id
+      ) {
+        return prev;
+      }
+
+      return { ...prev, customer: next };
+    });
+  }, [ready, sessionEmail, bookings, user]);
 
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
@@ -92,15 +163,37 @@ export default function BookingWizard() {
   const confirmBooking = async () => {
     if (!termsAccepted || isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     const bookingId = generateBookingReference(formData.city);
-    const booking = buildSubmittedBooking(formData, bookingId);
+    const booking = buildSubmittedBooking(
+      {
+        ...formData,
+        customer: {
+          id: formData.customer?.id || user?.id || "",
+          name: formData.customer?.name || "",
+          phone: formData.customer?.phone || "",
+          email: sessionEmail || formData.customer?.email || "",
+        },
+      },
+      bookingId
+    );
 
     const created = await addBooking(booking);
-    const resolvedId = created?.id || bookingId;
+    if (!created) {
+      setSubmitError("Could not save your booking. Please try again.");
+      setIsSubmitting(false);
+      return;
+    }
 
-    setSubmittedBookingId(resolvedId);
     setIsSubmitting(false);
+
+    if (isLoggedInCustomer) {
+      router.push(`/booking/${created.id}`);
+      return;
+    }
+
+    setSubmittedBookingId(created.id);
   };
 
   if (submittedBookingId) {
@@ -151,7 +244,13 @@ export default function BookingWizard() {
             />
           )}
           {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
-          {step === 3 && <Step3Location data={formData} update={updateFormData} />}
+          {step === 3 && (
+            <Step3Location
+              data={formData}
+              update={updateFormData}
+              emailReadOnly={isLoggedInCustomer}
+            />
+          )}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}
           {step === 5 && (
             <Step5Review
@@ -159,6 +258,11 @@ export default function BookingWizard() {
               termsAccepted={termsAccepted}
               onTermsAcceptedChange={setTermsAccepted}
             />
+          )}
+          {submitError && (
+            <p className="mt-4 text-sm text-destructive" role="alert">
+              {submitError}
+            </p>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">

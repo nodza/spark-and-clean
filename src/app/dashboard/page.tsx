@@ -163,7 +163,13 @@ export default function ClientDashboard() {
     const myBookings = bookings.filter(
       (b) => b.customer.email.toLowerCase() === email.toLowerCase()
     );
-    const active = myBookings.filter((b) => !PAST_STATUSES.has(b.status));
+    const active = myBookings
+      .filter((b) => !PAST_STATUSES.has(b.status))
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
     const past = myBookings
       .filter((b) => PAST_STATUSES.has(b.status))
       .slice()
