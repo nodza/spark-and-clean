@@ -40,8 +40,11 @@ export async function POST(request: Request) {
       passwordHash,
       name: name || undefined,
       phone: phone || undefined,
-      role: "CUSTOMER",
+      role: "client",
+      adminTier: null,
+      emailVerifiedAt: null,
       emailVerified: false,
+      disabledAt: null,
       isActive: true,
       lastLoginAt: new Date(),
     });
@@ -51,7 +54,8 @@ export async function POST(request: Request) {
       email: String(user.email),
       name: user.name ? String(user.name) : undefined,
       phone: user.phone ? String(user.phone) : undefined,
-      role: "CUSTOMER" as const,
+      role: "client" as const,
+      adminTier: null,
     };
 
     const token = await createSessionToken(sessionUser);
@@ -59,6 +63,18 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: sessionUser }, { status: 201 });
   } catch (err) {
+    // Duplicate email unique index
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: number }).code === 11000
+    ) {
+      return NextResponse.json(
+        { error: "An account with this email already exists" },
+        { status: 409 }
+      );
+    }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
     return NextResponse.json({ error: message }, { status: 500 });

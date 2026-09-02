@@ -16,8 +16,8 @@ export function Header() {
     router.push("/login");
   };
 
-  const isAdmin = user?.role === "ADMIN";
-  const isDriver = user?.role === "DRIVER";
+  const isAdmin = user?.role === "admin";
+  const isTechnician = user?.role === "technician";
 
   return (
     <header className="border-b bg-white">
@@ -64,7 +64,7 @@ export function Header() {
               Admin
             </Link>
           )}
-          {isDriver && (
+          {isTechnician && (
             <Link
               href="/tech/dashboard"
               className="hover:text-primary transition-colors text-foreground font-semibold"

@@ -6,7 +6,12 @@ import {
   createSessionToken,
   setSessionCookie,
 } from "@/lib/session";
-import type { UserRole } from "@/types/user";
+import {
+  isClientRole,
+  normalizeUserRole,
+  type AdminTier,
+  type UserRole,
+} from "@/types/user";
 
 function sessionFromUser(user: {
   _id: { toString(): string };
@@ -14,14 +19,21 @@ function sessionFromUser(user: {
   name?: unknown;
   phone?: unknown;
   role?: unknown;
+  adminTier?: unknown;
   driverProfileId?: unknown;
 }) {
+  const role = normalizeUserRole(user.role);
   return {
     id: String(user._id),
     email: String(user.email),
     name: user.name ? String(user.name) : undefined,
     phone: user.phone ? String(user.phone) : undefined,
-    role: (user.role as UserRole) || "CUSTOMER",
+    role,
+    adminTier:
+      role === "admin" &&
+      (user.adminTier === "full" || user.adminTier === "marketing-only")
+        ? (user.adminTier as AdminTier)
+        : null,
     driverProfileId: user.driverProfileId
       ? String(user.driverProfileId)
       : undefined,
@@ -29,9 +41,9 @@ function sessionFromUser(user: {
 }
 
 /**
- * Customers: email-only (password optional if provided).
- * Admin / driver: password required.
- * Unknown email: guest CUSTOMER session for portal tracking.
+ * Clients: email-only (password optional if provided).
+ * Admin / technician: password required.
+ * Unknown email: guest client session for portal tracking.
  */
 export async function POST(request: Request) {
   try {
@@ -40,7 +52,10 @@ export async function POST(request: Request) {
       .trim()
       .toLowerCase();
     const password = String(body.password || "");
-    const roleFilter = body.role as UserRole | undefined;
+    const roleFilterRaw = body.role as string | undefined;
+    const roleFilter = roleFilterRaw
+      ? normalizeUserRole(roleFilterRaw)
+      : undefined;
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -48,14 +63,26 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    const query: Record<string, unknown> = { email, isActive: true };
-    if (roleFilter) query.role = roleFilter;
+    const query: Record<string, unknown> = {
+      email,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+      disabledAt: null,
+    };
+    if (roleFilter) {
+      // Accept legacy role strings still present in older documents
+      if (roleFilter === "client") {
+        query.role = { $in: ["client", "CUSTOMER"] };
+      } else if (roleFilter === "technician") {
+        query.role = { $in: ["technician", "DRIVER"] };
+      } else if (roleFilter === "admin") {
+        query.role = { $in: ["admin", "ADMIN"] };
+      }
+    }
 
     const user = await User.findOne(query).select("+passwordHash").lean();
 
-    // No Mongo user — open guest portal session (customer email gate)
     if (!user) {
-      if (roleFilter && roleFilter !== "CUSTOMER") {
+      if (roleFilter && !isClientRole(roleFilter)) {
         return NextResponse.json(
           { error: "Invalid email or password" },
           { status: 401 }
@@ -65,7 +92,8 @@ export async function POST(request: Request) {
       const guest = {
         id: `guest:${email}`,
         email,
-        role: "CUSTOMER" as const,
+        role: "client" as const,
+        adminTier: null,
         guest: true,
       };
       const token = await createSessionToken(guest);
@@ -73,9 +101,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ user: guest });
     }
 
-    const role = (user.role as UserRole) || "CUSTOMER";
+    const role = normalizeUserRole(user.role);
 
-    if (role === "CUSTOMER") {
+    if (role === "client") {
       if (password) {
         if (
           typeof user.passwordHash !== "string" ||
@@ -99,7 +127,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ user: sessionUser });
     }
 
-    // ADMIN / DRIVER — password required
+    // admin / technician — password required
     if (!password) {
       return NextResponse.json(
         {
