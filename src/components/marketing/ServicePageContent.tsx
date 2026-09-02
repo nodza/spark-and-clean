@@ -21,7 +21,7 @@ export function ServicePageContent({
   ctaHref = "/book/rug",
   ctaLabel = "Book a Collection",
   secondaryHref = "/contact",
-  secondaryLabel = "Request a Quote",
+  secondaryLabel = "Chat with support",
 }: ServicePageProps) {
   return (
     <div className="flex flex-col">

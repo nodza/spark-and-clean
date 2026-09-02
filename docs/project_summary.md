@@ -86,7 +86,7 @@ Integration with:
 
 | Pillar | Description |
 | :--- | :--- |
-| **Customer Booking System** | Guided booking wizard with rug type, sizing, photos, address, estimated price, scheduling, online confirmation |
+| **Customer Booking System** | Guided booking wizard with rug type, sizing, photos, address, estimated price, scheduling, online confirmation. **Channel policy (interim):** E2 online wizard is the only booking write-path; WhatsApp is support/assistance. See `docs/wiki/booking-channels.md`. |
 | **Payment & Billing Experience** | Deposit + balance logic, EFT + tap payments initially, automation later |
 | **Order Tracking & Notification System** | Status timeline, automated messaging via WhatsApp + email |
 | **Admin Operations Hub** | Centralized scheduling, job management, technician assignment, price validation, reporting |
