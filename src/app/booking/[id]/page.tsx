@@ -21,8 +21,10 @@ import {
   BOOKING_STATUS_STEPS,
   BookingStatusTimeline,
 } from "@/components/booking/BookingStatusTimeline";
-import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
+import { SaveBookingAccountCard } from "@/components/booking/SaveBookingAccountCard";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
+import { isPersistedClient } from "@/types/user";
 import { cn } from "@/lib/utils";
 
 function slotLabel(slot: "MORNING" | "AFTERNOON") {
@@ -44,18 +46,18 @@ function formatDimensions(widthM: number | null, lengthM: number | null) {
 export default function BookingStatusPage() {
   const params = useParams();
   const id = params.id as string;
-  const { email, ready: authReady } = useRequireClientAuth();
+  const { user, ready: authReady } = useAuth();
+  const signedInClient = isPersistedClient(user);
 
   const {
     booking,
     loading,
     error,
+    forbidden,
     lastSyncedAt,
     isRefreshing,
     refresh,
-  } = useBookingLiveTracking(id, authReady && !!email);
-
-  if (!authReady || !email) return null;
+  } = useBookingLiveTracking(id, authReady);
 
   if (loading && !booking) {
     return (
@@ -75,28 +77,7 @@ export default function BookingStatusPage() {
     );
   }
 
-  if (!booking) {
-    return (
-      <div className="container mx-auto max-w-lg px-4 py-16 sm:py-20 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-          <AlertCircle className="h-6 w-6 text-muted-foreground" aria-hidden />
-        </div>
-        <h1 className="text-xl font-semibold sm:text-2xl mb-2">Booking not found</h1>
-        <p className="text-sm text-muted-foreground mb-6">
-          We couldn&apos;t find a booking with this ID, or it isn&apos;t linked to
-          your account.
-        </p>
-        <Button asChild variant="outline">
-          <Link href="/dashboard">
-            <ArrowLeft className="h-4 w-4" />
-            Back to My Bookings
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  if (booking.customer.email.toLowerCase() !== email.toLowerCase()) {
+  if (forbidden) {
     return (
       <div className="container mx-auto max-w-lg px-4 py-16 sm:py-20 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
@@ -105,10 +86,37 @@ export default function BookingStatusPage() {
         <h1 className="text-xl font-semibold sm:text-2xl mb-2">Access denied</h1>
         <p className="text-sm text-muted-foreground mb-6">
           This booking belongs to another account. Sign in with the email used at
-          checkout to view it.
+          checkout to view it, or open the booking ID from the confirmation
+          email while logged out.
         </p>
-        <Button asChild>
-          <Link href="/dashboard">Go to My Bookings</Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button asChild>
+            <Link href="/dashboard">Go to My Bookings</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/">Back to home</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <div className="container mx-auto max-w-lg px-4 py-16 sm:py-20 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <AlertCircle className="h-6 w-6 text-muted-foreground" aria-hidden />
+        </div>
+        <h1 className="text-xl font-semibold sm:text-2xl mb-2">Booking not found</h1>
+        <p className="text-sm text-muted-foreground mb-6">
+          We couldn&apos;t find a booking with this ID. Check the reference from
+          your confirmation and try again.
+        </p>
+        <Button asChild variant="outline">
+          <Link href={signedInClient ? "/dashboard" : "/"}>
+            <ArrowLeft className="h-4 w-4" />
+            {signedInClient ? "Back to My Bookings" : "Back to home"}
+          </Link>
         </Button>
       </div>
     );
@@ -123,9 +131,9 @@ export default function BookingStatusPage() {
       <div className="mb-6 sm:mb-8">
         <div className="mb-4">
           <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-            <Link href="/dashboard">
+            <Link href={signedInClient ? "/dashboard" : "/"}>
               <ArrowLeft className="h-4 w-4" />
-              My Bookings
+              {signedInClient ? "My Bookings" : "Home"}
             </Link>
           </Button>
         </div>
@@ -200,6 +208,16 @@ export default function BookingStatusPage() {
           </p>
         )}
       </div>
+
+      <SaveBookingAccountCard
+        bookingId={booking.id}
+        email={booking.customer.email}
+        name={booking.customer.name}
+        phone={booking.customer.phone}
+        userId={booking.userId}
+        user={user}
+        onClaimed={() => refresh()}
+      />
 
       {/* Timeline */}
       <Card className="mb-6 sm:mb-8 overflow-hidden">

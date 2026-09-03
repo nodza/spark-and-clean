@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { usePortalEntry } from "@/components/auth/PortalEntryLink";
+import { isFullAccount } from "@/types/user";
 
 export function Header() {
   const router = useRouter();
@@ -16,8 +17,8 @@ export function Header() {
     router.push("/login");
   };
 
-  const isAdmin = user?.role === "admin";
-  const isTechnician = user?.role === "technician";
+  const isAdmin = isFullAccount(user) && user?.role === "admin";
+  const isTechnician = isFullAccount(user) && user?.role === "technician";
 
   return (
     <header className="border-b bg-white">
@@ -75,7 +76,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          {ready && user ? (
+          {ready && isFullAccount(user) ? (
             <>
               {portal.show ? (
                 <Link

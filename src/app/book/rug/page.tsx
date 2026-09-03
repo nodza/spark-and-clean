@@ -14,6 +14,15 @@ import { generateBookingReference } from "@/lib/bookingReference";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, Customer } from "@/types/booking";
+import { isPersistedClient } from "@/types/user";
+
+function isValidContact(customer?: Customer) {
+  if (!customer) return false;
+  const name = customer.name.trim();
+  const phone = customer.phone.trim();
+  const email = customer.email.trim().toLowerCase();
+  return name.length > 1 && phone.length >= 7 && email.includes("@") && email.includes(".");
+}
 
 function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
   const needle = email.toLowerCase();
@@ -72,8 +81,8 @@ function buildSubmittedBooking(
 export default function BookingWizard() {
   const router = useRouter();
   const { user, ready } = useAuth();
-  const sessionEmail = user?.email?.trim() || null;
-  const isLoggedInCustomer = Boolean(sessionEmail && user?.role === "CUSTOMER");
+  const sessionEmail = isPersistedClient(user) ? user!.email.trim() : null;
+  const isLoggedInCustomer = Boolean(sessionEmail);
 
   const addBooking = useBookingStore((s) => s.addBooking);
   const fetchBookings = useBookingStore((s) => s.fetchBookings);
@@ -85,6 +94,7 @@ export default function BookingWizard() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [contactError, setContactError] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: {
@@ -151,6 +161,11 @@ export default function BookingWizard() {
       setShowTypeError(true);
       return;
     }
+    if (step === 3 && !isValidContact(formData.customer)) {
+      setContactError(true);
+      return;
+    }
+    setContactError(false);
     setStep((s) => Math.min(s + 1, totalSteps));
   };
 
@@ -162,6 +177,19 @@ export default function BookingWizard() {
 
   const confirmBooking = async () => {
     if (!termsAccepted || isSubmitting) return;
+    const contact: Customer = {
+      id: formData.customer?.id || user?.id || "",
+      name: formData.customer?.name || "",
+      phone: formData.customer?.phone || "",
+      email: sessionEmail || formData.customer?.email || "",
+    };
+    if (!isValidContact(contact)) {
+      setContactError(true);
+      setSubmitError(
+        "Add your name, email, and phone in Collection Details before confirming."
+      );
+      return;
+    }
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -169,12 +197,7 @@ export default function BookingWizard() {
     const booking = buildSubmittedBooking(
       {
         ...formData,
-        customer: {
-          id: formData.customer?.id || user?.id || "",
-          name: formData.customer?.name || "",
-          phone: formData.customer?.phone || "",
-          email: sessionEmail || formData.customer?.email || "",
-        },
+        customer: contact,
       },
       bookingId
     );
@@ -249,6 +272,8 @@ export default function BookingWizard() {
               data={formData}
               update={updateFormData}
               emailReadOnly={isLoggedInCustomer}
+              contactError={contactError}
+              onContactEdit={() => setContactError(false)}
             />
           )}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}

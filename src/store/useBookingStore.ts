@@ -50,9 +50,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         });
       }
       return booking;
-    } catch {
-      set({ error: "Failed to fetch booking" });
-      return undefined;
+    } catch (err) {
+      const status =
+        err && typeof err === "object" && "status" in err
+          ? Number((err as { status: number }).status)
+          : 0;
+      set({ error: status === 403 ? "FORBIDDEN" : "Failed to fetch booking" });
+      throw err;
     }
   },
 

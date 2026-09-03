@@ -21,6 +21,16 @@ Email is unique and stored lowercase (one inbox = one account).
 - **PasswordResetToken** — reset token hashes; schema only
 - **Booking.userId** — optional ObjectId ref for registered clients; `customer.email` still used for guests
 
+## Guest checkout & convert-to-account
+
+Guests complete Confirm Booking with contact info only (name, email, phone). **No User row and no session cookie** are created. Tracking is `/booking/[id]` — the booking reference is the capability.
+
+**Attach-all-unclaimed-by-email:** when a client registers with email+password (Credentials, not magic link), every booking whose `customer.email` matches that inbox **and** that has no `userId` is linked to the new user. The booking `id` never changes and a second booking is not created.
+
+If that email already has a full account, registration returns `ACCOUNT_EXISTS`. After login, `/booking/[id]` **offers** to attach still-unclaimed bookings (same email rule). Login does not silent-claim.
+
+Guest leftover JWTs are treated as logged out: `/dashboard` and `/portal` redirect to `/login`. Register always creates `role: client` — never technician or admin.
+
 ## Seed (dev/staging)
 
 ```bash
