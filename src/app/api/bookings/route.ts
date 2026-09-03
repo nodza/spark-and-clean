@@ -69,8 +69,6 @@ export async function POST(request: Request) {
       !session.id.startsWith("guest:")
     ) {
       payload.userId = session.id;
-    } else if (body.userId) {
-      payload.userId = body.userId;
     }
 
     const created = await Booking.findOneAndUpdate(

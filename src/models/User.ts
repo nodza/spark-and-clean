@@ -111,7 +111,7 @@ const UserSchema = new Schema(
   }
 );
 
-UserSchema.pre("validate", function (next) {
+UserSchema.pre("validate", function () {
   try {
     const { role, adminTier } = assertRoleTierInvariants({
       role: this.role as UserRole,
@@ -130,9 +130,8 @@ UserSchema.pre("validate", function (next) {
     } else if (this.emailVerified && !this.emailVerifiedAt) {
       this.emailVerifiedAt = new Date();
     }
-    next();
   } catch (err) {
-    next(err instanceof Error ? err : new Error(String(err)));
+    throw err instanceof Error ? err : new Error(String(err));
   }
 });
 
