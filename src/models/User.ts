@@ -94,6 +94,10 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     /**
+     * Set on password reset — JWTs with iat before this timestamp are rejected.
+     */
+    sessionsInvalidatedAt: { type: Date, default: null },
+    /**
      * Technician → Driver profile (`drivers.id`) for vehicle / display name (E5).
      */
     driverProfileId: { type: String, trim: true, index: true, sparse: true },

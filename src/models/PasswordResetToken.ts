@@ -1,8 +1,8 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 
 /**
- * Password reset tokens (E6). Store only a hash of the token — never the raw token.
- * This ticket creates the schema only; issuance UI comes later.
+ * Password reset tokens. Store only a hash of the token — never the raw token.
+ * TTL: documents are removed after expiresAt (60 minutes from issue).
  */
 const PasswordResetTokenSchema = new Schema(
   {
@@ -12,7 +12,7 @@ const PasswordResetTokenSchema = new Schema(
       required: true,
       index: true,
     },
-    tokenHash: { type: String, required: true, select: false },
+    tokenHash: { type: String, required: true, unique: true, select: false },
     expiresAt: { type: Date, required: true, index: true },
     usedAt: { type: Date, default: null },
   },

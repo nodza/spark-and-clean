@@ -6,6 +6,7 @@ import {
   createSessionToken,
   setSessionCookie,
 } from "@/lib/session";
+import { validatePasswordStrength } from "@/lib/passwordRules";
 
 export async function POST(request: Request) {
   try {
@@ -17,9 +18,14 @@ export async function POST(request: Request) {
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
 
-    if (!email || password.length < 6) {
+    const strengthError = validatePasswordStrength(password);
+    if (!email || strengthError) {
       return NextResponse.json(
-        { error: "Valid email and password (min 6 chars) required" },
+        {
+          error:
+            strengthError ||
+            "Valid email and password required",
+        },
         { status: 400 }
       );
     }
