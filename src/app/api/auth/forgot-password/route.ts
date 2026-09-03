@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { PasswordResetToken } from "@/models/PasswordResetToken";
@@ -44,14 +45,15 @@ export async function POST(request: Request) {
         const rawToken = generateResetToken();
         const tokenHash = hashResetToken(rawToken);
         const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+        const userId = new Types.ObjectId(String(user._id));
 
         await PasswordResetToken.updateMany(
-          { userId: user._id, usedAt: null },
+          { userId, usedAt: null },
           { $set: { usedAt: new Date() } }
         );
 
         await PasswordResetToken.create({
-          userId: user._id,
+          userId,
           tokenHash,
           expiresAt,
           usedAt: null,
@@ -69,6 +71,11 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error("[api/auth/forgot-password] email failed", err);
         }
+      } else if (process.env.NODE_ENV !== "production") {
+        // Dev-only: explain empty terminal — public API response stays identical
+        console.log(
+          `[email] forgot-password: no active user for "${email}" — no reset URL to log (same public UI by design)`
+        );
       }
     }
 

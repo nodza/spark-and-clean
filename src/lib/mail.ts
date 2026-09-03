@@ -43,7 +43,7 @@ export async function sendPasswordResetEmail(
       throw new Error("Email delivery is not configured");
     }
 
-    console.info(
+    console.log(
       `[email] Password reset for ${to} (SMTP not configured — dev log only):\n${resetUrl}\n(expires in ${expiresInMinutes} minutes)`
     );
     return { mode: "log" };

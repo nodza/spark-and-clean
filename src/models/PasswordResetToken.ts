@@ -1,10 +1,25 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import {
+  Schema,
+  model,
+  models,
+  Types,
+  type HydratedDocument,
+  type Model,
+} from "mongoose";
 
 /**
  * Password reset tokens. Store only a hash of the token — never the raw token.
  * TTL: documents are removed after expiresAt (60 minutes from issue).
  */
-const PasswordResetTokenSchema = new Schema(
+export type PasswordResetTokenFields = {
+  userId: Types.ObjectId;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+};
+
+const PasswordResetTokenSchema = new Schema<PasswordResetTokenFields>(
   {
     userId: {
       type: Schema.Types.ObjectId,
@@ -21,15 +36,15 @@ const PasswordResetTokenSchema = new Schema(
 
 PasswordResetTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export type PasswordResetTokenDocument = InferSchemaType<
-  typeof PasswordResetTokenSchema
-> & {
-  _id: Schema.Types.ObjectId;
-};
+export type PasswordResetTokenDocument =
+  HydratedDocument<PasswordResetTokenFields>;
 
-export const PasswordResetToken: Model<PasswordResetTokenDocument> =
-  (models.PasswordResetToken as Model<PasswordResetTokenDocument>) ||
-  model<PasswordResetTokenDocument>(
+if (models.PasswordResetToken) {
+  delete models.PasswordResetToken;
+}
+
+export const PasswordResetToken: Model<PasswordResetTokenFields> =
+  model<PasswordResetTokenFields>(
     "PasswordResetToken",
     PasswordResetTokenSchema
   );

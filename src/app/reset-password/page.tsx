@@ -77,11 +77,13 @@ function ResetPasswordForm() {
     setLoading(false);
 
     if (result.error || !result.user) {
-      setError(
+      const message =
         result.error ||
-          "This reset link is invalid or has expired. Request a new link."
-      );
-      setTokenValid(false);
+        "This reset link is invalid or has expired. Request a new link.";
+      setError(message);
+      if (/invalid or has expired/i.test(message)) {
+        setTokenValid(false);
+      }
       return;
     }
 

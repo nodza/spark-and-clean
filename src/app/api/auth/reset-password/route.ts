@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { PasswordResetToken } from "@/models/PasswordResetToken";
@@ -95,23 +96,31 @@ export async function POST(request: Request) {
     // Subtract 1s so the new JWT (second-precision iat) is not treated as pre-reset
     const invalidatedAt = new Date(Date.now() - 1000);
     const now = new Date();
+    const userId = new Types.ObjectId(String(user._id));
 
-    user.passwordHash = passwordHash;
-    user.sessionsInvalidatedAt = invalidatedAt;
-    await user.save();
+    // updateOne avoids document.save() middleware pitfalls under Next.js HMR
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          passwordHash,
+          sessionsInvalidatedAt: invalidatedAt,
+        },
+      }
+    );
 
     tokenDoc.usedAt = now;
     await tokenDoc.save();
 
     // Invalidate any ledger sessions; JWT cookies are rejected via sessionsInvalidatedAt
     await AuthSession.updateMany(
-      { userId: user._id, revokedAt: null },
+      { userId, revokedAt: null },
       { $set: { revokedAt: now } }
     );
 
     // Mark any other outstanding reset tokens used
     await PasswordResetToken.updateMany(
-      { userId: user._id, usedAt: null, _id: { $ne: tokenDoc._id } },
+      { userId, usedAt: null, _id: { $ne: tokenDoc._id } },
       { $set: { usedAt: now } }
     );
 
