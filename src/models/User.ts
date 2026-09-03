@@ -111,28 +111,23 @@ const UserSchema = new Schema(
   }
 );
 
-UserSchema.pre("validate", function (next) {
-  try {
-    const { role, adminTier } = assertRoleTierInvariants({
-      role: this.role as UserRole,
-      adminTier: (this.adminTier as AdminTier | null | undefined) ?? null,
-    });
-    this.role = role;
-    this.adminTier = adminTier;
-    // Keep legacy flags in sync for existing auth queries
-    if (this.disabledAt) {
-      this.isActive = false;
-    } else if (this.isActive === false && !this.disabledAt) {
-      this.disabledAt = new Date();
-    }
-    if (this.emailVerifiedAt && !this.emailVerified) {
-      this.emailVerified = true;
-    } else if (this.emailVerified && !this.emailVerifiedAt) {
-      this.emailVerifiedAt = new Date();
-    }
-    next();
-  } catch (err) {
-    next(err instanceof Error ? err : new Error(String(err)));
+UserSchema.pre("validate", function () {
+  const { role, adminTier } = assertRoleTierInvariants({
+    role: this.role as UserRole,
+    adminTier: (this.adminTier as AdminTier | null | undefined) ?? null,
+  });
+  this.role = role;
+  this.adminTier = adminTier;
+  // Keep legacy flags in sync for existing auth queries
+  if (this.disabledAt) {
+    this.isActive = false;
+  } else if (this.isActive === false && !this.disabledAt) {
+    this.disabledAt = new Date();
+  }
+  if (this.emailVerifiedAt && !this.emailVerified) {
+    this.emailVerified = true;
+  } else if (this.emailVerified && !this.emailVerifiedAt) {
+    this.emailVerifiedAt = new Date();
   }
 });
 
@@ -144,6 +139,10 @@ export type UserDocument = InferSchemaType<typeof UserSchema> & {
   createdAt: Date;
   updatedAt: Date;
 };
+
+if (process.env.NODE_ENV !== "production" && models.User) {
+  delete models.User;
+}
 
 export const User: Model<UserDocument> =
   (models.User as Model<UserDocument>) || model<UserDocument>("User", UserSchema);

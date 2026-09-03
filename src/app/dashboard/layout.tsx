@@ -11,5 +11,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthGuard roles={CLIENT_ROLES}>{children}</AuthGuard>;
+  return (
+    <AuthGuard roles={CLIENT_ROLES} allowGuest={false}>
+      {children}
+    </AuthGuard>
+  );
 }

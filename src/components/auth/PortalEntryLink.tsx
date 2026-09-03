@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { isPersistedClient } from "@/types/user";
 import { cn } from "@/lib/utils";
 
 /**
  * Shared portal entry: logged-out customers → /login,
- * logged-in customers → /dashboard. Keeps homepage + header consistent.
+ * full client accounts → /dashboard. Guest checkout is treated as logged out.
  */
 export function usePortalEntry() {
   const { user, ready } = useAuth();
-  const isClient = user?.role === "client";
+  const isClient = isPersistedClient(user);
 
   if (!ready) {
     return {

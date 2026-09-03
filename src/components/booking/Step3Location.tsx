@@ -27,9 +27,17 @@ interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
   emailReadOnly?: boolean;
+  contactError?: boolean;
+  onContactEdit?: () => void;
 }
 
-export function Step3Location({ data, update, emailReadOnly = false }: StepProps) {
+export function Step3Location({
+  data,
+  update,
+  emailReadOnly = false,
+  contactError = false,
+  onContactEdit,
+}: StepProps) {
   const customer = data.customer || { id: "", name: "", email: "", phone: "" };
   const [latInput, setLatInput] = useState(
     data.coordinates?.lat != null ? String(data.coordinates.lat) : ""
@@ -82,7 +90,7 @@ export function Step3Location({ data, update, emailReadOnly = false }: StepProps
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="suburb">Suburb</Label>
             <Input
@@ -202,27 +210,46 @@ export function Step3Location({ data, update, emailReadOnly = false }: StepProps
 
       <div className="space-y-4">
         <h3 className="font-semibold text-lg">Contact Details</h3>
+        <p className="text-sm text-muted-foreground">
+          We only need your name, email, and phone — no password to confirm this
+          booking.
+        </p>
+        {contactError && (
+          <p className="text-sm text-destructive" role="alert">
+            Please add your full name, a valid email, and a phone number.
+          </p>
+        )}
         <div className="space-y-2">
           <Label htmlFor="name">Full Name</Label>
           <Input
             id="name"
             placeholder="John Doe"
+            autoComplete="name"
             value={customer.name}
-            onChange={(e) =>
-              update({ customer: { ...customer, name: e.target.value } })
-            }
+            aria-invalid={contactError && !customer.name.trim()}
+            required
+            onChange={(e) => {
+              onContactEdit?.();
+              update({ customer: { ...customer, name: e.target.value } });
+            }}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               placeholder="082 123 4567"
               value={customer.phone}
-              onChange={(e) =>
-                update({ customer: { ...customer, phone: e.target.value } })
-              }
+              aria-invalid={contactError && customer.phone.trim().length < 7}
+              required
+              onChange={(e) => {
+                onContactEdit?.();
+                update({ customer: { ...customer, phone: e.target.value } });
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -230,13 +257,21 @@ export function Step3Location({ data, update, emailReadOnly = false }: StepProps
             <Input
               id="email"
               type="email"
+              autoComplete="email"
               placeholder="john@example.com"
               value={customer.email}
               readOnly={emailReadOnly}
-              className={emailReadOnly ? "bg-muted" : undefined}
-              onChange={(e) =>
-                update({ customer: { ...customer, email: e.target.value } })
+              required
+              aria-invalid={
+                contactError &&
+                !(customer.email.includes("@") && customer.email.includes("."))
               }
+              className={emailReadOnly ? "bg-muted" : undefined}
+              onChange={(e) => {
+                if (emailReadOnly) return;
+                onContactEdit?.();
+                update({ customer: { ...customer, email: e.target.value } });
+              }}
             />
           </div>
         </div>

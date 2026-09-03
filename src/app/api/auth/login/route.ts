@@ -2,15 +2,11 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
-import {
-  createSessionToken,
-  setSessionCookie,
-} from "@/lib/session";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
 import {
   isClientRole,
   normalizeUserRole,
   type AdminTier,
-  type UserRole,
 } from "@/types/user";
 
 function sessionFromUser(user: {
@@ -41,9 +37,9 @@ function sessionFromUser(user: {
 }
 
 /**
- * Clients: email-only (password optional if provided).
- * Admin / technician: password required.
- * Unknown email: guest client session for portal tracking.
+ * Credentials login only (email + password).
+ * Guests are not given a session — they track via /booking/[id].
+ * Clients, admins, and technicians all require a password.
  */
 export async function POST(request: Request) {
   try {
@@ -60,6 +56,12 @@ export async function POST(request: Request) {
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
+    if (!password) {
+      return NextResponse.json(
+        { error: "Password is required" },
+        { status: 400 }
+      );
+    }
 
     await connectDB();
 
@@ -69,7 +71,6 @@ export async function POST(request: Request) {
       disabledAt: null,
     };
     if (roleFilter) {
-      // Accept legacy role strings still present in older documents
       if (roleFilter === "client") {
         query.role = { $in: ["client", "CUSTOMER"] };
       } else if (roleFilter === "technician") {
@@ -82,59 +83,8 @@ export async function POST(request: Request) {
     const user = await User.findOne(query).select("+passwordHash").lean();
 
     if (!user) {
-      if (roleFilter && !isClientRole(roleFilter)) {
-        return NextResponse.json(
-          { error: "Invalid email or password" },
-          { status: 401 }
-        );
-      }
-
-      const guest = {
-        id: `guest:${email}`,
-        email,
-        role: "client" as const,
-        adminTier: null,
-        guest: true,
-      };
-      const token = await createSessionToken(guest);
-      await setSessionCookie(token, 60 * 60 * 24 * 2);
-      return NextResponse.json({ user: guest });
-    }
-
-    const role = normalizeUserRole(user.role);
-
-    if (role === "client") {
-      if (password) {
-        if (
-          typeof user.passwordHash !== "string" ||
-          !(await bcrypt.compare(password, user.passwordHash))
-        ) {
-          return NextResponse.json(
-            { error: "Invalid email or password" },
-            { status: 401 }
-          );
-        }
-      }
-
-      await User.updateOne(
-        { _id: user._id },
-        { $set: { lastLoginAt: new Date() } }
-      );
-
-      const sessionUser = sessionFromUser(user);
-      const token = await createSessionToken(sessionUser);
-      await setSessionCookie(token);
-      return NextResponse.json({ user: sessionUser });
-    }
-
-    // admin / technician — password required
-    if (!password) {
       return NextResponse.json(
-        {
-          error: "Password required for staff accounts",
-          requiresPassword: true,
-          role,
-        },
+        { error: "Invalid email or password" },
         { status: 401 }
       );
     }
@@ -149,6 +99,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const role = normalizeUserRole(user.role);
+    if (roleFilter && !isClientRole(roleFilter) && role !== roleFilter) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
+
     await User.updateOne(
       { _id: user._id },
       { $set: { lastLoginAt: new Date() } }
@@ -157,7 +115,6 @@ export async function POST(request: Request) {
     const sessionUser = sessionFromUser(user);
     const token = await createSessionToken(sessionUser);
     await setSessionCookie(token);
-
     return NextResponse.json({ user: sessionUser });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Login failed";

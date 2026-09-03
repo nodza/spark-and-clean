@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { UserRole } from "@/types/user";
+import { isFullAccount, type UserRole } from "@/types/user";
 
 type AuthGuardProps = {
   children: ReactNode;
   roles?: UserRole[];
   loginPath?: string;
-  /** When false, guest checkout sessions cannot access this route */
+  /** Leftover guest JWTs are never a full account. Default: reject guests. */
   allowGuest?: boolean;
 };
 
@@ -20,7 +20,7 @@ export function AuthGuard({
   children,
   roles = ["client"],
   loginPath = "/login",
-  allowGuest = true,
+  allowGuest = false,
 }: AuthGuardProps) {
   const router = useRouter();
   const { user, ready } = useAuth();
@@ -32,12 +32,13 @@ export function AuthGuard({
     [rolesKey]
   );
 
+  const ok =
+    !!user &&
+    allowed.includes(user.role) &&
+    (isFullAccount(user) || allowGuest);
+
   useEffect(() => {
     if (!ready) return;
-
-    const roleOk = !!user && allowed.includes(user.role);
-    const guestOk = allowGuest || !user?.guest;
-    const ok = roleOk && guestOk;
 
     if (!ok) {
       if (!redirected.current) {
@@ -47,13 +48,10 @@ export function AuthGuard({
       return;
     }
     redirected.current = false;
-  }, [ready, user, allowed, allowGuest, loginPath, router]);
+  }, [ready, ok, loginPath, router]);
 
   if (!ready) return null;
-
-  const roleOk = !!user && allowed.includes(user.role);
-  const guestOk = allowGuest || !user?.guest;
-  if (!roleOk || !guestOk) return null;
+  if (!ok) return null;
 
   return <>{children}</>;
 }

@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { UserRole } from "@/types/user";
+import { isFullAccount, type UserRole } from "@/types/user";
 import {
   AUTH_EVENT,
   fetchCurrentUser,
@@ -124,7 +124,7 @@ export function useRequireAuth(
   loginPath = "/login",
   options?: { allowGuest?: boolean }
 ) {
-  const allowGuest = options?.allowGuest ?? true;
+  const allowGuest = options?.allowGuest ?? false;
   const rolesKey = roles.join("|");
   const allowed = useMemo(
     () => rolesKey.split("|") as UserRole[],
@@ -138,9 +138,10 @@ export function useRequireAuth(
   useEffect(() => {
     if (!ready) return;
 
-    const roleOk = !!user && allowed.includes(user.role);
-    const guestOk = allowGuest || !user?.guest;
-    const ok = roleOk && guestOk;
+    const ok =
+      !!user &&
+      allowed.includes(user.role) &&
+      (isFullAccount(user) || allowGuest);
 
     if (!ok) {
       if (!redirected.current) {
@@ -152,9 +153,11 @@ export function useRequireAuth(
     redirected.current = false;
   }, [ready, user, allowed, allowGuest, loginPath, router]);
 
-  const roleOk = ready && !!user && allowed.includes(user.role);
-  const guestOk = allowGuest || !user?.guest;
-  const ok = roleOk && guestOk;
+  const ok =
+    ready &&
+    !!user &&
+    allowed.includes(user.role) &&
+    (isFullAccount(user) || allowGuest);
 
   return {
     user: ok ? user : null,
