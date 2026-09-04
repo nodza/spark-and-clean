@@ -93,7 +93,7 @@ function ResetPasswordForm() {
 
   return (
     <AuthLayout
-      portalLabel="ACCOUNT"
+      portalLabel="CLIENT PORTAL"
       tagline={
         <>
           Cleaned in <span style={{ color: "#ffdc39" }}>7 minutes</span>. Booked
