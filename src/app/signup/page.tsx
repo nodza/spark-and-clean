@@ -64,17 +64,21 @@ export default function SignupPage() {
   return (
     <AuthLayout
       portalLabel="CLIENT PORTAL"
-      tagline="A cleaner way to stay on top of every booking."
-      subtext="Create your account to track collections, manage bookings and reorder past cleans."
+      tagline={
+        <>
+          Cleaned in <span style={{ color: "#ffdc39" }}>7 minutes</span>. Booked in about the same.
+        </>
+      }
+      subtext="Book collections, track your rugs and reorder past cleans across Gauteng and Cape Town."
     >
-      <h1 className="text-page-title text-navy">Create your account</h1>
-      <p className="text-body mt-[9px] text-grey-600">
-        Join Spark &amp; Clean and keep your bookings in one place.
+      <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-navy">Create your account</h1>
+      <p className="mt-[9px] text-[14.5px] font-medium leading-[1.55] text-grey-600">
+        Book collections and track cleans in one place.
       </p>
 
-      <form onSubmit={(event) => void submit(event)} className="mt-[22px] space-y-4">
-        <label className="flex flex-col gap-2">
-          <span className="text-eyebrow text-grey-600">FULL NAME</span>
+      <form onSubmit={(event) => void submit(event)} className="mt-[24px] space-y-[14px]">
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">FULL NAME</span>
           <Input
             type="text"
             autoComplete="name"
@@ -83,8 +87,8 @@ export default function SignupPage() {
             required
           />
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-eyebrow text-grey-600">EMAIL</span>
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">EMAIL</span>
           <Input
             type="email"
             autoComplete="email"
@@ -93,8 +97,8 @@ export default function SignupPage() {
             required
           />
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-eyebrow text-grey-600">PHONE</span>
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">MOBILE</span>
           <Input
             type="tel"
             autoComplete="tel"
@@ -103,8 +107,8 @@ export default function SignupPage() {
             required
           />
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-eyebrow text-grey-600">PASSWORD</span>
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">PASSWORD</span>
           <PasswordInput
             autoComplete="new-password"
             value={form.password}
@@ -113,8 +117,8 @@ export default function SignupPage() {
             required
           />
         </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-eyebrow text-grey-600">CONFIRM PASSWORD</span>
+        <label className="flex flex-col gap-[7px]">
+          <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">CONFIRM PASSWORD</span>
           <PasswordInput
             autoComplete="new-password"
             value={form.confirmPassword}
@@ -130,16 +134,23 @@ export default function SignupPage() {
           </div>
         ) : null}
 
-        <Button type="submit" className="w-full justify-center py-[14px]" disabled={loading}>
+        <Button type="submit" className="mt-[6px] w-full justify-center rounded-full py-[14px] text-[14.5px] font-extrabold tracking-[-0.01em]" disabled={loading}>
           {loading ? "Creating account…" : "Create account"}
         </Button>
       </form>
 
-      <p className="mt-[22px] text-center text-[13.5px] text-grey-600">
-        Already have an account?{" "}
-        <Link href="/login" className="font-extrabold text-green hover:text-navy">
-          Log in
-        </Link>
+      <div className="mt-[16px] text-center text-[13.5px] leading-[1.6] text-grey-600">
+        By creating an account you agree to our Terms of Service and Privacy Policy.
+      </div>
+
+      <div className="mt-[20px] flex items-center gap-3">
+        <div className="h-px flex-1 bg-[#eceef1]" />
+        <span className="text-[12px] text-grey-400">or</span>
+        <div className="h-px flex-1 bg-[#eceef1]" />
+      </div>
+
+      <p className="mt-[14px] text-center text-[13.5px] text-grey-600">
+        Already have an account? <Link href="/login" className="font-extrabold text-green hover:text-navy">Log in</Link>
       </p>
     </AuthLayout>
   );
