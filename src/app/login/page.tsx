@@ -263,7 +263,7 @@ function LoginForm() {
       <p className="text-center text-[13.5px] text-grey-600">
         New to Spark &amp; Clean?{" "}
         <Link
-          href="/register"
+          href="/signup"
           className="font-extrabold text-green hover:text-navy"
         >
           Create an account

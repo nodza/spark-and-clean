@@ -83,8 +83,8 @@ export function BookingSuccessPanel({
       setError("No checkout email found. Go back and add your email in Step 3.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -96,8 +96,10 @@ export function BookingSuccessPanel({
     const result = await registerUser({
       email: checkoutEmail,
       password,
+      confirmPassword,
       name: name.trim() || undefined,
       phone: phone.trim() || undefined,
+      bookingId,
     });
 
     if (result.error) {
@@ -114,7 +116,7 @@ export function BookingSuccessPanel({
 
     await refresh();
     setRegistering(false);
-    router.push(`/booking/${bookingId}`);
+    router.push("/dashboard");
   };
 
   return (
@@ -229,7 +231,7 @@ export function BookingSuccessPanel({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                 />
               </div>
 
@@ -242,7 +244,7 @@ export function BookingSuccessPanel({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                 />
               </div>
 

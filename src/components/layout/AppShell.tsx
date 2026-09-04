@@ -12,13 +12,14 @@ function shouldShowSupportFab(pathname: string) {
   if (pathname.startsWith("/tech")) return false;
   if (pathname.startsWith("/dashboard")) return false;
   if (pathname.startsWith("/login")) return false;
+  if (pathname.startsWith("/signup")) return false;
   if (pathname.startsWith("/booking")) return false;
   return true;
 }
 
 // Paths where the global marketing header + footer should NOT appear.
 // Portal layouts (PortalLayout, TechLayout, AuthLayout) manage their own chrome.
-const PORTAL_PATHS = ["/admin", "/dashboard", "/tech", "/book", "/booking", "/login", "/register"];
+const PORTAL_PATHS = ["/admin", "/dashboard", "/tech", "/book", "/booking", "/login", "/signup", "/register"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
