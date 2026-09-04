@@ -1,10 +1,27 @@
-import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import {
+  Schema,
+  model,
+  models,
+  Types,
+  type HydratedDocument,
+  type Model,
+} from "mongoose";
 
 /**
  * Optional persisted session ledger (JWT remains the live session).
- * Useful for revoke / audit in later auth tickets — schema only for now.
+ * Revoked on password reset.
  */
-const AuthSessionSchema = new Schema(
+export type AuthSessionFields = {
+  userId: Types.ObjectId;
+  tokenHash: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  userAgent?: string;
+  ip?: string;
+  createdAt: Date;
+};
+
+const AuthSessionSchema = new Schema<AuthSessionFields>(
   {
     userId: {
       type: Schema.Types.ObjectId,
@@ -22,10 +39,13 @@ const AuthSessionSchema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
-export type AuthSessionDocument = InferSchemaType<typeof AuthSessionSchema> & {
-  _id: Schema.Types.ObjectId;
-};
+export type AuthSessionDocument = HydratedDocument<AuthSessionFields>;
 
-export const AuthSession: Model<AuthSessionDocument> =
-  (models.AuthSession as Model<AuthSessionDocument>) ||
-  model<AuthSessionDocument>("AuthSession", AuthSessionSchema);
+if (models.AuthSession) {
+  delete models.AuthSession;
+}
+
+export const AuthSession: Model<AuthSessionFields> = model<AuthSessionFields>(
+  "AuthSession",
+  AuthSessionSchema
+);

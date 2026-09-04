@@ -1,100 +1,123 @@
-  "use client";
+"use client";
 
-  import { useEffect, useState } from "react";
-  import { useRouter } from "next/navigation";
-  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-  import { Button } from "@/components/ui/button";
-  import { Input } from "@/components/ui/input";
-  import { PasswordInput } from "@/components/ui/password-input";
-  import { Label } from "@/components/ui/label";
-  import { Truck } from "lucide-react";
-  import { loginUser } from "@/lib/authClient";
-  import { useAuth } from "@/components/auth/AuthProvider";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AuthLayout } from "@/components/layout/AuthLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { loginUser } from "@/lib/authClient";
+import { useAuth } from "@/components/auth/AuthProvider";
 
-  export default function TechLogin() {
-    const router = useRouter();
-    const { user, ready, refresh } = useAuth();
-    const [email, setEmail] = useState<string>("");
-    const [password, setPassword] = useState<string>("");
-    const [error, setError] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
+export default function TechLogin() {
+  const router = useRouter();
+  const { user, ready, refresh } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-      if (ready && user?.role === "technician") {
-        router.replace("/tech/dashboard");
+  useEffect(() => {
+    if (ready && user?.role === "technician") {
+      router.replace("/tech/dashboard");
+    }
+  }, [ready, user, router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const result = await loginUser({
+      email,
+      password,
+      role: "technician",
+    });
+    setLoading(false);
+    if (result.error || !result.user) {
+      setError(result.error || "Login failed");
+      return;
+    }
+    await refresh();
+    router.push("/tech/dashboard");
+  };
+
+  return (
+    <AuthLayout
+      portalLabel="TECHNICIAN"
+      tagline={
+        <>
+          Jobs on the road.{" "}
+          <span style={{ color: "#ffdc39" }}>Status in sync.</span>
+        </>
       }
-    }, [ready, user, router]);
+      subtext="Sign in to see today's collections and deliveries."
+    >
+      <h1 className="text-page-title text-navy">Technician log in</h1>
+      <p className="text-body mt-[9px] text-grey-600">
+        Use your staff email and password.
+      </p>
 
-    const handleLogin = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError(null);
-      setLoading(true);
-      const result = await loginUser({
-        email,
-        password,
-        role: "technician",
-      });
-      setLoading(false);
-      if (result.error || !result.user) {
-        setError(result.error || "Login failed");
-        return;
-      }
-      await refresh();
-      router.push("/tech/dashboard");
-    };
+      <form onSubmit={(e) => void handleLogin(e)} className="mt-[22px]">
+        <label className="flex flex-col gap-2">
+          <span className="text-eyebrow text-grey-600">EMAIL</span>
+          <Input
+            id="driver-email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@sparkandclean.co.za"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (error) setError(null);
+            }}
+            aria-invalid={Boolean(error)}
+            required
+          />
+        </label>
 
-    return (
-      <div className="container max-w-md mx-auto py-20 px-4">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Truck className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold">Driver Login</h1>
-          <p className="text-muted-foreground">
-            Sign in with your driver account
-          </p>
+        <div className="mt-4 mb-2 flex items-center justify-between">
+          <label htmlFor="driver-password" className="text-eyebrow text-grey-600">
+            PASSWORD
+          </label>
+          <Link
+            href={`/forgot-password?from=tech${email.trim() ? `&email=${encodeURIComponent(email.trim())}` : ""}`}
+            className="text-[12px] font-bold text-green hover:text-navy"
+          >
+            Forgot?
+          </Link>
         </div>
+        <PasswordInput
+          id="driver-password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (error) setError(null);
+          }}
+          aria-invalid={Boolean(error)}
+          required
+          minLength={6}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Staff credentials</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="driver-email">Email</Label>
-                <Input
-                  id="driver-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="driver-password">Password</Label>
-                <PasswordInput
-                  id="driver-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-              {error && (
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
-                </p>
-              )}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in…" : "Continue to jobs"}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Demo: thabo.driver@sparkandclean.co.za / Password123!
-              </p>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+        {error && (
+          <div
+            role="alert"
+            className="mt-3.5 rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]"
+          >
+            {error}
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          className="mt-5 w-full justify-center py-[14px]"
+          disabled={loading}
+        >
+          {loading ? "Signing in…" : "Continue to jobs"}
+        </Button>
+      </form>
+    </AuthLayout>
+  );
+}

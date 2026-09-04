@@ -16,10 +16,12 @@ Email is unique and stored lowercase (one inbox = one account).
 
 ## Related collections
 
-- **User** — `passwordHash` (bcrypt, `select: false`, stripped in `toJSON` / `toClientUser`), `emailVerifiedAt`, `disabledAt`, timestamps
-- **AuthSession** — optional persisted session ledger (JWT remains live session); schema only
-- **PasswordResetToken** — reset token hashes; schema only
+- **User** — `passwordHash` (bcrypt, `select: false`, stripped in `toJSON` / `toClientUser`), `emailVerifiedAt`, `disabledAt`, `sessionsInvalidatedAt` (password reset), timestamps
+- **AuthSession** — session ledger; revoked on password reset
+- **PasswordResetToken** — hashed one-time reset tokens (60 min TTL)
 - **Booking.userId** — optional ObjectId ref for registered clients; `customer.email` still used for guests
+
+See also: [password-reset.md](./password-reset.md).
 
 ## Seed (dev/staging)
 

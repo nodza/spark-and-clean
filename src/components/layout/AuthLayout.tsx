@@ -50,18 +50,16 @@ export function AuthLayout({
           style={{ background: "radial-gradient(circle, rgba(255,220,57,.10), transparent 70%)" }}
         />
 
-        {/* Logo + portal label */}
+        {/* Logo + portal label — logo sits on navy (no white plate) */}
         <div className="relative z-10">
-          <div className="inline-flex items-center rounded-[12px] bg-white px-[14px] py-[10px]">
-            <Image
-              src="/uploads/spark-and-clean-22.png"
-              alt="Spark & Clean"
-              width={120}
-              height={38}
-              className="h-[38px] w-auto object-contain"
-              priority
-            />
-          </div>
+          <Image
+            src="/uploads/spark-and-clean-22.png"
+            alt="Spark & Clean"
+            width={120}
+            height={38}
+            className="h-[38px] w-auto object-contain"
+            priority
+          />
           {portalLabel && (
             <div className="mt-[15px] text-[10px] font-extrabold tracking-[0.22em] uppercase text-[#6cf3d5]">
               {portalLabel}
