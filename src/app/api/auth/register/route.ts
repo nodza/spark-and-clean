@@ -7,6 +7,7 @@ import {
   setSessionCookie,
 } from "@/lib/session";
 import { validatePasswordStrength } from "@/lib/passwordRules";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 export async function POST(request: Request) {
   try {
@@ -83,6 +84,14 @@ export async function POST(request: Request) {
     }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: toPublicApiError(
+          err,
+          "Could not create your account. Please try again."
+        ),
+      },
+      { status: 500 }
+    );
   }
 }

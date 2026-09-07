@@ -1,4 +1,5 @@
 import type { UserRole } from "@/types/user";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 export type AuthUser = {
   id: string;
@@ -37,20 +38,29 @@ export async function loginUser(input: {
   error?: string;
   requiresPassword?: boolean;
 }> {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        error: toPublicApiError(
+          data.error || "Login failed",
+          "Login failed. Please try again."
+        ),
+        requiresPassword: data.requiresPassword === true,
+      };
+    }
+    return { user: data.user };
+  } catch (err) {
     return {
-      error: data.error || "Login failed",
-      requiresPassword: data.requiresPassword === true,
+      error: toPublicApiError(err, "Login failed. Please try again."),
     };
   }
-  return { user: data.user };
 }
 
 export async function registerUser(input: {
@@ -59,15 +69,31 @@ export async function registerUser(input: {
   name?: string;
   phone?: string;
 }): Promise<{ user?: AuthUser; error?: string }> {
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) return { error: data.error || "Registration failed" };
-  return { user: data.user };
+  try {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        error: toPublicApiError(
+          data.error || "Registration failed",
+          "Could not create your account. Please try again."
+        ),
+      };
+    }
+    return { user: data.user };
+  } catch (err) {
+    return {
+      error: toPublicApiError(
+        err,
+        "Could not create your account. Please try again."
+      ),
+    };
+  }
 }
 
 export async function continueAsGuest(input: {

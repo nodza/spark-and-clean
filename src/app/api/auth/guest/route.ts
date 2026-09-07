@@ -3,6 +3,7 @@ import {
   createSessionToken,
   setSessionCookie,
 } from "@/lib/session";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 /**
  * Continue as guest after booking — short-lived client session keyed by checkout email.
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Guest session failed";
     console.error("[api/auth/guest]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: toPublicApiError(
+          err,
+          "Could not continue as guest. Please try again."
+        ),
+      },
+      { status: 500 }
+    );
   }
 }
