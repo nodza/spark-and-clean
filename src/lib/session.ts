@@ -22,6 +22,7 @@ export type SessionUser = {
   guest?: boolean;
   /** JWT iat (seconds) — used to reject cookies issued before password reset */
   issuedAt?: number;
+  mustChangePassword?: boolean;
 };
 
 function getSecret() {
@@ -41,6 +42,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     adminTier: user.adminTier ?? null,
     driverProfileId: user.driverProfileId,
     guest: user.guest === true,
+    mustChangePassword: user.mustChangePassword === true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -71,6 +73,7 @@ export async function verifySessionToken(
           : undefined,
       guest: payload.guest === true,
       issuedAt: typeof payload.iat === "number" ? payload.iat : undefined,
+      mustChangePassword: payload.mustChangePassword === true,
     };
   } catch {
     return null;
@@ -111,13 +114,15 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     await connectDB();
     const user = await User.findById(session.id)
-      .select("sessionsInvalidatedAt disabledAt")
+      .select("sessionsInvalidatedAt disabledAt mustChangePassword")
       .lean();
 
     if (!user || user.disabledAt) {
       await clearSessionCookie();
       return null;
     }
+
+    session.mustChangePassword = user.mustChangePassword === true;
 
     const invalidatedAt = user.sessionsInvalidatedAt as Date | null | undefined;
     if (

@@ -55,6 +55,7 @@ export interface AppUser {
   marketingOptIn: boolean;
   emailVerifiedAt: string | null;
   disabledAt: string | null;
+  mustChangePassword?: boolean;
   /** @deprecated prefer emailVerifiedAt */
   emailVerified?: boolean;
   /** @deprecated prefer disabledAt === null for active */

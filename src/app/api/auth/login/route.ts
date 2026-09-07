@@ -10,7 +10,6 @@ import {
   isClientRole,
   normalizeUserRole,
   type AdminTier,
-  type UserRole,
 } from "@/types/user";
 import { toPublicApiError } from "@/lib/publicApiError";
 
@@ -22,6 +21,7 @@ function sessionFromUser(user: {
   role?: unknown;
   adminTier?: unknown;
   driverProfileId?: unknown;
+  mustChangePassword?: unknown;
 }) {
   const role = normalizeUserRole(user.role);
   return {
@@ -38,6 +38,7 @@ function sessionFromUser(user: {
     driverProfileId: user.driverProfileId
       ? String(user.driverProfileId)
       : undefined,
+    mustChangePassword: user.mustChangePassword === true,
   };
 }
 

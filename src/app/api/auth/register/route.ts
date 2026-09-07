@@ -12,6 +12,20 @@ import { toPublicApiError } from "@/lib/publicApiError";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const requestedRole = body.role;
+    const requestedRoleRaw = String(requestedRole ?? "")
+      .trim()
+      .toLowerCase();
+    if (
+      requestedRoleRaw &&
+      requestedRoleRaw !== "client" &&
+      requestedRoleRaw !== "customer"
+    ) {
+      return NextResponse.json(
+        { error: "Public registration is for customer accounts only" },
+        { status: 403 }
+      );
+    }
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
@@ -53,6 +67,7 @@ export async function POST(request: Request) {
       emailVerified: false,
       disabledAt: null,
       isActive: true,
+      mustChangePassword: false,
       lastLoginAt: new Date(),
     });
 
