@@ -12,6 +12,7 @@ import {
   type AdminTier,
   type UserRole,
 } from "@/types/user";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 function sessionFromUser(user: {
   _id: { toString(): string };
@@ -162,6 +163,9 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Login failed";
     console.error("[api/auth/login]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: toPublicApiError(err, "Login failed. Please try again.") },
+      { status: 500 }
+    );
   }
 }

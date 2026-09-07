@@ -166,17 +166,12 @@ function LoginForm() {
             <label htmlFor="password" className="text-eyebrow text-grey-600">
               PASSWORD
             </label>
-            <button
-              type="button"
+            <Link
+              href={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}
               className="text-[12px] font-bold text-green hover:text-navy"
-              onClick={() =>
-                setError(
-                  "Password reset is coming soon. Use your staff password for now."
-                )
-              }
             >
-              Forgot?
-            </button>
+              Forgot password?
+            </Link>
           </div>
           <PasswordInput
             id="password"

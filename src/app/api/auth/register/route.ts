@@ -9,6 +9,16 @@ import {
   setSessionCookie,
 } from "@/lib/session";
 import { normalizeUserRole } from "@/types/user";
+import {
+  validateCustomerName,
+  validateEmail,
+  validateSaPhone,
+} from "@/lib/bookingValidation";
+import {
+  validatePasswordConfirm,
+  validatePasswordNotEmail,
+  validatePasswordStrength,
+} from "@/lib/passwordRules";
 
 export async function POST(request: Request) {
   try {
@@ -34,46 +44,37 @@ export async function POST(request: Request) {
       .toLowerCase();
     const password = String(body.password || "");
     const confirmPassword = String(body.confirmPassword || "");
-    const name = String(body.name || "").trim();
+    const name = String(body.name || "").trim().replace(/\s+/g, " ");
     const phone = String(body.phone || "").trim();
     const bookingId = String(body.bookingId || "").trim();
     const isStandaloneSignup = !bookingId;
 
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email is required." },
-        { status: 400 }
-      );
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      return NextResponse.json({ error: emailErr }, { status: 400 });
     }
-    if (isStandaloneSignup && !name) {
-      return NextResponse.json(
-        { error: "Full name is required." },
-        { status: 400 }
-      );
+
+    if (isStandaloneSignup) {
+      const nameErr = validateCustomerName(name);
+      if (nameErr) {
+        return NextResponse.json({ error: nameErr }, { status: 400 });
+      }
+      const phoneErr = validateSaPhone(phone);
+      if (phoneErr) {
+        return NextResponse.json({ error: phoneErr }, { status: 400 });
+      }
     }
-    if (isStandaloneSignup && !phone) {
-      return NextResponse.json(
-        { error: "Mobile number is required." },
-        { status: 400 }
-      );
+
+    const passwordErr =
+      validatePasswordStrength(password) ||
+      validatePasswordNotEmail(password, email);
+    if (passwordErr) {
+      return NextResponse.json({ error: passwordErr }, { status: 400 });
     }
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters." },
-        { status: 400 }
-      );
-    }
-    if (password !== confirmPassword) {
-      return NextResponse.json(
-        { error: "Passwords do not match." },
-        { status: 400 }
-      );
-    }
-    if (password.toLowerCase() === email) {
-      return NextResponse.json(
-        { error: "Password must not be the same as your email." },
-        { status: 400 }
-      );
+
+    const confirmErr = validatePasswordConfirm(password, confirmPassword);
+    if (confirmErr) {
+      return NextResponse.json({ error: confirmErr }, { status: 400 });
     }
 
     await connectDB();
