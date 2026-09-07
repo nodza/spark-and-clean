@@ -1,15 +1,17 @@
-"use client";
-
-import { AuthGuard } from "@/components/auth/AuthGuard";
-import type { UserRole } from "@/types/user";
+import { requirePageSession } from "@/lib/requirePageSession";
 
 /** Stable reference — avoids AuthGuard effect churn */
-const CLIENT_ROLES: UserRole[] = ["client"];
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthGuard roles={CLIENT_ROLES}>{children}</AuthGuard>;
+  await requirePageSession({
+    roles: ["client"],
+    loginPath: "/login",
+    nextPath: "/portal",
+    allowGuest: true,
+  });
+
+  return <>{children}</>;
 }

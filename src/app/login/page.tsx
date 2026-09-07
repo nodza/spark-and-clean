@@ -10,12 +10,15 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import { resolvePostLoginPath } from "@/lib/accessControl";
+import type { UserRole } from "@/types/user";
 
-function redirectForRole(role: string, next?: string | null) {
-  if (next && next.startsWith("/")) return next;
-  if (role === "admin") return "/admin";
-  if (role === "technician") return "/tech/dashboard";
-  return "/dashboard";
+function redirectForRole(
+  role: string,
+  next?: string | null,
+  adminTier?: "full" | "marketing-only" | null
+) {
+  return resolvePostLoginPath(role as UserRole, next, adminTier);
 }
 
 type LoginMethod = "pwd" | "link";
@@ -39,7 +42,9 @@ function LoginForm() {
 
   useEffect(() => {
     if (ready && user) {
-      router.replace(redirectForRole(user.role, next));
+      router.replace(
+        redirectForRole(user.role, next, user.adminTier ?? null)
+      );
     }
   }, [ready, user, router, next]);
 
@@ -56,7 +61,13 @@ function LoginForm() {
     }
 
     await refresh();
-    router.push(redirectForRole(result.user.role, next));
+    router.push(
+      redirectForRole(
+        result.user.role,
+        next,
+        result.user.adminTier ?? null
+      )
+    );
   };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {

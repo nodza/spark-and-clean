@@ -87,7 +87,7 @@ export default function BookingStatusPage() {
           your account.
         </p>
         <Button asChild variant="outline">
-          <Link href="/dashboard">
+          <Link href="/portal">
             <ArrowLeft className="h-4 w-4" />
             Back to My Bookings
           </Link>
@@ -108,7 +108,7 @@ export default function BookingStatusPage() {
           checkout to view it.
         </p>
         <Button asChild>
-          <Link href="/dashboard">Go to My Bookings</Link>
+          <Link href="/portal">Go to My Bookings</Link>
         </Button>
       </div>
     );
@@ -123,7 +123,7 @@ export default function BookingStatusPage() {
       <div className="mb-6 sm:mb-8">
         <div className="mb-4">
           <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-            <Link href="/dashboard">
+            <Link href="/portal">
               <ArrowLeft className="h-4 w-4" />
               My Bookings
             </Link>

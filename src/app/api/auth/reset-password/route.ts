@@ -152,7 +152,7 @@ export async function POST(request: Request) {
         ? "/tech/dashboard"
         : role === "admin"
           ? "/admin"
-          : "/dashboard";
+          : "/portal";
 
     return NextResponse.json({
       user: sessionUser,

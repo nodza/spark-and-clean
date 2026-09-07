@@ -16,9 +16,6 @@ export function Header() {
     router.push("/login");
   };
 
-  const isAdmin = user?.role === "admin";
-  const isTechnician = user?.role === "technician";
-
   return (
     <header className="border-b bg-white">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -48,7 +45,7 @@ export function Header() {
             <Link
               href={portal.href}
               className={
-                portal.href === "/dashboard"
+                portal.href === "/portal"
                   ? "hover:text-primary transition-colors text-foreground font-semibold"
                   : "hover:text-primary transition-colors"
               }
@@ -56,22 +53,6 @@ export function Header() {
               {portal.label}
             </Link>
           ) : null}
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="hover:text-primary transition-colors text-foreground font-semibold"
-            >
-              Admin
-            </Link>
-          )}
-          {isTechnician && (
-            <Link
-              href="/tech/dashboard"
-              className="hover:text-primary transition-colors text-foreground font-semibold"
-            >
-              Technician
-            </Link>
-          )}
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -95,14 +76,12 @@ export function Header() {
             </>
           ) : ready ? (
             <>
-              {portal.show ? (
-                <Link
-                  href={portal.href}
-                  className="md:hidden text-sm font-medium text-muted-foreground hover:text-primary"
-                >
-                  {portal.label}
-                </Link>
-              ) : null}
+              <Link
+                href="/login"
+                className="text-sm font-semibold text-foreground hover:text-primary"
+              >
+                Log in
+              </Link>
               <Link
                 href="/signup"
                 className="text-sm font-semibold text-foreground hover:text-primary"

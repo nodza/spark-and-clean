@@ -31,12 +31,15 @@ export async function GET(_request: Request, { params }: Params) {
 
     if (session.role === "technician") {
       if (
-        booking.assignedDriverId &&
-        session.driverProfileId &&
+        !session.driverProfileId ||
         booking.assignedDriverId !== session.driverProfileId
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+    }
+
+    if (session.role === "admin" && session.adminTier === "marketing-only") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json(booking);
@@ -74,6 +77,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
     // Role rules
     if (session.role === "client") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (session.role === "admin" && session.adminTier === "marketing-only") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (session.role === "technician") {

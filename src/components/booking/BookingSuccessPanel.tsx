@@ -119,7 +119,7 @@ export function BookingSuccessPanel({
 
     await refresh();
     setRegistering(false);
-    router.push("/dashboard");
+    router.push("/portal");
   };
 
   return (
@@ -140,7 +140,7 @@ export function BookingSuccessPanel({
           <p className="mt-4 text-sm text-foreground">
             You&apos;re signed in with this email — this booking is already on{" "}
             <Link
-              href="/dashboard"
+              href="/portal"
               className="font-medium underline underline-offset-2"
             >
               My Bookings

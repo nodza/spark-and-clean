@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Shared portal entry: logged-out customers → /login,
- * logged-in customers → /dashboard. Keeps homepage + header consistent.
+ * logged-in customers → /portal. Keeps homepage + header consistent.
  */
 export function usePortalEntry() {
   const { user, ready } = useAuth();
@@ -24,7 +24,7 @@ export function usePortalEntry() {
   if (isClient) {
     return {
       ready: true as const,
-      href: "/dashboard" as const,
+      href: "/portal" as const,
       label: "My Bookings" as const,
       show: true as const,
     };

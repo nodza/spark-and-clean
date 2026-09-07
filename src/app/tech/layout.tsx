@@ -1,24 +1,28 @@
-"use client";
+import { headers } from "next/headers";
+import { requirePageSession } from "@/lib/requirePageSession";
+import { isTechLoginPath } from "@/lib/accessControl";
 
-import { AuthGuard } from "@/components/auth/AuthGuard";
-import { usePathname } from "next/navigation";
-import type { UserRole } from "@/types/user";
-
-const TECHNICIAN_ROLES: UserRole[] = ["technician"];
-
-export default function TechLayout({
+/**
+ * Tech segment layout.
+ * /tech and /tech/login stay public; app routes require a technician session.
+ */
+export default async function TechLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  if (pathname === "/tech") {
+  const pathname = (await headers()).get("x-pathname") || "";
+
+  if (isTechLoginPath(pathname)) {
     return <>{children}</>;
   }
 
-  return (
-    <AuthGuard roles={TECHNICIAN_ROLES} loginPath="/tech">
-      {children}
-    </AuthGuard>
-  );
+  await requirePageSession({
+    roles: ["technician"],
+    loginPath: "/tech/login",
+    nextPath: pathname.startsWith("/tech/") ? pathname : "/tech/dashboard",
+    allowGuest: false,
+  });
+
+  return <>{children}</>;
 }

@@ -9,8 +9,13 @@ export async function GET() {
     await connectDB();
     const session = await getSession();
 
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const filter: Record<string, unknown> = {};
-    if (session?.role === "client") {
+
+    if (session.role === "client") {
       // Prefer userId when present; always allow email for guest / legacy bookings
       if (!session.guest && !session.id.startsWith("guest:")) {
         filter.$or = [
@@ -20,12 +25,19 @@ export async function GET() {
       } else {
         filter["customer.email"] = session.email.toLowerCase();
       }
-    } else if (session?.role === "technician" && session.driverProfileId) {
+    } else if (session.role === "technician") {
+      if (!session.driverProfileId) {
+        return NextResponse.json([]);
+      }
       filter.assignedDriverId = session.driverProfileId;
-    }
-    // admin: all bookings (empty filter)
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    } else if (session.role === "admin") {
+      // Operations booking list — full admin only (marketing-only denied)
+      if (session.adminTier === "marketing-only") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      // empty filter = all bookings
+    } else {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const docs = await Booking.find(filter).sort({ createdAt: -1 }).lean();

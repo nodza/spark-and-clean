@@ -1,14 +1,11 @@
-"use client";
-
-import { AuthGuard } from "@/components/auth/AuthGuard";
-import type { UserRole } from "@/types/user";
-
-const CLIENT_ROLES: UserRole[] = ["client"];
-
+/**
+ * /booking/[id] stays publicly reachable at the route level (middleware).
+ * Page-level client auth may still apply for live tracking UX.
+ */
 export default function BookingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthGuard roles={CLIENT_ROLES}>{children}</AuthGuard>;
+  return <>{children}</>;
 }

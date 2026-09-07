@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { requestPasswordReset } from "@/lib/authClient";
 
 function loginHref(from: string | null) {
-  if (from === "tech") return "/tech";
+  if (from === "tech") return "/tech/login";
+  if (from === "admin") return "/admin/login";
   return "/login";
 }
 
