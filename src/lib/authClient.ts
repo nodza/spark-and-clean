@@ -1,4 +1,5 @@
 import type { UserRole } from "@/types/user";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 export type AuthUser = {
   id: string;
@@ -37,20 +38,29 @@ export async function loginUser(input: {
   error?: string;
   requiresPassword?: boolean;
 }> {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        error: toPublicApiError(
+          data.error || "Login failed",
+          "Login failed. Please try again."
+        ),
+        requiresPassword: data.requiresPassword === true,
+      };
+    }
+    return { user: data.user };
+  } catch (err) {
     return {
-      error: data.error || "Login failed",
-      requiresPassword: data.requiresPassword === true,
+      error: toPublicApiError(err, "Login failed. Please try again."),
     };
   }
-  return { user: data.user };
 }
 
 export async function registerUser(input: {
@@ -59,15 +69,31 @@ export async function registerUser(input: {
   name?: string;
   phone?: string;
 }): Promise<{ user?: AuthUser; error?: string }> {
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) return { error: data.error || "Registration failed" };
-  return { user: data.user };
+  try {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        error: toPublicApiError(
+          data.error || "Registration failed",
+          "Could not create your account. Please try again."
+        ),
+      };
+    }
+    return { user: data.user };
+  } catch (err) {
+    return {
+      error: toPublicApiError(
+        err,
+        "Could not create your account. Please try again."
+      ),
+    };
+  }
 }
 
 export async function continueAsGuest(input: {
@@ -94,4 +120,82 @@ export async function logoutUser(): Promise<void> {
   });
   // AUTH_EVENT notifies AuthProvider once — do not call fetchCurrentUser here
   window.dispatchEvent(new Event(AUTH_EVENT));
+}
+
+export async function requestPasswordReset(
+  email: string
+): Promise<{ message?: string; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    // API always returns the same public message (even on soft failures)
+    return {
+      message:
+        data.message ||
+        "If an account exists for that email, we've sent a reset link.",
+    };
+  } catch {
+    return {
+      message:
+        "If an account exists for that email, we've sent a reset link.",
+    };
+  }
+}
+
+export async function validateResetToken(
+  token: string
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `/api/auth/reset-password?token=${encodeURIComponent(token)}`,
+      { credentials: "include", cache: "no-store" }
+    );
+    const data = await res.json();
+    return {
+      valid: data.valid === true,
+      error: typeof data.error === "string" ? data.error : undefined,
+    };
+  } catch {
+    return {
+      valid: false,
+      error: "This reset link is invalid or has expired. Request a new link.",
+    };
+  }
+}
+
+export async function resetPasswordWithToken(input: {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}): Promise<{
+  user?: AuthUser;
+  homePath?: string;
+  loginPath?: string;
+  error?: string;
+}> {
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    return {
+      error:
+        data.error ||
+        "This reset link is invalid or has expired. Request a new link.",
+    };
+  }
+  window.dispatchEvent(new Event(AUTH_EVENT));
+  return {
+    user: data.user,
+    homePath: data.homePath,
+    loginPath: data.loginPath,
+  };
 }

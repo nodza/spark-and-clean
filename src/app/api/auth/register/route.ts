@@ -6,6 +6,8 @@ import {
   createSessionToken,
   setSessionCookie,
 } from "@/lib/session";
+import { validatePasswordStrength } from "@/lib/passwordRules";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 export async function POST(request: Request) {
   try {
@@ -17,9 +19,14 @@ export async function POST(request: Request) {
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
 
-    if (!email || password.length < 6) {
+    const strengthError = validatePasswordStrength(password);
+    if (!email || strengthError) {
       return NextResponse.json(
-        { error: "Valid email and password (min 6 chars) required" },
+        {
+          error:
+            strengthError ||
+            "Valid email and password required",
+        },
         { status: 400 }
       );
     }
@@ -77,6 +84,14 @@ export async function POST(request: Request) {
     }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: toPublicApiError(
+          err,
+          "Could not create your account. Please try again."
+        ),
+      },
+      { status: 500 }
+    );
   }
 }

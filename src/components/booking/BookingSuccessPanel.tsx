@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Package, UserPlus } from "lucide-react";
 import { continueAsGuest, registerUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 type BookingSuccessPanelProps = {
   bookingId: string;
@@ -83,8 +84,8 @@ export function BookingSuccessPanel({
       setError("No checkout email found. Go back and add your email in Step 3.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -229,7 +230,7 @@ export function BookingSuccessPanel({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={MIN_PASSWORD_LENGTH}
                 />
               </div>
 
@@ -242,7 +243,7 @@ export function BookingSuccessPanel({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={MIN_PASSWORD_LENGTH}
                 />
               </div>
 
