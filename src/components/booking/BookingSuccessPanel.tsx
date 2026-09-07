@@ -91,6 +91,10 @@ export function BookingSuccessPanel({
       setError("Passwords do not match.");
       return;
     }
+    if (password.toLowerCase() === checkoutEmail) {
+      setError("Password must not be the same as your email.");
+      return;
+    }
 
     setRegistering(true);
     const result = await registerUser({
@@ -105,9 +109,7 @@ export function BookingSuccessPanel({
     if (result.error) {
       setRegistering(false);
       if (result.error.toLowerCase().includes("already")) {
-        setError(
-          "Account exists — use Track My Order with this email, or sign in from the header."
-        );
+        setError("An account already exists. Please log in instead.");
         return;
       }
       setError(result.error);
@@ -261,7 +263,12 @@ export function BookingSuccessPanel({
 
         {error ? (
           <p className="text-sm text-destructive text-center" role="alert">
-            {error}
+            {error}{" "}
+            {error.toLowerCase().includes("already exists") ? (
+              <Link href="/login" className="font-medium underline underline-offset-2">
+                Log in
+              </Link>
+            ) : null}
           </p>
         ) : null}
       </div>

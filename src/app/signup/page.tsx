@@ -32,6 +32,14 @@ export default function SignupPage() {
     event.preventDefault();
     setError(null);
 
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const phone = form.phone.trim();
+
+    if (!name || !email || !phone || !form.password || !form.confirmPassword) {
+      setError("Fill in all fields to continue.");
+      return;
+    }
     if (form.password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -40,13 +48,19 @@ export default function SignupPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (form.password.toLowerCase() === form.email.trim().toLowerCase()) {
+    if (form.password.toLowerCase() === email.toLowerCase()) {
       setError("Password must not be the same as your email.");
       return;
     }
 
     setLoading(true);
-    const result = await registerUser(form);
+    const result = await registerUser({
+      name,
+      email,
+      phone,
+      password: form.password,
+      confirmPassword: form.confirmPassword,
+    });
     if (result.error || !result.user) {
       setLoading(false);
       setError(
@@ -58,6 +72,7 @@ export default function SignupPage() {
     }
 
     await refresh();
+    // Client portal route (ticket: /portal or /dashboard → /portal)
     router.push("/dashboard");
   };
 
@@ -82,6 +97,7 @@ export default function SignupPage() {
           <Input
             type="text"
             autoComplete="name"
+            placeholder="Nomsa Khumalo"
             value={form.name}
             onChange={(event) => update("name", event.target.value)}
             required
@@ -92,6 +108,7 @@ export default function SignupPage() {
           <Input
             type="email"
             autoComplete="email"
+            placeholder="you@example.com"
             value={form.email}
             onChange={(event) => update("email", event.target.value)}
             required
@@ -102,6 +119,7 @@ export default function SignupPage() {
           <Input
             type="tel"
             autoComplete="tel"
+            placeholder="082 000 0000"
             value={form.phone}
             onChange={(event) => update("phone", event.target.value)}
             required
@@ -111,6 +129,7 @@ export default function SignupPage() {
           <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">PASSWORD</span>
           <PasswordInput
             autoComplete="new-password"
+            placeholder="At least 8 characters"
             value={form.password}
             onChange={(event) => update("password", event.target.value)}
             minLength={8}
@@ -121,6 +140,7 @@ export default function SignupPage() {
           <span className="text-[11px] font-extrabold tracking-[0.06em] text-grey-600">CONFIRM PASSWORD</span>
           <PasswordInput
             autoComplete="new-password"
+            placeholder="Confirm password"
             value={form.confirmPassword}
             onChange={(event) => update("confirmPassword", event.target.value)}
             minLength={8}
@@ -130,7 +150,12 @@ export default function SignupPage() {
 
         {error ? (
           <div role="alert" className="rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]">
-            {error}
+            {error}{" "}
+            {error.toLowerCase().includes("already exists") ? (
+              <Link href="/login" className="font-extrabold underline underline-offset-2">
+                Log in
+              </Link>
+            ) : null}
           </div>
         ) : null}
 
@@ -139,7 +164,7 @@ export default function SignupPage() {
         </Button>
       </form>
 
-      <div className="mt-[16px] text-center text-[13.5px] leading-[1.6] text-grey-600">
+      <div className="mt-[14px] text-[11.5px] leading-[1.6] text-grey-400">
         By creating an account you agree to our Terms of Service and Privacy Policy.
       </div>
 
@@ -149,8 +174,11 @@ export default function SignupPage() {
         <div className="h-px flex-1 bg-[#eceef1]" />
       </div>
 
-      <p className="mt-[14px] text-center text-[13.5px] text-grey-600">
-        Already have an account? <Link href="/login" className="font-extrabold text-green hover:text-navy">Log in</Link>
+      <p className="mt-[16px] text-center text-[13.5px] text-grey-600">
+        Already have an account?{" "}
+        <Link href="/login" className="font-extrabold text-green hover:text-navy">
+          Log in
+        </Link>
       </p>
     </AuthLayout>
   );

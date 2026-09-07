@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    // Ignore any client-supplied role / adminTier — always force client (SCW-29).
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
@@ -36,10 +37,23 @@ export async function POST(request: Request) {
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").trim();
     const bookingId = String(body.bookingId || "").trim();
+    const isStandaloneSignup = !bookingId;
 
     if (!email) {
       return NextResponse.json(
         { error: "Email is required." },
+        { status: 400 }
+      );
+    }
+    if (isStandaloneSignup && !name) {
+      return NextResponse.json(
+        { error: "Full name is required." },
+        { status: 400 }
+      );
+    }
+    if (isStandaloneSignup && !phone) {
+      return NextResponse.json(
+        { error: "Mobile number is required." },
         { status: 400 }
       );
     }
@@ -81,6 +95,7 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
     let user;
     if (existing) {
+      // F6.3 guest / passwordless client → convert into a full account
       await User.updateOne(
         { _id: existing._id },
         {
@@ -112,7 +127,10 @@ export async function POST(request: Request) {
     }
 
     if (!user) {
-      return NextResponse.json({ error: "Could not create account" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Could not create account." },
+        { status: 500 }
+      );
     }
 
     if (bookingId) {
@@ -144,12 +162,15 @@ export async function POST(request: Request) {
       (err as { code: number }).code === 11000
     ) {
       return NextResponse.json(
-        { error: "An account with this email already exists" },
+        { error: "An account with this email already exists. Please log in." },
         { status: 409 }
       );
     }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not create your account. Please try again." },
+      { status: 500 }
+    );
   }
 }
