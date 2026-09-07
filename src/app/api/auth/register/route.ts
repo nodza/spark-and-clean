@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { Booking } from "@/models/Booking";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   createSessionToken,
   setSessionCookie,
@@ -22,6 +23,21 @@ import { toPublicApiError } from "@/lib/publicApiError";
 
 export async function POST(request: Request) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const rateLimit = checkRateLimit(`auth-register:${ip}`, 5, 60 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many signup attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const body = await request.json();
     const requestedRoleRaw = String(body.role ?? "")
       .trim()
@@ -70,11 +86,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: passwordErr }, { status: 400 });
     }
 
-    if (confirmPassword) {
-      const confirmErr = validatePasswordConfirm(password, confirmPassword);
-      if (confirmErr) {
-        return NextResponse.json({ error: confirmErr }, { status: 400 });
-      }
+    const confirmErr = validatePasswordConfirm(password, confirmPassword);
+    if (confirmErr) {
+      return NextResponse.json({ error: confirmErr }, { status: 400 });
     }
 
     await connectDB();
@@ -157,7 +171,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ user: sessionUser }, { status: 201 });
   } catch (err) {
-    // Duplicate email unique index
     if (
       err &&
       typeof err === "object" &&
