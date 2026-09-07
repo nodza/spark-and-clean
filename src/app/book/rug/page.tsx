@@ -79,7 +79,7 @@ export default function BookingWizard() {
   const router = useRouter();
   const { user, ready } = useAuth();
   const sessionEmail = user?.email?.trim() || null;
-  const isLoggedInCustomer = Boolean(sessionEmail && user?.role === "CUSTOMER");
+  const isLoggedInCustomer = Boolean(sessionEmail && user?.role === "client");
 
   const addBooking = useBookingStore((s) => s.addBooking);
   const fetchBookings = useBookingStore((s) => s.fetchBookings);

@@ -66,8 +66,10 @@ export async function loginUser(input: {
 export async function registerUser(input: {
   email: string;
   password: string;
+  confirmPassword: string;
   name?: string;
   phone?: string;
+  bookingId?: string;
 }): Promise<{ user?: AuthUser; error?: string }> {
   try {
     const res = await fetch("/api/auth/register", {

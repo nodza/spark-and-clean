@@ -93,13 +93,23 @@ export function Header() {
                 Log out
               </Button>
             </>
-          ) : ready && portal.show ? (
-            <Link
-              href={portal.href}
-              className="md:hidden text-sm font-medium text-muted-foreground hover:text-primary"
-            >
-              {portal.label}
-            </Link>
+          ) : ready ? (
+            <>
+              {portal.show ? (
+                <Link
+                  href={portal.href}
+                  className="md:hidden text-sm font-medium text-muted-foreground hover:text-primary"
+                >
+                  {portal.label}
+                </Link>
+              ) : null}
+              <Link
+                href="/signup"
+                className="text-sm font-semibold text-foreground hover:text-primary"
+              >
+                Sign up
+              </Link>
+            </>
           ) : null}
           <Link href="/book/rug">
             <Button>Book a Collection</Button>

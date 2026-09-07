@@ -61,7 +61,7 @@ export function validateSaPhone(raw: string): string | null {
   }
 
   if (!/^0\d{9}$/.test(national)) {
-    return "Use a South African number like 082 123 4567 or +27 82 123 4567.";
+    return "Use a valid South African number (e.g. 082 123 4567 or +27 82 123 4567).";
   }
 
   // Common SA mobile / landline leading digits
