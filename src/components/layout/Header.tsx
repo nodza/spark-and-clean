@@ -44,34 +44,42 @@ export function Header() {
           <Link href="/contact" className="hover:text-primary transition-colors">
             Contact
           </Link>
-          {portal.show ? (
-            <Link
-              href={portal.href}
-              className={
-                portal.href === "/dashboard"
-                  ? "hover:text-primary transition-colors text-foreground font-semibold"
-                  : "hover:text-primary transition-colors"
-              }
-            >
-              {portal.label}
+          {ready && user ? (
+            <>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="hover:text-primary transition-colors text-foreground font-semibold"
+                >
+                  Admin
+                </Link>
+              )}
+              {isTechnician && (
+                <Link
+                  href="/tech/dashboard"
+                  className="hover:text-primary transition-colors text-foreground font-semibold"
+                >
+                  Technician
+                </Link>
+              )}
+              {portal.show ? (
+                <Link
+                  href={portal.href}
+                  className={
+                    portal.href === "/dashboard"
+                      ? "hover:text-primary transition-colors text-foreground font-semibold"
+                      : "hover:text-primary transition-colors"
+                  }
+                >
+                  {portal.label}
+                </Link>
+              ) : null}
+            </>
+          ) : ready ? (
+            <Link href="/login" className="hover:text-primary transition-colors">
+              Login
             </Link>
           ) : null}
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="hover:text-primary transition-colors text-foreground font-semibold"
-            >
-              Admin
-            </Link>
-          )}
-          {isTechnician && (
-            <Link
-              href="/tech/dashboard"
-              className="hover:text-primary transition-colors text-foreground font-semibold"
-            >
-              Technician
-            </Link>
-          )}
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-4">
