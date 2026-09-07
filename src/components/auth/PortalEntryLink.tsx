@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  */
 export function usePortalEntry() {
   const { user, ready } = useAuth();
-  const isCustomer = user?.role === "CUSTOMER";
+  const isClient = user?.role === "client";
 
   if (!ready) {
     return {
@@ -21,7 +21,7 @@ export function usePortalEntry() {
     };
   }
 
-  if (isCustomer) {
+  if (isClient) {
     return {
       ready: true as const,
       href: "/dashboard" as const,
@@ -31,7 +31,7 @@ export function usePortalEntry() {
   }
 
   if (user) {
-    // Admin / driver: customer portal link is not shown
+    // Admin / technician: client portal link is not shown
     return {
       ready: true as const,
       href: "/login" as const,

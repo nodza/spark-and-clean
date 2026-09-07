@@ -18,7 +18,7 @@ type AuthGuardProps = {
  */
 export function AuthGuard({
   children,
-  roles = ["CUSTOMER"],
+  roles = ["client"],
   loginPath = "/login",
   allowGuest = true,
 }: AuthGuardProps) {

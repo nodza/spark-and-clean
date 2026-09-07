@@ -20,7 +20,7 @@
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-      if (ready && user?.role === "DRIVER") {
+      if (ready && user?.role === "technician") {
         router.replace("/tech/dashboard");
       }
     }, [ready, user, router]);
@@ -32,7 +32,7 @@
       const result = await loginUser({
         email,
         password,
-        role: "DRIVER",
+        role: "technician",
       });
       setLoading(false);
       if (result.error || !result.user) {

@@ -23,13 +23,13 @@ export async function GET(_request: Request, { params }: Params) {
 
     const booking = toClientBooking(doc as Record<string, unknown>);
 
-    if (session.role === "CUSTOMER") {
+    if (session.role === "client") {
       if (booking.customer.email.toLowerCase() !== session.email.toLowerCase()) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    if (session.role === "DRIVER") {
+    if (session.role === "technician") {
       if (
         booking.assignedDriverId &&
         session.driverProfileId &&
@@ -73,11 +73,11 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     // Role rules
-    if (session.role === "CUSTOMER") {
+    if (session.role === "client") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (session.role === "DRIVER") {
-      // Drivers may only update status on their assigned jobs
+    if (session.role === "technician") {
+      // Technicians may only update status on their assigned jobs
       if (body.paymentStatus || body.assignedDriverId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -85,7 +85,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     await connectDB();
 
-    if (session.role === "DRIVER") {
+    if (session.role === "technician") {
       const existing = await Booking.findOne({ id }).lean();
       if (
         !existing ||

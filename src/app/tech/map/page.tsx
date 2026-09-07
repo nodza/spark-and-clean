@@ -17,7 +17,7 @@ const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ss
 
 export default function TechMap() {
   const router = useRouter();
-  const { user, ready } = useRequireAuth(["DRIVER"], "/tech");
+  const { user, ready } = useRequireAuth(["technician"], "/tech");
   const { bookings, fetchBookings } = useBookingStore();
   const [mounted, setMounted] = useState(false);
   const [markerIcon, setMarkerIcon] = useState<Icon | null>(null);

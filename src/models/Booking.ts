@@ -55,6 +55,15 @@ const BookingSchema = new Schema(
   {
     /** Business booking reference, e.g. SC-2025-0001 */
     id: { type: String, required: true, unique: true, index: true },
+    /**
+     * Registered client User._id. Guests keep denormalised customer.email only.
+     */
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+      sparse: true,
+    },
     customer: { type: CustomerSchema, required: true },
     suburb: { type: String, required: true, trim: true },
     addressLine1: { type: String, required: true, trim: true },

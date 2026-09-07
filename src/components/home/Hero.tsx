@@ -39,6 +39,7 @@ export function Hero() {
 
   return (
     <section
+      data-contrast="dark"
       className="relative isolate flex min-h-[min(85vh,720px)] items-center overflow-hidden max-md:landscape:min-h-[100svh]"
       aria-labelledby="hero-heading"
     >

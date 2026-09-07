@@ -6,6 +6,7 @@ export type AuthUser = {
   name?: string;
   phone?: string;
   role: UserRole;
+  adminTier?: "full" | "marketing-only" | null;
   driverProfileId?: string;
   guest?: boolean;
 };
@@ -28,7 +29,7 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
 
 export async function loginUser(input: {
   email: string;
-  /** Required for ADMIN / DRIVER; optional for CUSTOMER */
+  /** Required for admin / technician; optional for client */
   password?: string;
   role?: UserRole;
 }): Promise<{

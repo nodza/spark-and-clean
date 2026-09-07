@@ -1,13 +1,16 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import {
+  ADMIN_TIERS,
   SERVICE_CITIES,
   USER_ROLES,
+  type AdminTier,
   type ServiceCity,
   type UserRole,
 } from "@/types/user";
+import { assertRoleTierInvariants } from "@/lib/userValidation";
 
-export type { ServiceCity, UserRole };
-export { SERVICE_CITIES, USER_ROLES };
+export type { AdminTier, ServiceCity, UserRole };
+export { ADMIN_TIERS, SERVICE_CITIES, USER_ROLES };
 
 const CoordinatesSchema = new Schema(
   {
@@ -36,13 +39,16 @@ const AddressSchema = new Schema(
 
 const LoyaltySchema = new Schema(
   {
-    /** Punch-card: completed cleans toward a reward */
     punches: { type: Number, default: 0, min: 0 },
     rewardsRedeemed: { type: Number, default: 0, min: 0 },
   },
   { _id: false }
 );
 
+/**
+ * Persisted User — exactly one role; admins carry adminTier.
+ * passwordHash is select:false and stripped in toJSON (never expose via public API).
+ */
 const UserSchema = new Schema(
   {
     email: {
@@ -53,15 +59,25 @@ const UserSchema = new Schema(
       trim: true,
       index: true,
     },
-    /** bcrypt/argon2 hash — never store plaintext passwords */
+    /** bcrypt hash — never plaintext, never localStorage, never public API */
     passwordHash: { type: String, select: false },
     name: { type: String, trim: true },
     phone: { type: String, trim: true },
     role: {
       type: String,
       enum: USER_ROLES,
-      default: "CUSTOMER",
+      default: "client",
+      required: true,
       index: true,
+    },
+    /**
+     * Required when role === "admin"; must be null for client/technician.
+     */
+    adminTier: {
+      type: String,
+      enum: [...ADMIN_TIERS, null],
+      default: null,
+      required: false,
     },
     preferredCity: {
       type: String,
@@ -70,11 +86,15 @@ const UserSchema = new Schema(
     addresses: { type: [AddressSchema], default: [] },
     loyalty: { type: LoyaltySchema, default: () => ({}) },
     marketingOptIn: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date, default: null },
+    disabledAt: { type: Date, default: null },
+    /** @deprecated use emailVerifiedAt */
     emailVerified: { type: Boolean, default: false },
+    /** @deprecated use disabledAt === null */
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     /**
-     * Optional link to Driver collection (`drivers.id`) for DRIVER role users.
+     * Technician → Driver profile (`drivers.id`) for vehicle / display name (E5).
      */
     driverProfileId: { type: String, trim: true, index: true, sparse: true },
   },
@@ -91,7 +111,33 @@ const UserSchema = new Schema(
   }
 );
 
+UserSchema.pre("validate", function (next) {
+  try {
+    const { role, adminTier } = assertRoleTierInvariants({
+      role: this.role as UserRole,
+      adminTier: (this.adminTier as AdminTier | null | undefined) ?? null,
+    });
+    this.role = role;
+    this.adminTier = adminTier;
+    // Keep legacy flags in sync for existing auth queries
+    if (this.disabledAt) {
+      this.isActive = false;
+    } else if (this.isActive === false && !this.disabledAt) {
+      this.disabledAt = new Date();
+    }
+    if (this.emailVerifiedAt && !this.emailVerified) {
+      this.emailVerified = true;
+    } else if (this.emailVerified && !this.emailVerifiedAt) {
+      this.emailVerifiedAt = new Date();
+    }
+    next();
+  } catch (err) {
+    next(err instanceof Error ? err : new Error(String(err)));
+  }
+});
+
 UserSchema.index({ role: 1, preferredCity: 1 });
+UserSchema.index({ role: 1, adminTier: 1 });
 
 export type UserDocument = InferSchemaType<typeof UserSchema> & {
   _id: Schema.Types.ObjectId;

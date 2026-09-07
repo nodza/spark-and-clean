@@ -10,13 +10,20 @@ export async function GET() {
     const session = await getSession();
 
     const filter: Record<string, unknown> = {};
-    if (session?.role === "CUSTOMER") {
-      filter["customer.email"] = session.email.toLowerCase();
-    } else if (session?.role === "DRIVER" && session.driverProfileId) {
+    if (session?.role === "client") {
+      // Prefer userId when present; always allow email for guest / legacy bookings
+      if (!session.guest && !session.id.startsWith("guest:")) {
+        filter.$or = [
+          { userId: session.id },
+          { "customer.email": session.email.toLowerCase() },
+        ];
+      } else {
+        filter["customer.email"] = session.email.toLowerCase();
+      }
+    } else if (session?.role === "technician" && session.driverProfileId) {
       filter.assignedDriverId = session.driverProfileId;
     }
-    // ADMIN or unauthenticated admin prototype: all bookings
-    // Prefer requiring admin session for full list:
+    // admin: all bookings (empty filter)
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -35,6 +42,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await connectDB();
+    const session = await getSession();
     const body = await request.json();
 
     const id =
@@ -43,7 +51,7 @@ export async function POST(request: Request) {
         .toString()
         .padStart(4, "0")}`;
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...body,
       id,
       createdAt: body.createdAt || new Date().toISOString(),
@@ -52,6 +60,18 @@ export async function POST(request: Request) {
         email: body.customer?.email?.toLowerCase?.() ?? body.customer?.email,
       },
     };
+
+    // Registered clients (not guests) get userId; guest matching still uses email
+    if (
+      session &&
+      session.role === "client" &&
+      !session.guest &&
+      !session.id.startsWith("guest:")
+    ) {
+      payload.userId = session.id;
+    } else if (body.userId) {
+      payload.userId = body.userId;
+    }
 
     const created = await Booking.findOneAndUpdate(
       { id },

@@ -120,7 +120,7 @@ export function useAuthOptional() {
 }
 
 export function useRequireAuth(
-  roles: UserRole[] = ["CUSTOMER"],
+  roles: UserRole[] = ["client"],
   loginPath = "/login",
   options?: { allowGuest?: boolean }
 ) {

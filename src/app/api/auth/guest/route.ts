@@ -5,7 +5,7 @@ import {
 } from "@/lib/session";
 
 /**
- * Continue as guest after booking — short-lived CUSTOMER session keyed by checkout email.
+ * Continue as guest after booking — short-lived client session keyed by checkout email.
  * Does not create a User document; used to view /booking/[id] privately.
  */
 export async function POST(request: Request) {
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       email,
       name: name || undefined,
       phone: phone || undefined,
-      role: "CUSTOMER" as const,
+      role: "client" as const,
+      adminTier: null,
       guest: true,
     };
 
