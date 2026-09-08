@@ -30,9 +30,9 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     if (session.role === "technician") {
+      // Fail closed: missing profile or unassigned / other driver's job → 403
       if (
-        booking.assignedDriverId &&
-        session.driverProfileId &&
+        !session.driverProfileId ||
         booking.assignedDriverId !== session.driverProfileId
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -78,6 +78,9 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     if (session.role === "technician") {
       // Technicians may only update status on their assigned jobs
+      if (!session.driverProfileId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       if (body.paymentStatus || body.assignedDriverId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -89,6 +92,7 @@ export async function PATCH(request: Request, { params }: Params) {
       const existing = await Booking.findOne({ id }).lean();
       if (
         !existing ||
+        !session.driverProfileId ||
         existing.assignedDriverId !== session.driverProfileId
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
