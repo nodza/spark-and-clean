@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
+import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
 import type { BookingStatus, PaymentStatus } from "@/types/booking";
 
 type Params = { params: Promise<{ id: string }> };
@@ -46,6 +47,15 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
+/**
+ * Persist status / paymentStatus / assignedDriverId (including null to unassign).
+ *
+ * Assign rule: first assign from BOOKED may set SCHEDULED; COLLECTED+ (and
+ * already-SCHEDULED) keep their status — never silently reset to SCHEDULED.
+ *
+ * Auth: technicians may only PATCH status on their assigned jobs.
+ * Admin payment/assign/status ops require full admin (marketing-only → 403).
+ */
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
@@ -55,43 +65,71 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const body = await request.json();
-    const updates: Record<string, unknown> = {};
+    const wantsStatus = body.status !== undefined && body.status !== null;
+    const wantsPayment =
+      body.paymentStatus !== undefined && body.paymentStatus !== null;
+    const wantsAssign = Object.prototype.hasOwnProperty.call(
+      body,
+      "assignedDriverId"
+    );
 
-    if (body.status) updates.status = body.status as BookingStatus;
-    if (body.paymentStatus) {
-      updates.paymentStatus = body.paymentStatus as PaymentStatus;
-    }
-    if (body.assignedDriverId !== undefined) {
-      updates.assignedDriverId = body.assignedDriverId;
-      if (body.assignedDriverId && !body.status) {
-        updates.status = "SCHEDULED";
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
+    if (!wantsStatus && !wantsPayment && !wantsAssign) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
-    // Role rules
     if (session.role === "client") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
     if (session.role === "technician") {
-      // Technicians may only update status on their assigned jobs
-      if (body.paymentStatus || body.assignedDriverId) {
+      if (wantsPayment || wantsAssign) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (session.role === "admin") {
+      // Ops writes require full admin when tiers exist
+      if (session.adminTier !== "full") {
+        return NextResponse.json(
+          { error: "Full admin required for booking updates" },
+          { status: 403 }
+        );
+      }
+    } else {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await connectDB();
+    const existing = await Booking.findOne({ id }).lean();
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (session.role === "technician") {
+      if (existing.assignedDriverId !== session.driverProfileId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    await connectDB();
+    const updates: Record<string, unknown> = {};
 
-    if (session.role === "technician") {
-      const existing = await Booking.findOne({ id }).lean();
-      if (
-        !existing ||
-        existing.assignedDriverId !== session.driverProfileId
-      ) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (wantsStatus) {
+      updates.status = body.status as BookingStatus;
+    }
+    if (wantsPayment) {
+      updates.paymentStatus = body.paymentStatus as PaymentStatus;
+    }
+    if (wantsAssign) {
+      const nextDriver =
+        body.assignedDriverId === null || body.assignedDriverId === ""
+          ? null
+          : String(body.assignedDriverId);
+      updates.assignedDriverId = nextDriver;
+
+      if (!wantsStatus) {
+        const nextStatus = statusAfterDriverAssign(
+          existing.status as BookingStatus,
+          nextDriver
+        );
+        if (nextStatus) updates.status = nextStatus;
       }
     }
 
