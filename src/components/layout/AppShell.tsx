@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Toaster } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/components/auth/AuthProvider";
@@ -40,12 +39,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPortal = PORTAL_PATHS.some((p) => pathname.startsWith(p));
 
   if (isPortal) {
-    return (
-      <AuthProvider>
-        {children}
-        <Toaster richColors position="top-center" closeButton />
-      </AuthProvider>
-    );
+    // Render bare — no header, no footer, no wrapping <main>.
+    // The layout shell (PortalLayout / AuthLayout / TechLayout) fills the viewport itself.
+    return <AuthProvider>{children}</AuthProvider>;
   }
 
   return (
@@ -54,7 +50,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
       {shouldShowSupportFab(pathname) && <SupportFab />}
       <Footer />
-      <Toaster richColors position="top-center" closeButton />
     </AuthProvider>
   );
 }
