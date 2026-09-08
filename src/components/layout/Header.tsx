@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { usePortalEntry } from "@/components/auth/PortalEntryLink";
 
+/**
+ * Marketing site header (SCW-34).
+ * Never advertises /admin or /tech to visitors.
+ * Clients: Login / Sign up when logged out; portal + Log out when logged in.
+ */
 export function Header() {
   const router = useRouter();
   const { user, ready, logout } = useAuth();
@@ -15,9 +20,6 @@ export function Header() {
     await logout();
     router.push("/login");
   };
-
-  const isAdmin = user?.role === "admin";
-  const isTechnician = user?.role === "technician";
 
   return (
     <header className="border-b bg-white">
@@ -45,36 +47,18 @@ export function Header() {
             Contact
           </Link>
           {ready && user ? (
-            <>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="hover:text-primary transition-colors text-foreground font-semibold"
-                >
-                  Admin
-                </Link>
-              )}
-              {isTechnician && (
-                <Link
-                  href="/tech/dashboard"
-                  className="hover:text-primary transition-colors text-foreground font-semibold"
-                >
-                  Technician
-                </Link>
-              )}
-              {portal.show ? (
-                <Link
-                  href={portal.href}
-                  className={
-                    portal.href === "/dashboard"
-                      ? "hover:text-primary transition-colors text-foreground font-semibold"
-                      : "hover:text-primary transition-colors"
-                  }
-                >
-                  {portal.label}
-                </Link>
-              ) : null}
-            </>
+            portal.show ? (
+              <Link
+                href={portal.href}
+                className={
+                  portal.href === "/dashboard"
+                    ? "hover:text-primary transition-colors text-foreground font-semibold"
+                    : "hover:text-primary transition-colors"
+                }
+              >
+                {portal.label}
+              </Link>
+            ) : null
           ) : ready ? (
             <Link href="/login" className="hover:text-primary transition-colors">
               Login

@@ -31,6 +31,8 @@ Creates: `sarah.j@example.com` (client), full + marketing-only admins, technicia
 
 Passwords: set `SEED_DEMO_PASSWORD` from the team vault. Never commit plaintext passwords.
 
+**First full admin only** (when none exists): see [bootstrap-admin.md](./bootstrap-admin.md) — `npm run bootstrap:admin`.
+
 ## Invariants
 
 Enforced in `assertRoleTierInvariants` (unit-tested) and `User` mongoose `pre("validate")`.
