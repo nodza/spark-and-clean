@@ -13,6 +13,8 @@ function shouldShowSupportFab(pathname: string) {
   if (pathname.startsWith("/dashboard")) return false;
   if (pathname.startsWith("/login")) return false;
   if (pathname.startsWith("/signup")) return false;
+  if (pathname.startsWith("/forgot-password")) return false;
+  if (pathname.startsWith("/reset-password")) return false;
   if (pathname.startsWith("/booking")) return false;
   return true;
 }
@@ -20,7 +22,6 @@ function shouldShowSupportFab(pathname: string) {
 // Paths where the global marketing header + footer should NOT appear.
 // Portal layouts (PortalLayout, TechLayout, AuthLayout) manage their own chrome.
 // `/book` and `/booking` keep marketing Header (desktop + mobile) for the booking flow.
-const PORTAL_PATHS = ["/admin", "/dashboard", "/tech", "/login", "/signup", "/register"];
 
 function isBookingFlowPath(pathname: string) {
   return (
@@ -29,6 +30,16 @@ function isBookingFlowPath(pathname: string) {
     pathname.startsWith("/booking")
   );
 }
+const PORTAL_PATHS = [
+  "/admin",
+  "/dashboard",
+  "/tech",
+  "/booking",
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/signup",
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
