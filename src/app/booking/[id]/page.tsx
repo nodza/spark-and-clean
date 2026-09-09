@@ -91,7 +91,7 @@ export default function BookingStatusPage() {
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Button asChild>
-            <Link href="/dashboard">Go to My Bookings</Link>
+            <Link href="/portal">Go to My Bookings</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/">Back to home</Link>
@@ -113,7 +113,7 @@ export default function BookingStatusPage() {
           your confirmation and try again.
         </p>
         <Button asChild variant="outline">
-          <Link href={signedInClient ? "/dashboard" : "/"}>
+          <Link href={signedInClient ? "/portal" : "/"}>
             <ArrowLeft className="h-4 w-4" />
             {signedInClient ? "Back to My Bookings" : "Back to home"}
           </Link>
@@ -131,7 +131,7 @@ export default function BookingStatusPage() {
       <div className="mb-6 sm:mb-8">
         <div className="mb-4">
           <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-            <Link href={signedInClient ? "/dashboard" : "/"}>
+            <Link href={signedInClient ? "/portal" : "/"}>
               <ArrowLeft className="h-4 w-4" />
               {signedInClient ? "My Bookings" : "Home"}
             </Link>

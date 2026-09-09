@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
+import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
@@ -95,6 +96,9 @@ export default function AdminDashboard() {
       topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
+        <Suspense fallback={null}>
+          <AccessDeniedBanner />
+        </Suspense>
 
         {/* ── KPI row ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-[14px] lg:grid-cols-4">

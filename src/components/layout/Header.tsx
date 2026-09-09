@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
  * Never advertises /admin or /tech.
  * Desktop keeps the historical nav + CTA layout; mobile uses a hamburger sheet.
  * Leftover guest JWTs are treated as logged out (SCW-30).
+ * Client portal CTAs use /portal (SCW-32).
  */
 export function Header() {
   const router = useRouter();

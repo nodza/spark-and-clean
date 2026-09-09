@@ -44,6 +44,10 @@ export async function GET(_request: Request, { params }: Params) {
       }
     }
 
+    if (session?.role === "admin" && session.adminTier === "marketing-only") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     return NextResponse.json(booking);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch booking";
@@ -78,6 +82,9 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if (session.role === "client") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (session.role === "admin" && session.adminTier === "marketing-only") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (session.role === "technician") {

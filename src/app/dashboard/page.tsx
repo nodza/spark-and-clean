@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Booking, PaymentStatus } from "@/types/booking";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 
 const PAST_STATUSES = new Set(["DELIVERED", "CANCELLED"]);
 
@@ -185,6 +186,9 @@ export default function ClientDashboard() {
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-10">
+      <Suspense fallback={null}>
+        <AccessDeniedBanner />
+      </Suspense>
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">My Bookings</h1>

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Shared portal entry: logged-out customers → /login,
- * full client accounts → /dashboard. Guest checkout is treated as logged out.
+ * full client accounts → /portal. Guest checkout is treated as logged out.
  */
 export function usePortalEntry() {
   const { user, ready } = useAuth();
@@ -25,7 +25,7 @@ export function usePortalEntry() {
   if (isClient) {
     return {
       ready: true as const,
-      href: "/dashboard" as const,
+      href: "/portal" as const,
       label: "My Bookings" as const,
       show: true as const,
     };

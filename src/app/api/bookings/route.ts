@@ -16,21 +16,27 @@ export async function GET() {
     }
 
     const filter: Record<string, unknown> = {};
+
     if (isPersistedClient(session)) {
       filter.$or = [
         { userId: session.id },
         { "customer.email": session.email.toLowerCase() },
       ];
     } else if (session.role === "technician") {
-      // Fail closed: no driverProfileId must never mean "all bookings" (admin-wide).
+      // Fail closed: no driverProfileId must never mean "all bookings".
       if (!session.driverProfileId) {
         return NextResponse.json([]);
       }
       filter.assignedDriverId = session.driverProfileId;
-    } else if (session.role !== "admin") {
+    } else if (session.role === "admin") {
+      // Operations booking list — full admin only (marketing-only denied)
+      if (session.adminTier === "marketing-only") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      // empty filter = all bookings
+    } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    // admin: all bookings (empty filter)
 
     const docs = await Booking.find(filter).sort({ createdAt: -1 }).lean();
     return NextResponse.json(
