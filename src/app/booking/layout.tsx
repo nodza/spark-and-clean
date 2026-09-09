@@ -1,6 +1,6 @@
 /**
  * /booking/[id] stays publicly reachable at the route level (middleware).
- * Page-level client auth may still apply for live tracking UX.
+ * Guest track works without a session; page-level UX handles claim/convert.
  */
 export default function BookingLayout({
   children,

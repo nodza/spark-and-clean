@@ -37,6 +37,7 @@ export async function clearSessionCookie() {
 
 /**
  * Rejects JWTs issued before the user's sessionsInvalidatedAt (password reset).
+ * Refreshes mustChangePassword from the DB for non-guest sessions.
  */
 export async function getSession(): Promise<SessionUser | null> {
   const jar = await cookies();
@@ -53,13 +54,15 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     await connectDB();
     const user = await User.findById(session.id)
-      .select("sessionsInvalidatedAt disabledAt")
+      .select("sessionsInvalidatedAt disabledAt mustChangePassword")
       .lean();
 
     if (!user || user.disabledAt) {
       await clearSessionCookie();
       return null;
     }
+
+    session.mustChangePassword = user.mustChangePassword === true;
 
     const invalidatedAt = user.sessionsInvalidatedAt as Date | null | undefined;
     if (

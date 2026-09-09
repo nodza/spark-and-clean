@@ -48,5 +48,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  /**
+   * Page routes only. API handlers enforce their own auth.
+   * Running this middleware on `/api/*` (with request header overrides) was
+   * causing nested App Router handlers (`/api/auth/*`, `/api/bookings/[id]`,
+   * `/api/admin/*`) to fall through to the HTML 404 page.
+   */
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api(?:/|$)).*)",
+  ],
 };

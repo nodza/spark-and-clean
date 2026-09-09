@@ -1,6 +1,9 @@
 import { requirePageSession } from "@/lib/requirePageSession";
 
-/** Stable reference — avoids AuthGuard effect churn */
+/**
+ * Client portal UI lives under /dashboard and is rewritten from /portal.
+ * Guests / leftover guest JWTs are treated as logged out.
+ */
 export default async function DashboardLayout({
   children,
 }: {
@@ -10,7 +13,7 @@ export default async function DashboardLayout({
     roles: ["client"],
     loginPath: "/login",
     nextPath: "/portal",
-    allowGuest: true,
+    allowGuest: false,
   });
 
   return <>{children}</>;

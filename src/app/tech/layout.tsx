@@ -1,10 +1,12 @@
 import { headers } from "next/headers";
 import { requirePageSession } from "@/lib/requirePageSession";
 import { isTechLoginPath } from "@/lib/accessControl";
+import { MustChangePasswordGate } from "@/components/auth/MustChangePasswordGate";
 
 /**
  * Tech segment layout.
  * /tech and /tech/login stay public; app routes require a technician session.
+ * Temporary-password accounts are gated to /tech/change-password.
  */
 export default async function TechLayout({
   children,
@@ -24,5 +26,5 @@ export default async function TechLayout({
     allowGuest: false,
   });
 
-  return <>{children}</>;
+  return <MustChangePasswordGate>{children}</MustChangePasswordGate>;
 }

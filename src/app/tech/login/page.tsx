@@ -30,7 +30,9 @@ function TechLoginForm() {
 
   useEffect(() => {
     if (ready && user?.role === "technician") {
-      router.replace(destination);
+      router.replace(
+        user.mustChangePassword ? "/tech/change-password" : destination
+      );
     }
   }, [ready, user, router, destination]);
 
@@ -49,7 +51,11 @@ function TechLoginForm() {
       return;
     }
     await refresh();
-    router.push(resolvePostLoginPath(result.user.role, next));
+    router.push(
+      result.user.mustChangePassword
+        ? "/tech/change-password"
+        : resolvePostLoginPath(result.user.role, next)
+    );
   };
 
   return (

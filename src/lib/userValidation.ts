@@ -64,6 +64,7 @@ export const createUserSchema = z
     adminTier: z.enum(ADMIN_TIERS).nullable().optional(),
     emailVerifiedAt: z.coerce.date().nullable().optional(),
     disabledAt: z.coerce.date().nullable().optional(),
+    mustChangePassword: z.boolean().optional(),
     driverProfileId: z.string().trim().optional(),
   })
   .superRefine((val, ctx) => {

@@ -3,29 +3,27 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
+import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
   try {
     await connectDB();
     const session = await getSession();
 
-    if (!session) {
+    // Guests / leftover guest JWTs cannot list bookings by email.
+    if (!session || !isFullAccount(session)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const filter: Record<string, unknown> = {};
 
-    if (session.role === "client") {
-      // Prefer userId when present; always allow email for guest / legacy bookings
-      if (!session.guest && !session.id.startsWith("guest:")) {
-        filter.$or = [
-          { userId: session.id },
-          { "customer.email": session.email.toLowerCase() },
-        ];
-      } else {
-        filter["customer.email"] = session.email.toLowerCase();
-      }
+    if (isPersistedClient(session)) {
+      filter.$or = [
+        { userId: session.id },
+        { "customer.email": session.email.toLowerCase() },
+      ];
     } else if (session.role === "technician") {
+      // Fail closed: no driverProfileId must never mean "all bookings".
       if (!session.driverProfileId) {
         return NextResponse.json([]);
       }
@@ -63,8 +61,11 @@ export async function POST(request: Request) {
         .toString()
         .padStart(4, "0")}`;
 
+    const rest = { ...(body as Record<string, unknown>) };
+    delete rest.userId;
+
     const payload: Record<string, unknown> = {
-      ...body,
+      ...rest,
       id,
       createdAt: body.createdAt || new Date().toISOString(),
       customer: {
@@ -73,13 +74,8 @@ export async function POST(request: Request) {
       },
     };
 
-    // Registered clients (not guests) get userId; guest matching still uses email
-    if (
-      session &&
-      session.role === "client" &&
-      !session.guest &&
-      !session.id.startsWith("guest:")
-    ) {
+    // Only a full client session may stamp userId. Guests stay unclaimed.
+    if (session && isFullAccount(session) && isClientRole(session.role)) {
       payload.userId = session.id;
     }
 

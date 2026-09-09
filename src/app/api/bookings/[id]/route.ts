@@ -3,17 +3,19 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
+import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus, PaymentStatus } from "@/types/booking";
 
 type Params = { params: Promise<{ id: string }> };
 
+/**
+ * Public tracking by booking reference (the ID is the capability).
+ * A signed-in full client may only open their own bookings.
+ */
 export async function GET(_request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     await connectDB();
     const doc = await Booking.findOne({ id }).lean();
@@ -23,13 +25,17 @@ export async function GET(_request: Request, { params }: Params) {
 
     const booking = toClientBooking(doc as Record<string, unknown>);
 
-    if (session.role === "client") {
-      if (booking.customer.email.toLowerCase() !== session.email.toLowerCase()) {
+    if (isFullAccount(session) && isClientRole(session.role)) {
+      const emailMatch =
+        booking.customer.email.toLowerCase() === session.email.toLowerCase();
+      const ownerMatch = booking.userId === session.id;
+      if (!emailMatch && !ownerMatch) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    if (session.role === "technician") {
+    if (session?.role === "technician") {
+      // Fail closed: missing profile or unassigned / other driver's job → 403
       if (
         !session.driverProfileId ||
         booking.assignedDriverId !== session.driverProfileId
@@ -38,7 +44,7 @@ export async function GET(_request: Request, { params }: Params) {
       }
     }
 
-    if (session.role === "admin" && session.adminTier === "marketing-only") {
+    if (session?.role === "admin" && session.adminTier === "marketing-only") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -75,7 +81,6 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
-    // Role rules
     if (session.role === "client") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -84,6 +89,9 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     if (session.role === "technician") {
       // Technicians may only update status on their assigned jobs
+      if (!session.driverProfileId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       if (body.paymentStatus || body.assignedDriverId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -95,6 +103,7 @@ export async function PATCH(request: Request, { params }: Params) {
       const existing = await Booking.findOne({ id }).lean();
       if (
         !existing ||
+        !session.driverProfileId ||
         existing.assignedDriverId !== session.driverProfileId
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

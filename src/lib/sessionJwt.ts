@@ -23,6 +23,8 @@ export type SessionUser = {
   guest?: boolean;
   /** JWT iat (seconds) — used to reject cookies issued before password reset */
   issuedAt?: number;
+  /** Technician (or other) must set a new password before using the app */
+  mustChangePassword?: boolean;
 };
 
 function getSecret() {
@@ -42,6 +44,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     adminTier: user.adminTier ?? null,
     driverProfileId: user.driverProfileId,
     guest: user.guest === true,
+    mustChangePassword: user.mustChangePassword === true,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -72,6 +75,7 @@ export async function verifySessionToken(
           : undefined,
       guest: payload.guest === true,
       issuedAt: typeof payload.iat === "number" ? payload.iat : undefined,
+      mustChangePassword: payload.mustChangePassword === true,
     };
   } catch {
     return null;

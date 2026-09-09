@@ -5,38 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
-import { PortalLayout } from "@/components/layout/PortalLayout";
-import { SidebarNavItem, SidebarNavGroup } from "@/components/ui/sidebar-nav";
 import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
-import { format } from "date-fns";
 import {
-  LayoutGrid,
-  CalendarDays,
-  Users,
-  UserCog,
-  Tag,
-  Search,
-} from "lucide-react";
-
-// ─── Sidebar user footer ─────────────────────────────────────────────────────
-function AdminUserFooter() {
-  return (
-    <div className="flex items-center gap-[11px]">
-      <div
-        className="flex size-[36px] flex-none items-center justify-center rounded-full text-[14px] font-extrabold"
-        style={{ background: "#6cf3d5", color: "#000b49" }}
-      >
-        LM
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-[13px] font-bold text-white">Lerato Mabaso</div>
-        <div className="mt-[3px] text-[11px]" style={{ color: "rgba(255,255,255,.5)" }}>
-          Operations manager
-        </div>
-      </div>
-    </div>
-  );
-}
+  AdminPortalShell,
+  AdminSearchTopbar,
+} from "@/components/admin/AdminPortalShell";
+import { format } from "date-fns";
 
 // ─── KPI stat tile ───────────────────────────────────────────────────────────
 function StatTile({
@@ -94,56 +68,6 @@ export default function AdminDashboard() {
   );
   const lateCount = 2; // placeholder until LATE/OVERDUE statuses are added to the type
 
-  // ─── Sidebar ──────────────────────────────────────────────────────────────
-  const sidebar = (
-    <SidebarNavGroup>
-      <SidebarNavItem
-        icon={<LayoutGrid size={17} strokeWidth={1.8} />}
-        label="Overview"
-        active
-      />
-      <SidebarNavItem
-        icon={<CalendarDays size={17} strokeWidth={1.8} />}
-        label="Bookings"
-        badge={bookings.length || 12}
-        onClick={() => router.push("/admin/bookings")}
-      />
-      <SidebarNavItem
-        icon={<UserCog size={17} strokeWidth={1.8} />}
-        label="Technicians"
-      />
-      <SidebarNavItem
-        icon={<Users size={17} strokeWidth={1.8} />}
-        label="Clients"
-      />
-      <SidebarNavItem
-        icon={<Tag size={17} strokeWidth={1.8} />}
-        label="Pricing & coupons"
-      />
-    </SidebarNavGroup>
-  );
-
-  // ─── Topbar ───────────────────────────────────────────────────────────────
-  const topbarActions = (
-    <div className="flex items-center gap-[10px]">
-      <div className="ds-search w-[260px]">
-        <Search size={13} className="flex-none" style={{ color: "#9aa0a6" }} />
-        <input
-          placeholder="Search bookings, clients"
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#9aa0a6]"
-        />
-      </div>
-      <Link href="/book/rug">
-        <button
-          className="flex items-center gap-[8px] rounded-full px-[16px] py-[9px] text-[13px] font-extrabold text-white transition-colors duration-150 hover:bg-[#0a1a6b]"
-          style={{ background: "#000b49" }}
-        >
-          + New booking
-        </button>
-      </Link>
-    </div>
-  );
-
   // ─── Static schedule (replace with real data when API ready) ─────────────
   const schedule = [
     { time: "08:00", client: "Nomsa Khumalo", detail: "Sandton · 3 rugs · delivery", tag: "Delivery", variant: "status-delivering" as const, tech: "T. Mokoena", accent: "#2c4fa6" },
@@ -165,13 +89,11 @@ export default function AdminDashboard() {
   const capacityPct = Math.round((capacityFilled / capacityTotal) * 100);
 
   return (
-    <PortalLayout
-      portalLabel="OPERATIONS"
-      portalLabelColor="#ffdc39"
-      sidebar={sidebar}
-      sidebarFooter={<AdminUserFooter />}
+    <AdminPortalShell
       pageTitle="Overview"
-      topbarActions={topbarActions}
+      active="overview"
+      bookingsBadge={bookings.length || 12}
+      topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
         <Suspense fallback={null}>
@@ -373,6 +295,6 @@ export default function AdminDashboard() {
 
 
       </div>
-    </PortalLayout>
+    </AdminPortalShell>
   );
 }
