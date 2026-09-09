@@ -70,7 +70,7 @@ describe("accountIsDisabled", () => {
 });
 
 describe("createTechnicianBodySchema", () => {
-  it("requires name, phone, and login email", () => {
+  it("requires name, SA phone, and login email", () => {
     const parsed = createTechnicianBodySchema.parse({
       name: "Thabo Mokoena",
       phone: "082 100 0001",
@@ -78,13 +78,24 @@ describe("createTechnicianBodySchema", () => {
       generatePassword: true,
     });
     expect(parsed.email).toBe("thabo@sparkandclean.co.za");
+    expect(parsed.name).toBe("Thabo Mokoena");
+  });
+
+  it("rejects invalid SA phone numbers", () => {
+    const result = createTechnicianBodySchema.safeParse({
+      name: "Thabo Mokoena",
+      phone: "123",
+      email: "thabo@sparkandclean.co.za",
+      generatePassword: true,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects missing credential when generatePassword is false", () => {
     const result = createTechnicianBodySchema.safeParse({
-      name: "A",
-      phone: "082",
-      email: "a@b.co.za",
+      name: "Thabo Mokoena",
+      phone: "082 123 4567",
+      email: "thabo@sparkandclean.co.za",
       generatePassword: false,
     });
     expect(result.success).toBe(false);

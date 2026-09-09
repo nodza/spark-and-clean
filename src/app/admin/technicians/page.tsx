@@ -17,7 +17,15 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import { FieldError } from "@/components/booking/FieldError";
 import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  sanitizePhoneInput,
+  validateCustomerName,
+  validateEmail,
+  validateSaPhone,
+  type FieldErrors,
+} from "@/lib/bookingValidation";
 
 type TechnicianRow = {
   id: string;
@@ -30,6 +38,8 @@ type TechnicianRow = {
   mustChangePassword?: boolean;
 };
 
+type TechFormField = "name" | "phone" | "email";
+
 function initials(name?: string, email?: string) {
   const source = (name || email || "?").trim();
   const parts = source.split(/\s+/).filter(Boolean);
@@ -37,6 +47,25 @@ function initials(name?: string, email?: string) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
   return source.slice(0, 2).toUpperCase();
+}
+
+function validateTechnicianForm(form: {
+  name: string;
+  phone: string;
+  email: string;
+}): FieldErrors {
+  const errors: FieldErrors = {};
+
+  const nameErr = validateCustomerName(form.name);
+  if (nameErr) errors.name = nameErr;
+
+  const phoneErr = validateSaPhone(form.phone);
+  if (phoneErr) errors.phone = phoneErr;
+
+  const emailErr = validateEmail(form.email);
+  if (emailErr) errors.email = emailErr;
+
+  return errors;
 }
 
 export default function AdminTechniciansPage() {
@@ -48,6 +77,10 @@ export default function AdminTechniciansPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<TechFormField, boolean>>>(
+    {}
+  );
   const [shownOncePassword, setShownOncePassword] = useState<string | null>(
     null
   );
@@ -62,18 +95,45 @@ export default function AdminTechniciansPage() {
   );
   const [password, setPassword] = useState("");
 
+  const markTouched = (field: TechFormField) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
+  const clearFieldError = (field: TechFormField) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    if (formError) setFormError(null);
+  };
+
+  const liveError = (field: TechFormField, validator: () => string | null) =>
+    touched[field] || fieldErrors[field]
+      ? fieldErrors[field] || validator()
+      : null;
+
+  const nameError = liveError("name", () => validateCustomerName(name));
+  const phoneError = liveError("phone", () => validateSaPhone(phone));
+  const emailError = liveError("email", () => validateEmail(email));
+
   const load = async () => {
     setLoadError(null);
-    const res = await fetch("/api/admin/technicians", {
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setLoadError(data.error || "Could not load technicians");
+    try {
+      const res = await fetch("/api/admin/technicians", {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoadError(data.error || "Could not load technicians");
+        setTechnicians([]);
+        return;
+      }
+      setTechnicians(data.technicians ?? []);
+    } catch {
+      setLoadError("Could not load technicians");
       setTechnicians([]);
-      return;
     }
-    setTechnicians(data.technicians ?? []);
   };
 
   useEffect(() => {
@@ -88,40 +148,63 @@ export default function AdminTechniciansPage() {
     setPassword("");
     setPasswordMode("generate");
     setFormError(null);
+    setFieldErrors({});
+    setTouched({});
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    const nextErrors = validateTechnicianForm({ name, phone, email });
+    setFieldErrors(nextErrors);
+    setTouched({ name: true, phone: true, email: true });
+    if (Object.keys(nextErrors).length > 0) return;
+
     setSaving(true);
-    const res = await fetch("/api/admin/technicians", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        phone,
-        email,
-        vehicle: vehicle.trim() || undefined,
-        generatePassword: passwordMode === "generate",
-        password: passwordMode === "manual" ? password : undefined,
-      }),
-    });
-    const data = await res.json();
-    setSaving(false);
-    if (!res.ok) {
-      setFormError(data.error || "Could not create technician");
-      return;
+    try {
+      const res = await fetch("/api/admin/technicians", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim().replace(/\s+/g, " "),
+          phone: phone.trim(),
+          email: email.trim(),
+          vehicle: vehicle.trim() || undefined,
+          generatePassword: passwordMode === "generate",
+          password: passwordMode === "manual" ? password : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const message = data.error || "Could not create technician";
+        const lower = String(message).toLowerCase();
+        if (lower.includes("name")) {
+          setFieldErrors({ name: message });
+        } else if (lower.includes("phone") || lower.includes("mobile")) {
+          setFieldErrors({ phone: message });
+        } else if (lower.includes("email") && !lower.includes("already exists")) {
+          setFieldErrors({ email: message });
+        } else {
+          setFormError(message);
+        }
+        return;
+      }
+      setFormOpen(false);
+      resetForm();
+      if (typeof data.temporaryPassword === "string") {
+        setShownOncePassword(data.temporaryPassword);
+        setCopied(false);
+      } else {
+        setShownOncePassword(null);
+      }
+      await load();
+    } catch {
+      setFormError("Could not create technician. Please try again.");
+    } finally {
+      setSaving(false);
     }
-    setFormOpen(false);
-    resetForm();
-    if (typeof data.temporaryPassword === "string") {
-      setShownOncePassword(data.temporaryPassword);
-      setCopied(false);
-    } else {
-      setShownOncePassword(null);
-    }
-    await load();
   };
 
   if (ready && user && !isFullAdmin) {
@@ -278,29 +361,66 @@ export default function AdminTechniciansPage() {
                 <Label htmlFor="tech-name">Name</Label>
                 <Input
                   id="tech-name"
+                  autoComplete="name"
+                  placeholder="e.g. Thabo Mokoena"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  aria-invalid={Boolean(nameError) || undefined}
+                  aria-describedby={nameError ? "tech-name-error" : undefined}
+                  onBlur={() => markTouched("name")}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    clearFieldError("name");
+                  }}
                   required
                 />
+                <FieldError id="tech-name-error" message={nameError} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="tech-phone">Phone</Label>
                 <Input
                   id="tech-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="082 123 4567"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  aria-invalid={Boolean(phoneError) || undefined}
+                  aria-describedby={
+                    phoneError ? "tech-phone-error" : "tech-phone-hint"
+                  }
+                  onBlur={() => markTouched("phone")}
+                  onChange={(e) => {
+                    setPhone(sanitizePhoneInput(e.target.value));
+                    clearFieldError("phone");
+                  }}
                   required
                 />
+                {phoneError ? (
+                  <FieldError id="tech-phone-error" message={phoneError} />
+                ) : (
+                  <p id="tech-phone-hint" className="text-[12px] text-[#9aa0a6]">
+                    SA numbers: 060, 071, 082 or +27…
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="tech-email">Email (login)</Label>
                 <Input
                   id="tech-email"
                   type="email"
+                  autoComplete="email"
+                  placeholder="tech@sparkandclean.co.za"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  aria-invalid={Boolean(emailError) || undefined}
+                  aria-describedby={emailError ? "tech-email-error" : undefined}
+                  onBlur={() => markTouched("email")}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearFieldError("email");
+                  }}
                   required
                 />
+                <FieldError id="tech-email-error" message={emailError} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="tech-vehicle">Vehicle (optional)</Label>

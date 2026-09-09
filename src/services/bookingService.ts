@@ -10,6 +10,9 @@ class BookingService {
   async getBookingById(id: string): Promise<Booking | undefined> {
     const res = await fetch(`/api/bookings/${id}`, { credentials: "include" });
     if (res.status === 404) return undefined;
+    if (res.status === 403) {
+      throw Object.assign(new Error("Forbidden"), { status: 403 });
+    }
     if (!res.ok) throw new Error("Failed to fetch booking");
     return res.json();
   }

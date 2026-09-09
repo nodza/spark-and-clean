@@ -1,16 +1,36 @@
 import { z } from "zod";
+import {
+  validateCustomerName,
+  validateEmail,
+  validateSaPhone,
+} from "@/lib/bookingValidation";
 import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 export const MIN_TECH_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH;
 
+function refineWith(
+  validator: (value: string) => string | null
+): (value: string, ctx: z.RefinementCtx) => void {
+  return (value, ctx) => {
+    const message = validator(value);
+    if (message) {
+      ctx.addIssue({ code: "custom", message });
+    }
+  };
+}
+
 export const createTechnicianBodySchema = z
   .object({
-    name: z.string().trim().min(1, "Name is required"),
-    phone: z.string().trim().min(1, "Phone is required"),
+    name: z
+      .string()
+      .trim()
+      .superRefine(refineWith(validateCustomerName))
+      .transform((value) => value.trim().replace(/\s+/g, " ")),
+    phone: z.string().trim().superRefine(refineWith(validateSaPhone)),
     email: z
       .string()
       .trim()
-      .email("Valid email is required")
+      .superRefine(refineWith(validateEmail))
       .transform((e) => e.toLowerCase()),
     password: z.string().min(MIN_TECH_PASSWORD_LENGTH).optional(),
     generatePassword: z.boolean().optional(),
@@ -18,7 +38,9 @@ export const createTechnicianBodySchema = z
   })
   .superRefine((val, ctx) => {
     const hasPassword = Boolean(val.password);
-    const generate = val.generatePassword === true || (!hasPassword && val.generatePassword !== false);
+    const generate =
+      val.generatePassword === true ||
+      (!hasPassword && val.generatePassword !== false);
     if (!hasPassword && !generate) {
       ctx.addIssue({
         code: "custom",
