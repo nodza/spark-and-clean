@@ -29,6 +29,7 @@ export function toClientUser(doc: Record<string, unknown>) {
     lastLoginAt,
     role,
     adminTier,
+    mustChangePassword,
     ...rest
   } = doc;
 
@@ -56,6 +57,7 @@ export function toClientUser(doc: Record<string, unknown>) {
       lastLoginAt instanceof Date
         ? lastLoginAt.toISOString()
         : lastLoginAt,
+    mustChangePassword: mustChangePassword === true,
     createdAt:
       createdAt instanceof Date ? createdAt.toISOString() : createdAt,
     updatedAt:

@@ -10,6 +10,7 @@ export async function GET() {
     await connectDB();
     const session = await getSession();
 
+    // Guests / leftover guest JWTs cannot list bookings by email.
     if (!session || !isFullAccount(session)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -20,8 +21,14 @@ export async function GET() {
         { userId: session.id },
         { "customer.email": session.email.toLowerCase() },
       ];
-    } else if (session.role === "technician" && session.driverProfileId) {
+    } else if (session.role === "technician") {
+      // Fail closed: no driverProfileId must never mean "all bookings" (admin-wide).
+      if (!session.driverProfileId) {
+        return NextResponse.json([]);
+      }
       filter.assignedDriverId = session.driverProfileId;
+    } else if (session.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     // admin: all bookings (empty filter)
 

@@ -18,11 +18,13 @@ export default function TechLogin() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (ready && user?.role === "technician") {
-      router.replace("/tech/dashboard");
-    }
-  }, [ready, user, router]);
+    useEffect(() => {
+      if (ready && user?.role === "technician") {
+        router.replace(
+          user.mustChangePassword ? "/tech/change-password" : "/tech/dashboard"
+        );
+      }
+    }, [ready, user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +41,11 @@ export default function TechLogin() {
       return;
     }
     await refresh();
-    router.push("/tech/dashboard");
+    router.push(
+      result.user.mustChangePassword
+        ? "/tech/change-password"
+        : "/tech/dashboard"
+    );
   };
 
   return (
@@ -98,7 +104,7 @@ export default function TechLogin() {
           }}
           aria-invalid={Boolean(error)}
           required
-          minLength={6}
+          minLength={8}
         />
 
         {error && (

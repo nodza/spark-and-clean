@@ -30,6 +30,7 @@ const legacyRedirects: { source: string; destination: string }[] = [
   { source: "/get-in-touch", destination: "/contact" },
   { source: "/cleanmyrug", destination: "/book/rug" },
   { source: "/feed", destination: "/" },
+  { source: "/tech/login", destination: "/tech" },
 ];
 
 const nextConfig: NextConfig = {
