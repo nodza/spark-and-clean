@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { isFullAccount } from "@/types/user";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 function redirectForRole(role: string, next?: string | null) {
   if (next && next.startsWith("/")) return next;
@@ -30,12 +31,12 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const registerHref = `/register?${new URLSearchParams({
+  const signupParams = new URLSearchParams({
     ...(email.trim() ? { email: email.trim() } : {}),
-    ...(next?.startsWith("/booking/")
-      ? { bookingId: next.replace("/booking/", "") }
-      : {}),
-  }).toString()}`;
+  });
+  const signupHref = signupParams.toString()
+    ? `/signup?${signupParams.toString()}`
+    : "/signup";
 
   useEffect(() => {
     if (emailFromQuery) setEmail(emailFromQuery);
@@ -110,17 +111,12 @@ function LoginForm() {
           <label htmlFor="password" className="text-eyebrow text-grey-600">
             PASSWORD
           </label>
-          <button
-            type="button"
+          <Link
+            href={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}
             className="text-[12px] font-bold text-green hover:text-navy"
-            onClick={() =>
-              setError(
-                "Password reset is coming soon. Use the password you created for your account."
-              )
-            }
           >
-            Forgot?
-          </button>
+            Forgot password?
+          </Link>
         </div>
         <PasswordInput
           id="password"
@@ -133,7 +129,7 @@ function LoginForm() {
           }}
           aria-invalid={Boolean(error)}
           required
-          minLength={6}
+          minLength={MIN_PASSWORD_LENGTH}
         />
 
         {error && (
@@ -163,7 +159,7 @@ function LoginForm() {
       <p className="text-center text-[13.5px] text-grey-600">
         New to Spark &amp; Clean?{" "}
         <Link
-          href={registerHref === "/register?" ? "/register" : registerHref}
+          href={signupHref}
           className="font-extrabold text-green hover:text-navy"
         >
           Create an account

@@ -50,7 +50,7 @@ export function AuthLayout({
           style={{ background: "radial-gradient(circle, rgba(255,220,57,.10), transparent 70%)" }}
         />
 
-        {/* Logo + portal label */}
+        {/* Logo + portal label — logo sits on navy (no white plate) */}
         <div className="relative z-10">
           <Image
             src="/uploads/spark-and-clean-22.png"

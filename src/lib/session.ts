@@ -5,6 +5,8 @@ import {
   type AdminTier,
   type UserRole,
 } from "@/types/user";
+import { connectDB } from "@/lib/mongodb";
+import { User } from "@/models/User";
 
 export const SESSION_COOKIE = "sc_session";
 
@@ -18,6 +20,8 @@ export type SessionUser = {
   driverProfileId?: string;
   /** Checkout guest session — no password account yet */
   guest?: boolean;
+  /** JWT iat (seconds) — used to reject cookies issued before password reset */
+  issuedAt?: number;
 };
 
 function getSecret() {
@@ -66,6 +70,7 @@ export async function verifySessionToken(
           ? payload.driverProfileId
           : undefined,
       guest: payload.guest === true,
+      issuedAt: typeof payload.iat === "number" ? payload.iat : undefined,
     };
   } catch {
     return null;
@@ -88,11 +93,49 @@ export async function clearSessionCookie() {
   jar.delete(SESSION_COOKIE);
 }
 
+/**
+ * Rejects JWTs issued before the user's sessionsInvalidatedAt (password reset).
+ */
 export async function getSession(): Promise<SessionUser | null> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return verifySessionToken(token);
+
+  const session = await verifySessionToken(token);
+  if (!session) return null;
+
+  if (session.guest || session.id.startsWith("guest:")) {
+    return session;
+  }
+
+  try {
+    await connectDB();
+    const user = await User.findById(session.id)
+      .select("sessionsInvalidatedAt disabledAt")
+      .lean();
+
+    if (!user || user.disabledAt) {
+      await clearSessionCookie();
+      return null;
+    }
+
+    const invalidatedAt = user.sessionsInvalidatedAt as Date | null | undefined;
+    if (
+      invalidatedAt &&
+      session.issuedAt != null &&
+      session.issuedAt * 1000 < new Date(invalidatedAt).getTime()
+    ) {
+      await clearSessionCookie();
+      return null;
+    }
+  } catch (err) {
+    console.error("[session] invalidation check failed", err);
+    // Availability: keep session if the check cannot run (Mongo blip).
+    // Successful checks still reject pre-reset cookies.
+    return session;
+  }
+
+  return session;
 }
 
 export async function requireSession(

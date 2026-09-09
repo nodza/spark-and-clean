@@ -18,25 +18,33 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { AddressAutocomplete } from "@/components/booking/AddressAutocomplete";
+import { FieldError } from "@/components/booking/FieldError";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import {
+  sanitizePhoneInput,
+  validateCustomerName,
+  validateEmail,
+  validateSaPhone,
+  type FieldErrors,
+} from "@/lib/bookingValidation";
 
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
   emailReadOnly?: boolean;
-  contactError?: boolean;
-  onContactEdit?: () => void;
+  errors?: FieldErrors;
+  onClearError?: (field: string) => void;
 }
 
 export function Step3Location({
   data,
   update,
   emailReadOnly = false,
-  contactError = false,
-  onContactEdit,
+  errors = {},
+  onClearError,
 }: StepProps) {
   const customer = data.customer || { id: "", name: "", email: "", phone: "" };
   const [latInput, setLatInput] = useState(
@@ -45,6 +53,30 @@ export function Step3Location({
   const [lngInput, setLngInput] = useState(
     data.coordinates?.lng != null ? String(data.coordinates.lng) : ""
   );
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const markTouched = (field: string) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
+  const nameLive =
+    touched.name || errors.name
+      ? validateCustomerName(customer.name)
+      : null;
+  const phoneLive =
+    touched.phone || errors.phone
+      ? validateSaPhone(customer.phone)
+      : null;
+  const emailLive =
+    !emailReadOnly && (touched.email || errors.email)
+      ? validateEmail(customer.email)
+      : null;
+
+  const nameError = errors.name || nameLive;
+  const phoneError = errors.phone || phoneLive;
+  const emailError = errors.email || emailLive;
+  const addressError = errors.addressLine1;
+  const suburbError = errors.suburb;
+  const cityError = errors.city;
 
   const commitCoordinates = (latRaw: string, lngRaw: string) => {
     const lat = Number(latRaw.trim());
@@ -72,7 +104,10 @@ export function Step3Location({
             id="address"
             value={data.addressLine1 || ""}
             placeholder="e.g. 42 Protea Way, Durbanville"
-            onInputChange={(value) => update({ addressLine1: value })}
+            onInputChange={(value) => {
+              update({ addressLine1: value });
+              onClearError?.("addressLine1");
+            }}
             onAddressResolved={(result) => {
               setLatInput(String(result.coordinates.lat));
               setLngInput(String(result.coordinates.lng));
@@ -82,23 +117,36 @@ export function Step3Location({
                 city: result.city,
                 coordinates: result.coordinates,
               });
+              onClearError?.("addressLine1");
+              onClearError?.("suburb");
+              onClearError?.("city");
             }}
           />
-          <p className="text-xs text-muted-foreground">
-            Start typing to search Cape Town or Johannesburg addresses
-            (mock autocomplete).
-          </p>
+          {addressError ? (
+            <FieldError id="address-error" message={addressError} />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Start typing to search Cape Town or Johannesburg addresses
+              (mock autocomplete).
+            </p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="suburb">Suburb</Label>
             <Input
               id="suburb"
               placeholder="e.g. Durbanville"
               value={data.suburb || ""}
-              onChange={(e) => update({ suburb: e.target.value })}
+              aria-invalid={Boolean(suburbError) || undefined}
+              aria-describedby={suburbError ? "suburb-error" : undefined}
+              onChange={(e) => {
+                update({ suburb: e.target.value });
+                onClearError?.("suburb");
+              }}
             />
+            <FieldError id="suburb-error" message={suburbError} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="city">City</Label>
@@ -106,12 +154,18 @@ export function Step3Location({
               id="city"
               placeholder="Cape Town or Johannesburg"
               value={data.city || ""}
-              onChange={(e) => update({ city: e.target.value })}
+              aria-invalid={Boolean(cityError) || undefined}
+              aria-describedby={cityError ? "city-error" : undefined}
+              onChange={(e) => {
+                update({ city: e.target.value });
+                onClearError?.("city");
+              }}
             />
+            <FieldError id="city-error" message={cityError} />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="latitude">Latitude (Optional)</Label>
             <Input
@@ -149,7 +203,7 @@ export function Step3Location({
 
       <div className="space-y-4">
         <h3 className="font-semibold text-lg">Preferred Collection Time</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Date</Label>
             <Popover>
@@ -214,27 +268,32 @@ export function Step3Location({
           We only need your name, email, and phone — no password to confirm this
           booking.
         </p>
-        {contactError && (
-          <p className="text-sm text-destructive" role="alert">
-            Please add your full name, a valid email, and a phone number.
-          </p>
-        )}
         <div className="space-y-2">
           <Label htmlFor="name">Full Name</Label>
           <Input
             id="name"
-            placeholder="John Doe"
             autoComplete="name"
+            placeholder="e.g. Sipho Bhekizizwe Dlamini"
             value={customer.name}
-            aria-invalid={contactError && !customer.name.trim()}
-            required
+            aria-invalid={Boolean(nameError) || undefined}
+            aria-describedby={
+              nameError ? "name-error" : "name-hint"
+            }
+            onBlur={() => markTouched("name")}
             onChange={(e) => {
-              onContactEdit?.();
               update({ customer: { ...customer, name: e.target.value } });
+              onClearError?.("name");
             }}
           />
+          {nameError ? (
+            <FieldError id="name-error" message={nameError} />
+          ) : (
+            <p id="name-hint" className="text-xs text-muted-foreground">
+              Multi-word names are welcome (e.g. Sipho Bhekizizwe Dlamini, Smith Jr.).
+            </p>
+          )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Phone</Label>
             <Input
@@ -244,13 +303,24 @@ export function Step3Location({
               autoComplete="tel"
               placeholder="082 123 4567"
               value={customer.phone}
-              aria-invalid={contactError && customer.phone.trim().length < 7}
-              required
+              aria-invalid={Boolean(phoneError) || undefined}
+              aria-describedby={
+                phoneError ? "phone-error" : "phone-hint"
+              }
+              onBlur={() => markTouched("phone")}
               onChange={(e) => {
-                onContactEdit?.();
-                update({ customer: { ...customer, phone: e.target.value } });
+                const next = sanitizePhoneInput(e.target.value);
+                update({ customer: { ...customer, phone: next } });
+                onClearError?.("phone");
               }}
             />
+            {phoneError ? (
+              <FieldError id="phone-error" message={phoneError} />
+            ) : (
+              <p id="phone-hint" className="text-xs text-muted-foreground">
+                SA numbers: 060, 071, 082 or +27…
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -261,18 +331,16 @@ export function Step3Location({
               placeholder="john@example.com"
               value={customer.email}
               readOnly={emailReadOnly}
-              required
-              aria-invalid={
-                contactError &&
-                !(customer.email.includes("@") && customer.email.includes("."))
-              }
               className={emailReadOnly ? "bg-muted" : undefined}
+              aria-invalid={Boolean(emailError) || undefined}
+              aria-describedby={emailError ? "email-error" : undefined}
+              onBlur={() => markTouched("email")}
               onChange={(e) => {
-                if (emailReadOnly) return;
-                onContactEdit?.();
                 update({ customer: { ...customer, email: e.target.value } });
+                onClearError?.("email");
               }}
             />
+            <FieldError id="email-error" message={emailError} />
           </div>
         </div>
       </div>

@@ -13,6 +13,9 @@ function shouldShowSupportFab(pathname: string) {
   if (pathname.startsWith("/dashboard")) return false;
   if (pathname.startsWith("/login")) return false;
   if (pathname.startsWith("/register")) return false;
+  if (pathname.startsWith("/signup")) return false;
+  if (pathname.startsWith("/forgot-password")) return false;
+  if (pathname.startsWith("/reset-password")) return false;
   if (pathname.startsWith("/booking")) return false;
   return true;
 }
@@ -28,6 +31,9 @@ const PORTAL_PATHS = [
   "/login",
   "/register",
   "/portal",
+  "/forgot-password",
+  "/reset-password",
+  "/signup",
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

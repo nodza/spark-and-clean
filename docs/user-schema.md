@@ -16,9 +16,9 @@ Email is unique and stored lowercase (one inbox = one account).
 
 ## Related collections
 
-- **User** — `passwordHash` (bcrypt, `select: false`, stripped in `toJSON` / `toClientUser`), `emailVerifiedAt`, `disabledAt`, timestamps
-- **AuthSession** — optional persisted session ledger (JWT remains live session); schema only
-- **PasswordResetToken** — reset token hashes; schema only
+- **User** — `passwordHash` (bcrypt, `select: false`, stripped in `toJSON` / `toClientUser`), `emailVerifiedAt`, `disabledAt`, `sessionsInvalidatedAt` (password reset), timestamps
+- **AuthSession** — session ledger; revoked on password reset
+- **PasswordResetToken** — hashed one-time reset tokens (60 min TTL)
 - **Booking.userId** — optional ObjectId ref for registered clients; `customer.email` still used for guests
 
 ## Guest checkout & convert-to-account
@@ -30,6 +30,8 @@ Guests complete Confirm Booking with contact info only (name, email, phone). **N
 If that email already has a full account, registration returns `ACCOUNT_EXISTS`. After login, `/booking/[id]` **offers** to attach still-unclaimed bookings (same email rule). Login does not silent-claim.
 
 Guest leftover JWTs are treated as logged out: `/dashboard` and `/portal` redirect to `/login`. Register always creates `role: client` — never technician or admin.
+
+See also: [password-reset.md](./password-reset.md).
 
 ## Seed (dev/staging)
 

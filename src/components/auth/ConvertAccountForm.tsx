@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { registerUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 import { cn } from "@/lib/utils";
 
 type ConvertAccountFormProps = {
@@ -63,8 +64,8 @@ export function ConvertAccountForm({
       setError("Enter a valid email address.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -76,8 +77,10 @@ export function ConvertAccountForm({
     const result = await registerUser({
       email: trimmedEmail,
       password,
+      confirmPassword,
       name: name.trim() || undefined,
       phone: phone.trim() || undefined,
+      bookingId,
     });
     setLoading(false);
 
@@ -159,14 +162,14 @@ export function ConvertAccountForm({
         <PasswordInput
           id="convert-password"
           autoComplete="new-password"
-          placeholder="At least 6 characters"
+          placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
             if (error) setError(null);
           }}
           required
-          minLength={6}
+          minLength={MIN_PASSWORD_LENGTH}
         />
       </label>
 
@@ -182,7 +185,7 @@ export function ConvertAccountForm({
             if (error) setError(null);
           }}
           required
-          minLength={6}
+          minLength={MIN_PASSWORD_LENGTH}
         />
       </label>
 

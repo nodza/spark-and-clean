@@ -2,8 +2,22 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
+import { Booking } from "@/models/Booking";
 import { attachUnclaimedBookingsByEmail } from "@/lib/attachGuestBookings";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
+import { normalizeUserRole } from "@/types/user";
+import {
+  validateCustomerName,
+  validateEmail,
+  validateSaPhone,
+} from "@/lib/bookingValidation";
+import {
+  validatePasswordConfirm,
+  validatePasswordNotEmail,
+  validatePasswordStrength,
+} from "@/lib/passwordRules";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 /**
  * Create a password-based **client** account (never admin/technician)
@@ -11,31 +25,79 @@ import { createSessionToken, setSessionCookie } from "@/lib/session";
  */
 export async function POST(request: Request) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const rateLimit = checkRateLimit(`auth-register:${ip}`, 5, 60 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many signup attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const body = await request.json();
+    // Ignore any client-supplied role / adminTier — always force client (SCW-29 / SCW-30).
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
     const password = String(body.password || "");
-    const name = String(body.name || "").trim();
+    const confirmPassword = String(body.confirmPassword || "");
+    const name = String(body.name || "").trim().replace(/\s+/g, " ");
     const phone = String(body.phone || "").trim();
+    const bookingId = String(body.bookingId || "").trim();
+    const isStandaloneSignup = !bookingId;
 
-    if (!email || !email.includes("@")) {
-      return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      return NextResponse.json({ error: emailErr }, { status: 400 });
     }
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
-        { status: 400 }
-      );
+
+    if (isStandaloneSignup) {
+      const nameErr = validateCustomerName(name);
+      if (nameErr) {
+        return NextResponse.json({ error: nameErr }, { status: 400 });
+      }
+      const phoneErr = validateSaPhone(phone);
+      if (phoneErr) {
+        return NextResponse.json({ error: phoneErr }, { status: 400 });
+      }
+    }
+
+    const passwordErr =
+      validatePasswordStrength(password) ||
+      validatePasswordNotEmail(password, email);
+    if (passwordErr) {
+      return NextResponse.json({ error: passwordErr }, { status: 400 });
+    }
+
+    const confirmErr = validatePasswordConfirm(password, confirmPassword);
+    if (confirmErr) {
+      return NextResponse.json({ error: confirmErr }, { status: 400 });
     }
 
     await connectDB();
 
-    const existing = await User.findOne({ email }).select("+passwordHash").lean();
-    if (existing) {
+    const existing = await User.findOne({ email }).select("+passwordHash");
+    if (existing && normalizeUserRole(existing.role) !== "client") {
       return NextResponse.json(
         {
-          error: "An account with this email already exists. Log in to attach this booking.",
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
+          code: "ACCOUNT_EXISTS",
+        },
+        { status: 409 }
+      );
+    }
+    if (existing?.passwordHash) {
+      return NextResponse.json(
+        {
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
           code: "ACCOUNT_EXISTS",
         },
         { status: 409 }
@@ -43,19 +105,52 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      email,
-      passwordHash,
-      name: name || undefined,
-      phone: phone || undefined,
-      role: "client",
-      adminTier: null,
-      emailVerifiedAt: null,
-      emailVerified: false,
-      disabledAt: null,
-      isActive: true,
-      lastLoginAt: new Date(),
-    });
+    let user;
+    if (existing) {
+      // Legacy passwordless client → convert into a full account
+      await User.updateOne(
+        { _id: existing._id },
+        {
+          $set: {
+            passwordHash,
+            name: name || existing.name,
+            phone: phone || existing.phone,
+            role: "client",
+            adminTier: null,
+            lastLoginAt: new Date(),
+          },
+        }
+      );
+      user = await User.findById(existing._id);
+    } else {
+      user = await User.create({
+        email,
+        passwordHash,
+        name: name || undefined,
+        phone: phone || undefined,
+        role: "client",
+        adminTier: null,
+        emailVerifiedAt: null,
+        emailVerified: false,
+        disabledAt: null,
+        isActive: true,
+        lastLoginAt: new Date(),
+      });
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Could not create account." },
+        { status: 500 }
+      );
+    }
+
+    if (bookingId) {
+      await Booking.updateOne(
+        { id: bookingId, "customer.email": email },
+        { $set: { userId: user._id } }
+      );
+    }
 
     const userId = String(user._id);
     const attached = await attachUnclaimedBookingsByEmail(userId, email);
@@ -85,7 +180,8 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         {
-          error: "An account with this email already exists. Log in to attach this booking.",
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
           code: "ACCOUNT_EXISTS",
         },
         { status: 409 }
@@ -93,6 +189,14 @@ export async function POST(request: Request) {
     }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: toPublicApiError(
+          err,
+          "Could not create your account. Please try again."
+        ),
+      },
+      { status: 500 }
+    );
   }
 }

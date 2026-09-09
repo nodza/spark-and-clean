@@ -94,6 +94,10 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     /**
+     * Set on password reset — JWTs with iat before this timestamp are rejected.
+     */
+    sessionsInvalidatedAt: { type: Date, default: null },
+    /**
      * Technician → Driver profile (`drivers.id`) for vehicle / display name (E5).
      */
     driverProfileId: { type: String, trim: true, index: true, sparse: true },
@@ -140,9 +144,10 @@ export type UserDocument = InferSchemaType<typeof UserSchema> & {
   updatedAt: Date;
 };
 
-if (process.env.NODE_ENV !== "production" && models.User) {
+// Next.js hot-reload can keep a stale compiled model (old middleware). Always
+// re-register so schema hooks like pre("validate") stay in sync.
+if (models.User) {
   delete models.User;
 }
 
-export const User: Model<UserDocument> =
-  (models.User as Model<UserDocument>) || model<UserDocument>("User", UserSchema);
+export const User: Model<UserDocument> = model<UserDocument>("User", UserSchema);

@@ -11,18 +11,16 @@ import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
 import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
 import { generateBookingReference } from "@/lib/bookingReference";
+import {
+  hasFieldErrors,
+  validateStep1Dimensions,
+  validateStep3Contact,
+  type FieldErrors,
+} from "@/lib/bookingValidation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, Customer } from "@/types/booking";
 import { isPersistedClient } from "@/types/user";
-
-function isValidContact(customer?: Customer) {
-  if (!customer) return false;
-  const name = customer.name.trim();
-  const phone = customer.phone.trim();
-  const email = customer.email.trim().toLowerCase();
-  return name.length > 1 && phone.length >= 7 && email.includes("@") && email.includes(".");
-}
 
 function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
   const needle = email.toLowerCase();
@@ -81,6 +79,7 @@ function buildSubmittedBooking(
 export default function BookingWizard() {
   const router = useRouter();
   const { user, ready } = useAuth();
+  // Guests / leftover guest JWTs must not count as logged-in customers
   const sessionEmail = isPersistedClient(user) ? user!.email.trim() : null;
   const isLoggedInCustomer = Boolean(sessionEmail);
 
@@ -91,10 +90,11 @@ export default function BookingWizard() {
   const [step, setStep] = useState(1);
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [showTypeError, setShowTypeError] = useState(false);
+  const [step1Errors, setStep1Errors] = useState<FieldErrors>({});
+  const [step3Errors, setStep3Errors] = useState<FieldErrors>({});
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [contactError, setContactError] = useState(false);
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: {
@@ -157,19 +157,42 @@ export default function BookingWizard() {
   const progress = (step / totalSteps) * 100;
 
   const nextStep = () => {
-    if (step === 1 && !formData.rug?.type) {
-      setShowTypeError(true);
-      return;
+    if (step === 1) {
+      if (!formData.rug?.type) {
+        setShowTypeError(true);
+        return;
+      }
+      const dimErrors = validateStep1Dimensions(formData.rug);
+      setStep1Errors(dimErrors);
+      if (hasFieldErrors(dimErrors)) return;
     }
-    if (step === 3 && !isValidContact(formData.customer)) {
-      setContactError(true);
-      return;
+
+    if (step === 3) {
+      const contactErrors = validateStep3Contact(formData);
+      setStep3Errors(contactErrors);
+      if (hasFieldErrors(contactErrors)) return;
     }
-    setContactError(false);
+
     setStep((s) => Math.min(s + 1, totalSteps));
   };
 
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
+
+  const clearStep1Error = (field: string) =>
+    setStep1Errors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
+  const clearStep3Error = (field: string) =>
+    setStep3Errors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const updateFormData = (data: Partial<Booking>) => {
     setFormData((prev) => ({ ...prev, ...data }));
@@ -177,21 +200,35 @@ export default function BookingWizard() {
 
   const confirmBooking = async () => {
     if (!termsAccepted || isSubmitting) return;
+
+    const contactErrors = validateStep3Contact({
+      ...formData,
+      customer: {
+        id: formData.customer?.id || user?.id || "",
+        name: formData.customer?.name || "",
+        phone: formData.customer?.phone || "",
+        email: sessionEmail || formData.customer?.email || "",
+      },
+    });
+    const dimErrors = validateStep1Dimensions(formData.rug);
+    if (hasFieldErrors(contactErrors) || hasFieldErrors(dimErrors)) {
+      setStep3Errors(contactErrors);
+      setStep1Errors(dimErrors);
+      if (hasFieldErrors(dimErrors)) setStep(1);
+      else if (hasFieldErrors(contactErrors)) setStep(3);
+      setSubmitError("Please fix the highlighted fields before confirming.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
     const contact: Customer = {
       id: formData.customer?.id || user?.id || "",
       name: formData.customer?.name || "",
       phone: formData.customer?.phone || "",
       email: sessionEmail || formData.customer?.email || "",
     };
-    if (!isValidContact(contact)) {
-      setContactError(true);
-      setSubmitError(
-        "Add your name, email, and phone in Collection Details before confirming."
-      );
-      return;
-    }
-    setIsSubmitting(true);
-    setSubmitError(null);
 
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(
@@ -264,6 +301,8 @@ export default function BookingWizard() {
               update={updateFormData}
               showTypeError={showTypeError}
               onTypeSelected={() => setShowTypeError(false)}
+              errors={step1Errors}
+              onClearError={clearStep1Error}
             />
           )}
           {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
@@ -272,8 +311,8 @@ export default function BookingWizard() {
               data={formData}
               update={updateFormData}
               emailReadOnly={isLoggedInCustomer}
-              contactError={contactError}
-              onContactEdit={() => setContactError(false)}
+              errors={step3Errors}
+              onClearError={clearStep3Error}
             />
           )}
           {step === 4 && <Step4Price data={formData} update={updateFormData} />}
