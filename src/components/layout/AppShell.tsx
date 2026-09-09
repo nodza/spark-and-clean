@@ -12,6 +12,7 @@ function shouldShowSupportFab(pathname: string) {
   if (pathname.startsWith("/tech")) return false;
   if (pathname.startsWith("/dashboard")) return false;
   if (pathname.startsWith("/login")) return false;
+  if (pathname.startsWith("/register")) return false;
   if (pathname.startsWith("/signup")) return false;
   if (pathname.startsWith("/forgot-password")) return false;
   if (pathname.startsWith("/reset-password")) return false;
@@ -36,6 +37,7 @@ const PORTAL_PATHS = [
   "/tech",
   "/booking",
   "/login",
+  "/portal",
   "/forgot-password",
   "/reset-password",
   "/signup",

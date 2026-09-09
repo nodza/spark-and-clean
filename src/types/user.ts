@@ -40,6 +40,25 @@ export function isTechnicianRole(role: unknown): boolean {
   return normalizeUserRole(role) === "technician";
 }
 
+/** True password account — leftover guest JWTs are treated as logged out. */
+export function isFullAccount<T extends { guest?: boolean; id?: string }>(
+  user: T | null | undefined
+): user is NonNullable<T> {
+  if (!user) return false;
+  if (user.guest) return false;
+  if (typeof user.id === "string" && user.id.startsWith("guest:")) return false;
+  return true;
+}
+
+/** Full password client — not a leftover guest JWT. */
+export function isPersistedClient(user: {
+  role?: unknown;
+  guest?: boolean;
+  id?: string;
+} | null | undefined): boolean {
+  return isFullAccount(user) && isClientRole(user.role);
+}
+
 /**
  * Client-facing user shape (API / UI). Never includes passwordHash.
  */

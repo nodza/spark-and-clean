@@ -264,6 +264,10 @@ export function Step3Location({
 
       <div className="space-y-4">
         <h3 className="font-semibold text-lg">Contact Details</h3>
+        <p className="text-sm text-muted-foreground">
+          We only need your name, email, and phone — no password to confirm this
+          booking.
+        </p>
         <div className="space-y-2">
           <Label htmlFor="name">Full Name</Label>
           <Input

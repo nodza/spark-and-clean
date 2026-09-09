@@ -20,19 +20,25 @@ import {
   isMarketingNavAction,
   type MarketingNavItem,
 } from "@/config/nav";
+import { isFullAccount } from "@/types/user";
 import { cn } from "@/lib/utils";
 
 /**
  * Marketing site header (SCW-34).
  * Never advertises /admin or /tech.
  * Desktop keeps the historical nav + CTA layout; mobile uses a hamburger sheet.
+ * Leftover guest JWTs are treated as logged out (SCW-30).
  */
 export function Header() {
   const router = useRouter();
   const { user, ready, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const authInput = { ready, role: user?.role ?? null };
+  const fullAccount = isFullAccount(user);
+  const authInput = {
+    ready,
+    role: fullAccount ? (user!.role ?? null) : null,
+  };
   const desktopNavItems = getMarketingDesktopNavItems(authInput);
   const mobileItems = getMarketingMobileMenuItems(authInput);
 
@@ -99,7 +105,7 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-          {ready && user ? (
+          {ready && fullAccount ? (
             <Button
               variant="ghost"
               size="sm"

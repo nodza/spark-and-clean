@@ -18,6 +18,7 @@ export function useBookingLiveTracking(bookingId: string, enabled: boolean) {
   const [booking, setBooking] = useState<Booking | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mounted = useRef(true);
@@ -35,8 +36,18 @@ export function useBookingLiveTracking(bookingId: string, enabled: boolean) {
         setBooking(next);
         setLastSyncedAt(new Date());
         setError(null);
-      } catch {
+        setForbidden(false);
+      } catch (err) {
         if (!mounted.current) return;
+        const status =
+          err && typeof err === "object" && "status" in err
+            ? Number((err as { status: number }).status)
+            : 0;
+        if (status === 403) {
+          setForbidden(true);
+          setError(null);
+          return;
+        }
         setError("Could not refresh booking status. Retrying…");
       } finally {
         if (!mounted.current) return;
@@ -89,6 +100,7 @@ export function useBookingLiveTracking(bookingId: string, enabled: boolean) {
     booking,
     loading,
     error,
+    forbidden,
     lastSyncedAt,
     isRefreshing,
     refresh: () => sync({ silent: true }),

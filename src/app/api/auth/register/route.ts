@@ -3,11 +3,9 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { Booking } from "@/models/Booking";
+import { attachUnclaimedBookingsByEmail } from "@/lib/attachGuestBookings";
 import { checkRateLimit } from "@/lib/rateLimit";
-import {
-  createSessionToken,
-  setSessionCookie,
-} from "@/lib/session";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { normalizeUserRole } from "@/types/user";
 import {
   validateCustomerName,
@@ -19,7 +17,12 @@ import {
   validatePasswordNotEmail,
   validatePasswordStrength,
 } from "@/lib/passwordRules";
+import { toPublicApiError } from "@/lib/publicApiError";
 
+/**
+ * Create a password-based **client** account (never admin/technician)
+ * and attach every unclaimed booking that shares this email.
+ */
 export async function POST(request: Request) {
   try {
     const ip =
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    // Ignore any client-supplied role / adminTier — always force client (SCW-29).
+    // Ignore any client-supplied role / adminTier — always force client (SCW-29 / SCW-30).
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
@@ -82,13 +85,21 @@ export async function POST(request: Request) {
     const existing = await User.findOne({ email }).select("+passwordHash");
     if (existing && normalizeUserRole(existing.role) !== "client") {
       return NextResponse.json(
-        { error: "An account with this email already exists. Please log in." },
+        {
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
+          code: "ACCOUNT_EXISTS",
+        },
         { status: 409 }
       );
     }
     if (existing?.passwordHash) {
       return NextResponse.json(
-        { error: "An account with this email already exists. Please log in." },
+        {
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
+          code: "ACCOUNT_EXISTS",
+        },
         { status: 409 }
       );
     }
@@ -96,7 +107,7 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
     let user;
     if (existing) {
-      // F6.3 guest / passwordless client → convert into a full account
+      // Legacy passwordless client → convert into a full account
       await User.updateOne(
         { _id: existing._id },
         {
@@ -141,8 +152,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = String(user._id);
+    const attached = await attachUnclaimedBookingsByEmail(userId, email);
+
     const sessionUser = {
-      id: String(user._id),
+      id: userId,
       email: String(user.email),
       name: user.name ? String(user.name) : undefined,
       phone: user.phone ? String(user.phone) : undefined,
@@ -153,9 +167,11 @@ export async function POST(request: Request) {
     const token = await createSessionToken(sessionUser);
     await setSessionCookie(token);
 
-    return NextResponse.json({ user: sessionUser }, { status: 201 });
+    return NextResponse.json(
+      { user: sessionUser, attachedBookingIds: attached.ids },
+      { status: 201 }
+    );
   } catch (err) {
-    // Duplicate email unique index
     if (
       err &&
       typeof err === "object" &&
@@ -163,14 +179,23 @@ export async function POST(request: Request) {
       (err as { code: number }).code === 11000
     ) {
       return NextResponse.json(
-        { error: "An account with this email already exists. Please log in." },
+        {
+          error:
+            "An account with this email already exists. Log in to attach this booking.",
+          code: "ACCOUNT_EXISTS",
+        },
         { status: 409 }
       );
     }
     const message = err instanceof Error ? err.message : "Register failed";
     console.error("[api/auth/register]", message);
     return NextResponse.json(
-      { error: "Could not create your account. Please try again." },
+      {
+        error: toPublicApiError(
+          err,
+          "Could not create your account. Please try again."
+        ),
+      },
       { status: 500 }
     );
   }

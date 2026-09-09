@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, Customer } from "@/types/booking";
+import { isPersistedClient } from "@/types/user";
 
 function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
   const needle = email.toLowerCase();
@@ -78,8 +79,9 @@ function buildSubmittedBooking(
 export default function BookingWizard() {
   const router = useRouter();
   const { user, ready } = useAuth();
-  const sessionEmail = user?.email?.trim() || null;
-  const isLoggedInCustomer = Boolean(sessionEmail && user?.role === "client");
+  // Guests / leftover guest JWTs must not count as logged-in customers
+  const sessionEmail = isPersistedClient(user) ? user!.email.trim() : null;
+  const isLoggedInCustomer = Boolean(sessionEmail);
 
   const addBooking = useBookingStore((s) => s.addBooking);
   const fetchBookings = useBookingStore((s) => s.fetchBookings);
@@ -199,7 +201,15 @@ export default function BookingWizard() {
   const confirmBooking = async () => {
     if (!termsAccepted || isSubmitting) return;
 
-    const contactErrors = validateStep3Contact(formData);
+    const contactErrors = validateStep3Contact({
+      ...formData,
+      customer: {
+        id: formData.customer?.id || user?.id || "",
+        name: formData.customer?.name || "",
+        phone: formData.customer?.phone || "",
+        email: sessionEmail || formData.customer?.email || "",
+      },
+    });
     const dimErrors = validateStep1Dimensions(formData.rug);
     if (hasFieldErrors(contactErrors) || hasFieldErrors(dimErrors)) {
       setStep3Errors(contactErrors);
@@ -213,16 +223,18 @@ export default function BookingWizard() {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    const contact: Customer = {
+      id: formData.customer?.id || user?.id || "",
+      name: formData.customer?.name || "",
+      phone: formData.customer?.phone || "",
+      email: sessionEmail || formData.customer?.email || "",
+    };
+
     const bookingId = generateBookingReference(formData.city);
     const booking = buildSubmittedBooking(
       {
         ...formData,
-        customer: {
-          id: formData.customer?.id || user?.id || "",
-          name: formData.customer?.name || "",
-          phone: formData.customer?.phone || "",
-          email: sessionEmail || formData.customer?.email || "",
-        },
+        customer: contact,
       },
       bookingId
     );

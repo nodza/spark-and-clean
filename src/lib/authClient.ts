@@ -14,6 +14,12 @@ export type AuthUser = {
 
 export const AUTH_EVENT = "spark-auth-change";
 
+function notifyAuthChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_EVENT));
+  }
+}
+
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   try {
     const res = await fetch("/api/auth/me", {
@@ -30,13 +36,11 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
 
 export async function loginUser(input: {
   email: string;
-  /** Required for admin / technician; optional for client */
-  password?: string;
+  password: string;
   role?: UserRole;
 }): Promise<{
   user?: AuthUser;
   error?: string;
-  requiresPassword?: boolean;
 }> {
   try {
     const res = await fetch("/api/auth/login", {
@@ -52,9 +56,9 @@ export async function loginUser(input: {
           data.error || "Login failed",
           "Login failed. Please try again."
         ),
-        requiresPassword: data.requiresPassword === true,
       };
     }
+    notifyAuthChange();
     return { user: data.user };
   } catch (err) {
     return {
@@ -70,7 +74,12 @@ export async function registerUser(input: {
   name?: string;
   phone?: string;
   bookingId?: string;
-}): Promise<{ user?: AuthUser; error?: string }> {
+}): Promise<{
+  user?: AuthUser;
+  error?: string;
+  code?: string;
+  attachedBookingIds?: string[];
+}> {
   try {
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -85,9 +94,16 @@ export async function registerUser(input: {
           data.error || "Registration failed",
           "Could not create your account. Please try again."
         ),
+        code: typeof data.code === "string" ? data.code : undefined,
       };
     }
-    return { user: data.user };
+    notifyAuthChange();
+    return {
+      user: data.user,
+      attachedBookingIds: Array.isArray(data.attachedBookingIds)
+        ? data.attachedBookingIds
+        : [],
+    };
   } catch (err) {
     return {
       error: toPublicApiError(
@@ -98,21 +114,26 @@ export async function registerUser(input: {
   }
 }
 
-export async function continueAsGuest(input: {
-  email: string;
-  name?: string;
-  phone?: string;
-  bookingId?: string;
-}): Promise<{ user?: AuthUser; error?: string }> {
-  const res = await fetch("/api/auth/guest", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-  const data = await res.json();
-  if (!res.ok) return { error: data.error || "Could not continue as guest" };
-  return { user: data.user };
+export async function claimBooking(bookingId: string): Promise<{
+  error?: string;
+  attachedBookingIds?: string[];
+}> {
+  const res = await fetch(
+    `/api/bookings/${encodeURIComponent(bookingId)}/claim`,
+    {
+      method: "POST",
+      credentials: "include",
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { error: data.error || "Could not attach this booking" };
+  }
+  return {
+    attachedBookingIds: Array.isArray(data.attachedBookingIds)
+      ? data.attachedBookingIds
+      : [],
+  };
 }
 
 export async function logoutUser(): Promise<void> {
@@ -121,7 +142,7 @@ export async function logoutUser(): Promise<void> {
     credentials: "include",
   });
   // AUTH_EVENT notifies AuthProvider once — do not call fetchCurrentUser here
-  window.dispatchEvent(new Event(AUTH_EVENT));
+  notifyAuthChange();
 }
 
 export async function requestPasswordReset(
@@ -194,7 +215,7 @@ export async function resetPasswordWithToken(input: {
         "This reset link is invalid or has expired. Request a new link.",
     };
   }
-  window.dispatchEvent(new Event(AUTH_EVENT));
+  notifyAuthChange();
   return {
     user: data.user,
     homePath: data.homePath,
