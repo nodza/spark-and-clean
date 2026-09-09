@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed:bookings": "node scripts/seed-bookings.cjs",
     "seed:users": "node scripts/seed-users.cjs",
+    "bootstrap:admin": "node scripts/bootstrap-admin.cjs",
     "seed": "node scripts/seed-bookings.cjs && node scripts/seed-users.cjs",
     "test": "vitest run",
     "test:watch": "vitest"
