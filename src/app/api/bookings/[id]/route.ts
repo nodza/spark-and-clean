@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
+import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus, PaymentStatus } from "@/types/booking";
 
@@ -64,49 +65,73 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const body = await request.json();
-    const updates: Record<string, unknown> = {};
+    const wantsStatus = body.status !== undefined && body.status !== null;
+    const wantsPayment =
+      body.paymentStatus !== undefined && body.paymentStatus !== null;
+    const wantsAssign = Object.prototype.hasOwnProperty.call(
+      body,
+      "assignedDriverId"
+    );
 
-    if (body.status) updates.status = body.status as BookingStatus;
-    if (body.paymentStatus) {
-      updates.paymentStatus = body.paymentStatus as PaymentStatus;
-    }
-    if (body.assignedDriverId !== undefined) {
-      updates.assignedDriverId = body.assignedDriverId;
-      if (body.assignedDriverId && !body.status) {
-        updates.status = "SCHEDULED";
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
+    if (!wantsStatus && !wantsPayment && !wantsAssign) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
     if (session.role === "client") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (session.role === "admin" && session.adminTier === "marketing-only") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+
     if (session.role === "technician") {
-      // Technicians may only update status on their assigned jobs
+      if (wantsPayment || wantsAssign) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       if (!session.driverProfileId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-      if (body.paymentStatus || body.assignedDriverId) {
+    } else if (session.role === "admin") {
+      if (session.adminTier !== "full") {
+        return NextResponse.json(
+          { error: "Full admin required for booking updates" },
+          { status: 403 }
+        );
+      }
+    } else {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await connectDB();
+    const existing = await Booking.findOne({ id }).lean();
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (session.role === "technician") {
+      if (existing.assignedDriverId !== session.driverProfileId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    await connectDB();
+    const updates: Record<string, unknown> = {};
 
-    if (session.role === "technician") {
-      const existing = await Booking.findOne({ id }).lean();
-      if (
-        !existing ||
-        !session.driverProfileId ||
-        existing.assignedDriverId !== session.driverProfileId
-      ) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (wantsStatus) {
+      updates.status = body.status as BookingStatus;
+    }
+    if (wantsPayment) {
+      updates.paymentStatus = body.paymentStatus as PaymentStatus;
+    }
+    if (wantsAssign) {
+      const nextDriver =
+        body.assignedDriverId === null || body.assignedDriverId === ""
+          ? null
+          : String(body.assignedDriverId);
+      updates.assignedDriverId = nextDriver;
+
+      if (!wantsStatus) {
+        const nextStatus = statusAfterDriverAssign(
+          existing.status as BookingStatus,
+          nextDriver
+        );
+        if (nextStatus) updates.status = nextStatus;
       }
     }
 

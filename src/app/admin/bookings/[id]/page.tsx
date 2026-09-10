@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BookingStatus, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
@@ -16,28 +23,64 @@ import { format } from "date-fns";
 type DriverOption = { id: string; name: string; vehicle: string };
 
 const STATUS_OPTIONS: BookingStatus[] = [
-  "BOOKED", "SCHEDULED", "COLLECTED", "CLEANING", "DRYING", "READY", "DELIVERED"
+  "BOOKED",
+  "SCHEDULED",
+  "COLLECTED",
+  "CLEANING",
+  "DRYING",
+  "READY",
+  "DELIVERED",
 ];
 
 export default function AdminBookingDetail() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const { bookings, fetchBookings, updateBookingStatus, updatePaymentStatus, assignDriver } = useBookingStore();
+  const {
+    bookings,
+    fetchBookings,
+    fetchBookingById,
+    updateBookingStatus,
+    updatePaymentStatus,
+    assignDriver,
+  } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
 
   useEffect(() => {
     void fetchBookings();
+    void fetchBookingById(id).catch(() => undefined);
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setDrivers(data);
       })
       .catch(() => setDrivers([]));
-  }, [fetchBookings]);
+  }, [fetchBookings, fetchBookingById, id]);
 
   if (!booking) return <div className="p-10">Loading...</div>;
+
+  const handleStatus = async (val: string) => {
+    const ok = await updateBookingStatus(booking.id, val as BookingStatus);
+    if (!ok) {
+      toast.error(useBookingStore.getState().error || "Failed to update status");
+    }
+  };
+
+  const handleAssign = async (val: string) => {
+    const driverId = val === "unassigned" ? null : val;
+    const ok = await assignDriver(booking.id, driverId);
+    if (!ok) {
+      toast.error(useBookingStore.getState().error || "Failed to assign driver");
+    }
+  };
+
+  const handlePayment = async (val: string) => {
+    const ok = await updatePaymentStatus(booking.id, val as PaymentStatus);
+    if (!ok) {
+      toast.error(useBookingStore.getState().error || "Failed to update payment");
+    }
+  };
 
   return (
     <div className="container mx-auto py-10 px-4 max-w-4xl">
@@ -64,7 +107,6 @@ export default function AdminBookingDetail() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Main Details */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -78,7 +120,10 @@ export default function AdminBookingDetail() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Dimensions</Label>
-                  <p className="font-medium">{booking.rug.widthM}m x {booking.rug.lengthM}m ({booking.rug.areaSqM}m²)</p>
+                  <p className="font-medium">
+                    {booking.rug.widthM}m x {booking.rug.lengthM}m (
+                    {booking.rug.areaSqM}m²)
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Collection Date</Label>
@@ -91,13 +136,15 @@ export default function AdminBookingDetail() {
                   <p className="font-medium">{booking.collectionSlot}</p>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div>
                 <Label className="text-muted-foreground mb-2 block">Address</Label>
                 <p className="font-medium">{booking.addressLine1}</p>
-                <p className="text-muted-foreground">{booking.suburb}, {booking.city}</p>
+                <p className="text-muted-foreground">
+                  {booking.suburb}, {booking.city}
+                </p>
               </div>
 
               <Separator />
@@ -105,22 +152,40 @@ export default function AdminBookingDetail() {
               <div>
                 <Label className="text-muted-foreground mb-2 block">Add-ons</Label>
                 <div className="flex gap-2">
-                  {booking.addOns.odourRemoval && <span className="bg-secondary px-2 py-1 rounded text-sm">Odour Removal & Hygiene Treatment</span>}
-                  {booking.addOns.stainProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Protection Treatment</span>}
-                  {!booking.addOns.odourRemoval && !booking.addOns.stainProtection && <span className="text-muted-foreground italic">None</span>}
+                  {booking.addOns.odourRemoval && (
+                    <span className="bg-secondary px-2 py-1 rounded text-sm">
+                      Odour Removal & Hygiene Treatment
+                    </span>
+                  )}
+                  {booking.addOns.stainProtection && (
+                    <span className="bg-secondary px-2 py-1 rounded text-sm">
+                      Stain Protection Treatment
+                    </span>
+                  )}
+                  {!booking.addOns.odourRemoval &&
+                    !booking.addOns.stainProtection && (
+                      <span className="text-muted-foreground italic">None</span>
+                    )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Photos would go here */}
           {booking.rug.photos && booking.rug.photos.length > 0 && (
             <Card>
-              <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Photos</CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   {booking.rug.photos.map((photo, i) => (
-                    <img key={i} src={photo} alt="Rug" className="rounded-lg border" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={photo}
+                      alt="Rug"
+                      className="rounded-lg border"
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -128,7 +193,6 @@ export default function AdminBookingDetail() {
           )}
         </div>
 
-        {/* Sidebar Controls */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -137,16 +201,18 @@ export default function AdminBookingDetail() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Current Status</Label>
-                <Select 
-                  value={booking.status} 
-                  onValueChange={(val) => updateBookingStatus(booking.id, val as BookingStatus)}
+                <Select
+                  value={booking.status}
+                  onValueChange={(val) => void handleStatus(val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -154,15 +220,15 @@ export default function AdminBookingDetail() {
 
               <div className="space-y-2">
                 <Label>Assign Driver</Label>
-                <Select 
-                  value={booking.assignedDriverId || "unassigned"} 
-                  onValueChange={(val) => assignDriver(booking.id, val)}
+                <Select
+                  value={booking.assignedDriverId || "unassigned"}
+                  onValueChange={(val) => void handleAssign(val)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select driver" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unassigned" disabled>Select driver...</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
                         {driver.name} ({driver.vehicle})
@@ -179,21 +245,27 @@ export default function AdminBookingDetail() {
               <CardTitle>Payment</CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup 
-                value={booking.paymentStatus} 
-                onValueChange={(val) => updatePaymentStatus(booking.id, val as PaymentStatus)}
+              <RadioGroup
+                value={booking.paymentStatus}
+                onValueChange={(val) => void handlePayment(val)}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="UNPAID" id="unpaid" />
-                  <Label htmlFor="unpaid" className="text-destructive font-medium">Unpaid</Label>
+                  <Label htmlFor="unpaid" className="text-destructive font-medium">
+                    Unpaid
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="DEPOSIT" id="deposit" />
-                  <Label htmlFor="deposit" className="text-orange-500 font-medium">Deposit Paid</Label>
+                  <Label htmlFor="deposit" className="text-orange-500 font-medium">
+                    Deposit Paid
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="PAID" id="paid" />
-                  <Label htmlFor="paid" className="text-green-600 font-medium">Paid in Full</Label>
+                  <Label htmlFor="paid" className="text-green-600 font-medium">
+                    Paid in Full
+                  </Label>
                 </div>
               </RadioGroup>
             </CardContent>
