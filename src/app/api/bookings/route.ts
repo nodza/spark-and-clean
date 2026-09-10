@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
+import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
@@ -79,15 +80,33 @@ export async function POST(request: Request) {
       payload.userId = session.id;
     }
 
+    const existingBefore = await Booking.findOne({ id }).select("_id").lean();
+
     const created = await Booking.findOneAndUpdate(
       { id },
       { $set: payload },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
 
-    return NextResponse.json(
-      toClientBooking(created as Record<string, unknown>)
-    );
+    const clientBooking = toClientBooking(created as Record<string, unknown>);
+
+    // In-app ops alert only on create — no WhatsApp / SMS / email.
+    if (!existingBefore) {
+      try {
+        await createNewBookingAlert({
+          id: clientBooking.id,
+          customer: clientBooking.customer,
+          suburb: clientBooking.suburb,
+        });
+      } catch (alertErr) {
+        console.error(
+          "[api/bookings POST] ops alert failed",
+          alertErr instanceof Error ? alertErr.message : alertErr
+        );
+      }
+    }
+
+    return NextResponse.json(clientBooking);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create booking";
     console.error("[api/bookings POST]", message);

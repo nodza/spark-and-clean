@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
 import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
@@ -11,6 +12,10 @@ import {
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import { format } from "date-fns";
+import type { OpsAlert } from "@/types/opsAlert";
+
+const HIGH_VOLUME_THRESHOLD = 5;
+const ALERT_POLL_MS = 12_000;
 
 // ─── KPI stat tile ───────────────────────────────────────────────────────────
 function StatTile({
@@ -48,12 +53,70 @@ function statusVariant(status: string): React.ComponentProps<typeof Badge>["vari
   return "outline";
 }
 
+function isUnassigned(assignedDriverId?: string) {
+  return !assignedDriverId;
+}
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
+  const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const knownAlertIdsRef = useRef<Set<string> | null>(null);
 
-  useEffect(() => { fetchBookings(); }, [fetchBookings]);
+  const loadAlerts = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setAlertsLoading(true);
+    try {
+      const res = await fetch("/api/admin/alerts", { credentials: "include" });
+      if (!res.ok) {
+        if (!silent) setOpsAlerts([]);
+        return;
+      }
+      const data = await res.json();
+      const next: OpsAlert[] = Array.isArray(data.alerts) ? data.alerts : [];
+
+      // First load: seed known ids quietly (no toast flood for backlog).
+      // Later polls: toast only for newly appeared NEW_BOOKING alerts.
+      if (knownAlertIdsRef.current === null) {
+        knownAlertIdsRef.current = new Set(next.map((a) => a.id));
+      } else {
+        for (const alert of next) {
+          if (!knownAlertIdsRef.current.has(alert.id)) {
+            knownAlertIdsRef.current.add(alert.id);
+            toast.message(alert.title, {
+              description: `${alert.meta} — see Needs Attention`,
+            });
+          }
+        }
+        // Drop ids that were dismissed so re-creates can toast again if ever needed
+        const live = new Set(next.map((a) => a.id));
+        for (const id of [...knownAlertIdsRef.current]) {
+          if (!live.has(id)) knownAlertIdsRef.current.delete(id);
+        }
+      }
+
+      setOpsAlerts(next);
+    } catch {
+      if (!silent) setOpsAlerts([]);
+    } finally {
+      if (!silent) setAlertsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchBookings();
+    void loadAlerts();
+  }, [fetchBookings, loadAlerts]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadAlerts({ silent: true });
+      void fetchBookings({ silent: true });
+    }, ALERT_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadAlerts, fetchBookings]);
 
   const today = new Date().toISOString().split("T")[0];
   const todaysPickups = bookings.filter(
@@ -62,11 +125,39 @@ export default function AdminDashboard() {
   const activeJobs = bookings.filter((b) =>
     ["COLLECTED", "CLEANING", "DRYING", "READY"].includes(b.status)
   ).length;
+  const unpaidCount = bookings.filter((b) => b.paymentStatus === "UNPAID").length;
+  const unassignedTodayCount = bookings.filter(
+    (b) =>
+      b.collectionDate.startsWith(today) &&
+      isUnassigned(b.assignedDriverId) &&
+      b.status !== "CANCELLED" &&
+      b.status !== "DELIVERED"
+  ).length;
   const revenue = bookings.reduce(
     (acc, b) => acc + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
     0
   );
   const lateCount = 2; // placeholder until LATE/OVERDUE statuses are added to the type
+  const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
+  const hasActionable =
+    unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
+  const showEmpty = !alertsLoading && !hasActionable && !showHighVolume;
+
+  const dismissAlert = async (alertId: string) => {
+    const prev = opsAlerts;
+    setOpsAlerts((list) => list.filter((a) => a.id !== alertId));
+    try {
+      const res = await fetch(`/api/admin/alerts/${alertId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dismissed: true }),
+      });
+      if (!res.ok) setOpsAlerts(prev);
+    } catch {
+      setOpsAlerts(prev);
+    }
+  };
 
   // ─── Static schedule (replace with real data when API ready) ─────────────
   const schedule = [
@@ -75,12 +166,6 @@ export default function AdminDashboard() {
     { time: "11:00", client: "Anke van Wyk", detail: "Randburg · couch + 1 rug", tag: "Collect", variant: "status-new" as const, tech: "S. Dube", accent: "#ffdc39" },
     { time: "13:15", client: "Sipho Ndlovu", detail: "Midrand · 4 rugs · delivery", tag: "Delivery", variant: "status-delivering" as const, tech: "S. Dube", accent: "#2c4fa6" },
     { time: "15:00", client: "Claire Bester", detail: "Bryanston · 1 Persian rug", tag: "Late", variant: "status-overdue" as const, tech: "Unassigned", accent: "#b3261e" },
-  ];
-
-  const alerts = [
-    { title: "SC-2390 delivery missed twice", meta: "Bryanston · client unreachable", dot: "#b3261e" },
-    { title: "Cape Town van service due", meta: "CA 442-118 · 2 Sep", dot: "#ffdc39" },
-    { title: "3 bookings unassigned tomorrow", meta: "Gauteng morning slots", dot: "#ffdc39" },
   ];
 
   const capacityTotal = 48;
@@ -92,7 +177,7 @@ export default function AdminDashboard() {
     <AdminPortalShell
       pageTitle="Overview"
       active="overview"
-      bookingsBadge={bookings.length || 12}
+      bookingsBadge={bookings.length || undefined}
       topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
@@ -129,7 +214,6 @@ export default function AdminDashboard() {
                 <span className="text-card-title" style={{ color: "#000b49" }}>Live route map</span>
                 <button className="ds-text-action">Open dispatch</button>
               </div>
-              {/* Map placeholder — replace iframe src with real map provider */}
               <div
                 className="relative w-full"
                 style={{ height: 340, background: "#eef1f5" }}
@@ -155,25 +239,20 @@ export default function AdminDashboard() {
                     className="flex items-center gap-[14px] px-[22px] py-[14px]"
                     style={{ borderBottom: i < schedule.length - 1 ? "1px solid #f0f2f6" : undefined }}
                   >
-                    {/* Time */}
                     <div className="w-[44px] flex-none">
                       <div className="tabular text-[14px] font-extrabold" style={{ color: "#000b49" }}>
                         {stop.time}
                       </div>
                     </div>
-                    {/* Colour bar */}
                     <div
                       className="w-[3px] min-h-[36px] flex-none self-stretch rounded-full"
                       style={{ background: stop.accent }}
                     />
-                    {/* Client + detail */}
                     <div className="flex-1 min-w-0">
                       <div className="text-body truncate" style={{ color: "#000b49" }}>{stop.client}</div>
                       <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>{stop.detail}</div>
                     </div>
-                    {/* Tag */}
                     <Badge variant={stop.variant} className="flex-none">{stop.tag}</Badge>
-                    {/* Tech */}
                     <div className="w-[90px] flex-none text-right text-meta" style={{ color: "#9aa0a6" }}>
                       {stop.tech}
                     </div>
@@ -182,7 +261,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Recent Bookings — inside left column */}
+            {/* Recent Bookings */}
             <div className="ds-card p-0 overflow-hidden">
               <div className="ds-card-header">
                 <span className="text-card-title" style={{ color: "#000b49" }}>Recent Bookings</span>
@@ -197,7 +276,7 @@ export default function AdminDashboard() {
                 }}
               >
                 {["ID", "Customer", "Date", "Status", ""].map((h) => (
-                  <div key={h} className="text-th">{h}</div>
+                  <div key={h || "actions"} className="text-th">{h}</div>
                 ))}
               </div>
               {bookings.slice(0, 5).map((booking) => (
@@ -239,37 +318,133 @@ export default function AdminDashboard() {
 
           </div>
 
-          {/* Right: alerts + capacity ─────────────────────────────────── */}
-          <div className="flex w-[248px] flex-none flex-col gap-[14px]">
+          {/* Right: alerts + capacity */}
+          <div className="flex w-[280px] flex-none flex-col gap-[14px]">
 
-            {/* Needs attention */}
             <div className="ds-card p-0 overflow-hidden">
               <div className="px-[20px] py-[16px]" style={{ borderBottom: "1px solid #f0f2f6" }}>
                 <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>NEEDS ATTENTION</div>
               </div>
               <div className="flex flex-col">
-                {alerts.map((alert, i) => (
+                {showEmpty ? (
+                  <div className="px-[20px] py-[18px]">
+                    <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                      You&apos;re clear
+                    </div>
+                    <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                      No unpaid or unassigned work
+                    </div>
+                  </div>
+                ) : null}
+
+                {unpaidCount > 0 ? (
                   <div
-                    key={i}
                     className="flex items-start gap-[12px] px-[20px] py-[14px]"
-                    style={{ borderBottom: i < alerts.length - 1 ? "1px solid #f0f2f6" : undefined }}
+                    style={{ borderBottom: "1px solid #f0f2f6" }}
                   >
                     <div
                       className="mt-[5px] size-[8px] flex-none rounded-full"
-                      style={{ background: alert.dot }}
+                      style={{ background: "#b3261e" }}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                        {unpaidCount} unpaid booking{unpaidCount === 1 ? "" : "s"}
+                      </div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        Follow up on payment
+                      </div>
+                    </div>
+                    <Link
+                      href="/admin/bookings?payment=UNPAID"
+                      className="ds-text-action flex-none self-center"
+                    >
+                      View
+                    </Link>
+                  </div>
+                ) : null}
+
+                {unassignedTodayCount > 0 ? (
+                  <div
+                    className="flex items-start gap-[12px] px-[20px] py-[14px]"
+                    style={{ borderBottom: "1px solid #f0f2f6" }}
+                  >
+                    <div
+                      className="mt-[5px] size-[8px] flex-none rounded-full"
+                      style={{ background: "#ffdc39" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                        {unassignedTodayCount} unassigned today
+                      </div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        Collections need a driver
+                      </div>
+                    </div>
+                    {/* F4.4 board not shipped — agreed unassigned-today list */}
+                    <Link
+                      href="/admin/bookings?date=today&assigned=0"
+                      className="ds-text-action flex-none self-center"
+                    >
+                      Assign
+                    </Link>
+                  </div>
+                ) : null}
+
+                {opsAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-start gap-[12px] px-[20px] py-[14px]"
+                    style={{ borderBottom: "1px solid #f0f2f6" }}
+                  >
+                    <div
+                      className="mt-[5px] size-[8px] flex-none rounded-full"
+                      style={{ background: "#2c4fa6" }}
+                    />
+                    <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
                         {alert.title}
                       </div>
-                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>{alert.meta}</div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        {alert.meta}
+                      </div>
+                      <div className="mt-[8px] flex flex-wrap gap-[10px]">
+                        <Link
+                          href={`/admin/bookings/${alert.bookingId}`}
+                          className="ds-text-action"
+                        >
+                          View
+                        </Link>
+                        <button
+                          type="button"
+                          className="ds-text-action"
+                          onClick={() => void dismissAlert(alert.id)}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
+
+                {showHighVolume ? (
+                  <div className="flex items-start gap-[12px] px-[20px] py-[14px]">
+                    <div
+                      className="mt-[5px] size-[8px] flex-none rounded-full"
+                      style={{ background: "#0a7a63" }}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                        High volume
+                      </div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        {activeJobs} active jobs — consider capacity
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {/* Capacity today — navy panel */}
             <div className="ds-panel-navy">
               <div className="text-eyebrow" style={{ color: "#6cf3d5" }}>CAPACITY TODAY</div>
               <div
@@ -278,22 +453,21 @@ export default function AdminDashboard() {
               >
                 {capacityFilled} / {capacityTotal} slots
               </div>
-              {/* Progress bar */}
-              <div className="mt-[14px] h-[7px] w-full overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,.15)" }}>
+              <div
+                className="mt-[12px] h-[6px] w-full overflow-hidden rounded-full"
+                style={{ background: "rgba(255,255,255,.12)" }}
+              >
                 <div
-                  className="h-full rounded-full transition-all"
+                  className="h-full rounded-full"
                   style={{ width: `${capacityPct}%`, background: "#6cf3d5" }}
                 />
               </div>
               <div className="text-meta mt-[10px]" style={{ color: "rgba(255,255,255,.55)" }}>
-                {capacityOpen} slots open across Gauteng
+                {capacityOpen} open · {capacityPct}% filled
               </div>
             </div>
-
           </div>
         </div>
-
-
       </div>
     </AdminPortalShell>
   );
