@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Booking } from "@/types/booking";
-import { Ticket } from "lucide-react";
+import {
+  estimateBookingPrice,
+  ODOUR_RATE,
+  STAIN_PROTECTION_RATE,
+} from "@/lib/bookingEstimate";
 import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -19,52 +22,69 @@ export function isValidCouponFormat(code: string): boolean {
   return /^[A-Za-z0-9]+$/.test(code.trim());
 }
 
-const ODOUR_RATE = 25;
-const STAIN_PROTECTION_RATE = 40;
-
 const EMPTY_ADD_ONS = {
   odourRemoval: false,
   stainProtection: false,
 };
 
+type AddOnRowProps = {
+  id: string;
+  label: string;
+  priceLabel: string;
+  pressed: boolean;
+  onToggle: () => void;
+};
+
+function AddOnRow({ id, label, priceLabel, pressed, onToggle }: AddOnRowProps) {
+  return (
+    <button
+      type="button"
+      id={id}
+      aria-pressed={pressed}
+      onClick={onToggle}
+      className={cn(
+        "flex min-h-12 w-full items-center justify-between gap-3 rounded-[10px] border-[1.5px] px-3 py-3 text-left text-[13px] text-[#32373c] transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        pressed
+          ? "border-green bg-[#eafaf5]"
+          : "border-[#e5e7eb] bg-white hover:border-green/40"
+      )}
+    >
+      <span className="flex min-w-0 items-center gap-2.5">
+        <span
+          className={cn(
+            "inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border-[1.5px]",
+            pressed
+              ? "border-green bg-green text-white"
+              : "border-[#c6cad2] bg-white"
+          )}
+          aria-hidden
+        >
+          {pressed ? <Check className="size-3 stroke-[3]" /> : null}
+        </span>
+        <span className="min-w-0 leading-snug">{label}</span>
+      </span>
+      <span className="shrink-0 font-bold text-navy">{priceLabel}</span>
+    </button>
+  );
+}
+
 export function Step4Price({ data, update }: StepProps) {
   const addOns = data.addOns || EMPTY_ADD_ONS;
-  const area =
-    typeof data.rug?.areaSqM === "number" && Number.isFinite(data.rug.areaSqM)
-      ? data.rug.areaSqM
-      : 0;
-  const dimensionsSkipped = !(
-    typeof data.rug?.widthM === "number" &&
-    typeof data.rug?.lengthM === "number" &&
-    data.rug.widthM > 0 &&
-    data.rug.lengthM > 0
-  );
+  const estimate = estimateBookingPrice(data);
+  const { area, dimensionsSkipped, odourPrice, stainProtectPrice } = estimate;
 
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
   const [couponStatus, setCouponStatus] = useState<"idle" | "success" | "error">(
     data.couponCode ? "success" : "idle"
   );
 
-  const baseRate = 80;
-  const typeMultiplier = data.rug?.type === "Persian" ? 1.5 : 1.0;
-  const basePrice = Math.round(area * baseRate * typeMultiplier) || 0;
-  const odourPrice =
-    addOns.odourRemoval && !dimensionsSkipped
-      ? Math.round(area * ODOUR_RATE)
-      : 0;
-  const stainProtectPrice =
-    addOns.stainProtection && !dimensionsSkipped
-      ? Math.round(area * STAIN_PROTECTION_RATE)
-      : 0;
-
-  const totalMin = basePrice + odourPrice + stainProtectPrice;
-  const totalMax = Math.round(totalMin * 1.2);
-
-  useEffect(() => {
-    if (data.estimatedPriceMin !== totalMin || data.estimatedPriceMax !== totalMax) {
-      update({ estimatedPriceMin: totalMin, estimatedPriceMax: totalMax });
-    }
-  }, [totalMin, totalMax, data.estimatedPriceMin, data.estimatedPriceMax, update]);
+  const odourDisplay = dimensionsSkipped
+    ? `+R${ODOUR_RATE}/m²`
+    : `+R${odourPrice || Math.round(area * ODOUR_RATE)}`;
+  const stainDisplay = dimensionsSkipped
+    ? `+R${STAIN_PROTECTION_RATE}/m²`
+    : `+R${stainProtectPrice || Math.round(area * STAIN_PROTECTION_RATE)}`;
 
   const applyCoupon = () => {
     const code = couponInput.trim();
@@ -74,156 +94,112 @@ export function Step4Price({ data, update }: StepProps) {
       return;
     }
 
-    // Store code only — do not recalculate prices (Phase 2 / E8)
     update({ couponCode: code.toUpperCase() });
     setCouponInput(code.toUpperCase());
     setCouponStatus("success");
   };
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-2 text-center">
-        <h3 className="text-lg font-medium text-muted-foreground">Estimated Price</h3>
-        <div className="text-4xl font-bold text-primary">
-          R{totalMin} - R{totalMax}
+    <div>
+      <div className="mb-[18px] flex items-center gap-3 rounded-xl bg-navy px-4 py-3.5">
+        <div className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-teal text-[14px] font-extrabold text-navy">
+          4
         </div>
-        <p className="text-sm text-muted-foreground">
-          {dimensionsSkipped
-            ? "Driver to measure on collection"
-            : "Final price confirmed after inspection."}
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <h4 className="font-semibold">Recommended Add-ons</h4>
-
-        <label
-          htmlFor="odour"
-          className={cn(
-            "flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 transition-colors",
-            addOns.odourRemoval && "border-primary bg-primary/5"
-          )}
-        >
-          <Checkbox
-            id="odour"
-            className="mt-0.5"
-            checked={addOns.odourRemoval}
-            onCheckedChange={(checked) =>
-              update({
-                addOns: { ...addOns, odourRemoval: checked === true },
-              })
-            }
-          />
-          <div className="grid min-w-0 flex-1 gap-1.5 leading-none">
-            <span className="text-base font-medium">
-              Odour Removal & Hygiene Treatment{" "}
-              {dimensionsSkipped
-                ? `(+R${ODOUR_RATE}/sqm)`
-                : `(+R${odourPrice || Math.round(area * ODOUR_RATE)})`}
-            </span>
-            <p className="text-sm text-muted-foreground">
-              Deep sanitizer and deodorizer
-            </p>
-            {dimensionsSkipped && addOns.odourRemoval && (
-              <p className="text-sm text-muted-foreground">
-                Added (price calculated after driver measurement)
-              </p>
-            )}
+        <div className="min-w-0">
+          <div className="text-[13.5px] font-extrabold text-white">
+            One clean from a free rug
           </div>
-        </label>
+        </div>
+      </div>
 
-        <label
-          htmlFor="protect"
-          className={cn(
-            "flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 transition-colors",
-            addOns.stainProtection && "border-primary bg-primary/5"
-          )}
-        >
-          <Checkbox
-            id="protect"
-            className="mt-0.5"
-            checked={addOns.stainProtection}
-            onCheckedChange={(checked) =>
-              update({
-                addOns: { ...addOns, stainProtection: checked === true },
-              })
+      <div className="mb-2.5 text-[14px] font-bold text-navy">
+        Recommended add-ons
+      </div>
+      <div className="mb-[22px] flex flex-col gap-2">
+        <AddOnRow
+          id="odour"
+          label="Odour removal"
+          priceLabel={odourDisplay}
+          pressed={addOns.odourRemoval}
+          onToggle={() =>
+            update({
+              addOns: { ...addOns, odourRemoval: !addOns.odourRemoval },
+            })
+          }
+        />
+        <AddOnRow
+          id="protect"
+          label="Stain protection"
+          priceLabel={stainDisplay}
+          pressed={addOns.stainProtection}
+          onToggle={() =>
+            update({
+              addOns: { ...addOns, stainProtection: !addOns.stainProtection },
+            })
+          }
+        />
+        {dimensionsSkipped &&
+        (addOns.odourRemoval || addOns.stainProtection) ? (
+          <p className="px-0.5 text-[12px] leading-relaxed text-[#6b7280]">
+            Added — price confirmed after the driver measures on pickup.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mb-2 text-[14px] font-bold text-navy">Coupon code</div>
+      <div className="mb-2 flex items-stretch gap-2">
+        <Input
+          id="coupon"
+          placeholder="e.g. SPARK10"
+          value={couponInput}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={couponStatus === "error" || undefined}
+          aria-describedby={
+            couponStatus === "error"
+              ? "coupon-error"
+              : couponStatus === "success"
+                ? "coupon-success"
+                : "coupon-hint"
+          }
+          className="min-w-0 flex-1"
+          onChange={(e) => {
+            setCouponInput(e.target.value);
+            if (couponStatus !== "idle") setCouponStatus("idle");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              applyCoupon();
             }
-          />
-          <div className="grid min-w-0 flex-1 gap-1.5 leading-none">
-            <span className="text-base font-medium">
-              Stain Protection Treatment{" "}
-              {dimensionsSkipped
-                ? `(+R${STAIN_PROTECTION_RATE}/sqm)`
-                : `(+R${stainProtectPrice || Math.round(area * STAIN_PROTECTION_RATE)})`}
-            </span>
-            <p className="text-sm text-muted-foreground">
-              Specialized coating to resist spills
-            </p>
-            {dimensionsSkipped && addOns.stainProtection && (
-              <p className="text-sm text-muted-foreground">
-                Added (price calculated after driver measurement)
-              </p>
-            )}
-          </div>
-        </label>
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={applyCoupon}
+          className="h-auto min-h-11 shrink-0 self-stretch rounded-full border-[1.5px] border-navy px-4 text-[14px] font-bold"
+        >
+          Apply
+        </Button>
       </div>
-
-      <div className="space-y-3 rounded-xl border p-6">
-        <Label htmlFor="coupon" className="text-base font-semibold">
-          Coupon code
-        </Label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            id="coupon"
-            placeholder="e.g. SPARK10"
-            value={couponInput}
-            autoComplete="off"
-            spellCheck={false}
-            className={cn(
-              couponStatus === "error" && "border-destructive focus-visible:ring-destructive/30"
-            )}
-            onChange={(e) => {
-              setCouponInput(e.target.value);
-              if (couponStatus !== "idle") setCouponStatus("idle");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applyCoupon();
-              }
-            }}
-          />
-          <Button type="button" onClick={applyCoupon} className="sm:w-28">
-            Apply
-          </Button>
-        </div>
-        {couponStatus === "error" && (
-          <p className="text-sm text-destructive" role="alert">
-            Invalid coupon format
-          </p>
-        )}
-        {couponStatus === "success" && (
-          <p className="text-sm font-medium text-green-600" role="status">
-            Coupon applied successfully
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Format check only for Phase 1 — discounts will apply in a later release.
+      {couponStatus === "error" && (
+        <p id="coupon-error" className="text-[12px] font-semibold text-[#b3261e]" role="alert">
+          Invalid coupon format
         </p>
-      </div>
-
-      <div className="flex items-center gap-4 rounded-xl border border-accent/20 bg-accent/10 p-4">
-        <div className="rounded-full bg-accent/20 p-2 text-accent-foreground">
-          <Ticket className="h-6 w-6" />
-        </div>
-        <div>
-          <h4 className="font-semibold text-accent-foreground">Loyalty Reward</h4>
-          <p className="text-sm text-muted-foreground">
-            You&apos;ve cleaned <span className="font-bold">3/5</span> rugs. 2 more for a
-            free clean!
-          </p>
-        </div>
-      </div>
+      )}
+      {couponStatus === "success" && (
+        <p
+          id="coupon-success"
+          className="text-[12px] font-semibold text-green"
+          role="status"
+        >
+          ✓ Coupon saved
+        </p>
+      )}
+      <p id="coupon-hint" className="sr-only">
+        Format check only — discounts apply in a later release.
+      </p>
     </div>
   );
 }
