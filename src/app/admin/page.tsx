@@ -110,6 +110,7 @@ export default function AdminDashboard() {
       <SidebarNavItem
         icon={<UserCog size={17} strokeWidth={1.8} />}
         label="Technicians"
+        onClick={() => router.push("/admin/drivers")}
       />
       <SidebarNavItem
         icon={<Users size={17} strokeWidth={1.8} />}

@@ -2,11 +2,19 @@
     {
         "id": "driver_1",
         "name": "Thabo Mbeki",
-        "vehicle": "Nissan NP200 (CA 123-456)"
+        "phone": "074 281 5432",
+        "email": "thabo@sparkandclean.co.za",
+        "vehicle": "Nissan NP200 (CA 123-456)",
+        "isActive": true,
+        "city": "Cape Town"
     },
     {
         "id": "driver_2",
         "name": "Sipho Nkosi",
-        "vehicle": "Toyota Hilux (CA 987-654)"
+        "phone": "082 456 7890",
+        "email": "sipho@sparkandclean.co.za",
+        "vehicle": "Toyota Hilux (CA 987-654)",
+        "isActive": true,
+        "city": "Cape Town"
     }
 ]

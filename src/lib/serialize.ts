@@ -13,6 +13,10 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
 
 export function toClientDriver(doc: Record<string, unknown>) {
   const { _id, __v, createdAt, updatedAt, ...rest } = doc;
+  // Ensure id field exists - use business id if present, otherwise use MongoDB _id
+  if (!rest.id && _id) {
+    rest.id = String(_id);
+  }
   return rest;
 }
 
