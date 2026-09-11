@@ -150,7 +150,7 @@ export function Step4Price({ data, update }: StepProps) {
       <div className="mb-2 flex items-stretch gap-2">
         <Input
           id="coupon"
-          placeholder="e.g. WELCOME10"
+          placeholder="e.g. SPARK10"
           value={couponInput}
           autoComplete="off"
           spellCheck={false}
