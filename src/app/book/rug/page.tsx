@@ -1,22 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Step1Details } from "@/components/booking/Step1Details";
 import { Step2Photos } from "@/components/booking/Step2Photos";
 import { Step3Location } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
 import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
+import {
+  BookingWizardShell,
+  CLIENT_STEP_TITLES,
+} from "@/components/booking/BookingWizardShell";
 import { generateBookingReference } from "@/lib/bookingReference";
+import { estimateBookingPrice } from "@/lib/bookingEstimate";
 import {
   hasFieldErrors,
   validateStep1Dimensions,
   validateStep3Contact,
   type FieldErrors,
 } from "@/lib/bookingValidation";
+import { getRugTypeLabel } from "@/data/rugTypes";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, Customer } from "@/types/booking";
@@ -92,6 +96,7 @@ export default function BookingWizard() {
   const [showTypeError, setShowTypeError] = useState(false);
   const [step1Errors, setStep1Errors] = useState<FieldErrors>({});
   const [step3Errors, setStep3Errors] = useState<FieldErrors>({});
+  const [sizeSkipped, setSizeSkipped] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -154,29 +159,62 @@ export default function BookingWizard() {
   }, [ready, sessionEmail, bookings, user]);
 
   const totalSteps = 5;
-  const progress = (step / totalSteps) * 100;
+  const estimate = useMemo(
+    () => estimateBookingPrice(formData),
+    [formData.rug, formData.addOns]
+  );
+
+  useEffect(() => {
+    if (
+      formData.estimatedPriceMin === estimate.totalMin &&
+      formData.estimatedPriceMax === estimate.totalMax
+    ) {
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      estimatedPriceMin: estimate.totalMin,
+      estimatedPriceMax: estimate.totalMax,
+    }));
+  }, [
+    estimate.totalMin,
+    estimate.totalMax,
+    formData.estimatedPriceMin,
+    formData.estimatedPriceMax,
+  ]);
 
   const nextStep = () => {
     if (step === 1) {
       if (!formData.rug?.type) {
         setShowTypeError(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
       const dimErrors = validateStep1Dimensions(formData.rug);
       setStep1Errors(dimErrors);
-      if (hasFieldErrors(dimErrors)) return;
+      if (hasFieldErrors(dimErrors)) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
 
     if (step === 3) {
       const contactErrors = validateStep3Contact(formData);
       setStep3Errors(contactErrors);
-      if (hasFieldErrors(contactErrors)) return;
+      if (hasFieldErrors(contactErrors)) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
 
     setStep((s) => Math.min(s + 1, totalSteps));
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
-  const prevStep = () => setStep((s) => Math.max(s - 1, 1));
+  const prevStep = () => {
+    setStep((s) => Math.max(s - 1, 1));
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   const clearStep1Error = (field: string) =>
     setStep1Errors((prev) => {
@@ -204,7 +242,6 @@ export default function BookingWizard() {
     const contactErrors = validateStep3Contact({
       ...formData,
       customer: {
-        id: formData.customer?.id || user?.id || "",
         name: formData.customer?.name || "",
         phone: formData.customer?.phone || "",
         email: sessionEmail || formData.customer?.email || "",
@@ -267,81 +304,98 @@ export default function BookingWizard() {
     );
   }
 
-  return (
-    <div className="container mx-auto max-w-2xl px-4 py-10">
-      <div className="mb-8">
-        <div className="mb-2 flex justify-between text-sm font-medium text-muted-foreground">
-          <span>
-            Step {step} of {totalSteps}
-          </span>
-          <span>{Math.round(progress)}% Completed</span>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full bg-primary transition-all duration-300 ease-in-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
+  const addOnCount = [
+    formData.addOns?.odourRemoval,
+    formData.addOns?.stainProtection,
+  ].filter(Boolean).length;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {step === 1 && "Rug Details"}
-            {step === 2 && "Upload Photos"}
-            {step === 3 && "Collection Details"}
-            {step === 4 && "Estimated Price"}
-            {step === 5 && "Review & Confirm"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {step === 1 && (
-            <Step1Details
-              data={formData}
-              update={updateFormData}
-              showTypeError={showTypeError}
-              onTypeSelected={() => setShowTypeError(false)}
-              errors={step1Errors}
-              onClearError={clearStep1Error}
-            />
-          )}
-          {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
-          {step === 3 && (
-            <Step3Location
-              data={formData}
-              update={updateFormData}
-              emailReadOnly={isLoggedInCustomer}
-              errors={step3Errors}
-              onClearError={clearStep3Error}
-            />
-          )}
-          {step === 4 && <Step4Price data={formData} update={updateFormData} />}
-          {step === 5 && (
-            <Step5Review
-              data={formData}
-              termsAccepted={termsAccepted}
-              onTermsAcceptedChange={setTermsAccepted}
-            />
-          )}
-          {submitError && (
-            <p className="mt-4 text-sm text-destructive" role="alert">
-              {submitError}
-            </p>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={prevStep} disabled={step === 1}>
-            Back
-          </Button>
-          {step < totalSteps ? (
-            <Button onClick={nextStep}>Next</Button>
+  const estimatePrimary =
+    estimate.dimensionsSkipped || estimate.totalMin <= 0
+      ? "TBC"
+      : `R${estimate.totalMin}`;
+  const estimateHint =
+    estimate.dimensionsSkipped || estimate.totalMin <= 0
+      ? "Measured on pickup"
+      : estimate.totalMax > estimate.totalMin
+        ? `up to R${estimate.totalMax}`
+        : undefined;
+
+  const isLastStep = step === totalSteps;
+  const continueDisabled = isLastStep && (!termsAccepted || isSubmitting);
+
+  return (
+    <BookingWizardShell
+      step={step}
+      totalSteps={totalSteps}
+      title={CLIENT_STEP_TITLES[step - 1]}
+      summary={{
+        rugLabel: getRugTypeLabel(formData.rug?.type),
+        cityLabel: formData.city?.trim() || "—",
+        addOnsLabel: addOnCount ? `${addOnCount} selected` : "none",
+        estimatePrimary,
+        estimateHint,
+      }}
+      showBack={step > 1}
+      onBack={prevStep}
+      onContinue={isLastStep ? confirmBooking : nextStep}
+      continueLabel={
+        isLastStep ? (
+          isSubmitting ? (
+            "Confirming..."
           ) : (
-            <Button onClick={confirmBooking} disabled={!termsAccepted || isSubmitting}>
-              {isSubmitting ? "Confirming..." : "Confirm Booking"}
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
-    </div>
+            <>
+              <span className="sm:hidden">Confirm →</span>
+              <span className="hidden sm:inline">Confirm booking →</span>
+            </>
+          )
+        ) : (
+          "Continue →"
+        )
+      }
+      continueDisabled={continueDisabled}
+      continueHint={
+        isLastStep && !termsAccepted
+          ? "Accept the terms below to confirm your booking."
+          : isSubmitting
+            ? "Saving your booking."
+            : undefined
+      }
+    >
+      {step === 1 && (
+        <Step1Details
+          data={formData}
+          update={updateFormData}
+          showTypeError={showTypeError}
+          onTypeSelected={() => setShowTypeError(false)}
+          errors={step1Errors}
+          onClearError={clearStep1Error}
+          sizeSkipped={sizeSkipped}
+          onSizeSkippedChange={setSizeSkipped}
+        />
+      )}
+      {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
+      {step === 3 && (
+        <Step3Location
+          data={formData}
+          update={updateFormData}
+          emailReadOnly={isLoggedInCustomer}
+          errors={step3Errors}
+          onClearError={clearStep3Error}
+        />
+      )}
+      {step === 4 && <Step4Price data={formData} update={updateFormData} />}
+      {step === 5 && (
+        <Step5Review
+          data={formData}
+          termsAccepted={termsAccepted}
+          onTermsAcceptedChange={setTermsAccepted}
+        />
+      )}
+      {submitError && (
+        <p className="mt-4 text-sm text-destructive" role="alert">
+          {submitError}
+        </p>
+      )}
+    </BookingWizardShell>
   );
 }
