@@ -43,6 +43,16 @@ const CoordinatesSchema = new Schema(
   { _id: false }
 );
 
+const InternalNoteSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    body: { type: String, required: true, trim: true, maxlength: 1000 },
+    author: { type: String, required: true, trim: true },
+    createdAt: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const AddOnsSchema = new Schema(
   {
     stainTreatment: { type: Boolean, default: false },
@@ -93,6 +103,8 @@ const BookingSchema = new Schema(
       index: true,
     },
     assignedDriverId: { type: String, trim: true, index: true, sparse: true },
+    /** Ops-only internal notes — never exposed on public booking APIs */
+    notes: { type: [InternalNoteSchema], default: [] },
     createdAt: { type: String, required: true },
   },
   {
