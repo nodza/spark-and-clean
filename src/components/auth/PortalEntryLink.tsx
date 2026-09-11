@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { isPersistedClient } from "@/types/user";
+import { isFullAccount, isPersistedClient } from "@/types/user";
+import { homeForRole } from "@/lib/accessControl";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared portal entry: logged-out customers → /login,
- * full client accounts → /portal. Guest checkout is treated as logged out.
+ * Shared workspace / portal entry from marketing surfaces (Home, hero, etc.):
+ * - logged out → /login
+ * - client → /portal (My Bookings)
+ * - admin → /admin
+ * - technician → /tech/dashboard
+ * Guest checkout JWTs are treated as logged out.
  */
 export function usePortalEntry() {
   const { user, ready } = useAuth();
-  const isClient = isPersistedClient(user);
 
   if (!ready) {
     return {
@@ -22,22 +26,30 @@ export function usePortalEntry() {
     };
   }
 
-  if (isClient) {
+  if (isPersistedClient(user)) {
     return {
       ready: true as const,
-      href: "/portal" as const,
+      href: homeForRole("client"),
       label: "My Bookings" as const,
       show: true as const,
     };
   }
 
-  if (user) {
-    // Admin / technician: client portal link is not shown
+  if (isFullAccount(user) && user.role === "admin") {
     return {
       ready: true as const,
-      href: "/login" as const,
-      label: "View My Booking" as const,
-      show: false as const,
+      href: homeForRole("admin"),
+      label: "Go to Dashboard" as const,
+      show: true as const,
+    };
+  }
+
+  if (isFullAccount(user) && user.role === "technician") {
+    return {
+      ready: true as const,
+      href: homeForRole("technician"),
+      label: "Go to Dashboard" as const,
+      show: true as const,
     };
   }
 

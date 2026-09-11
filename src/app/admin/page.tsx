@@ -90,9 +90,9 @@ export default function AdminDashboard() {
 
   return (
     <AdminPortalShell
-      pageTitle="Overview"
-      active="overview"
-      bookingsBadge={bookings.length || 12}
+      pageTitle="Dashboard"
+      active="dashboard"
+      bookingsBadge={bookings.length || undefined}
       topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">

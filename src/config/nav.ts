@@ -1,9 +1,11 @@
 import type { UserRole } from "@/types/user";
+import { homeForRole } from "@/lib/accessControl";
 
 /**
  * Marketing chrome nav (SCW-34).
  * Shared source of truth for desktop nav and mobile menu.
- * Never includes /admin or /tech.
+ * Anonymous visitors never see /admin or /tech.
+ * Signed-in staff get a clear path back to their workspace from Home.
  */
 
 export type MarketingNavLink = {
@@ -50,9 +52,37 @@ type MarketingNavAuthInput = {
   role?: UserRole | null;
 };
 
+/** Signed-in workspace entry shown on the marketing header / Home. */
+export function getWorkspaceNavLink(
+  role: UserRole
+): MarketingNavLink {
+  if (role === "admin") {
+    return {
+      id: "workspace",
+      label: "Dashboard",
+      href: homeForRole("admin"),
+      emphasize: true,
+    };
+  }
+  if (role === "technician") {
+    return {
+      id: "workspace",
+      label: "Dashboard",
+      href: homeForRole("technician"),
+      emphasize: true,
+    };
+  }
+  return {
+    id: "portal",
+    label: "My Bookings",
+    href: homeForRole("client"),
+    emphasize: true,
+  };
+}
+
 /**
  * Desktop center nav (historical layout):
- * Home / Services / Contact + Login (logged out) or My Bookings (client).
+ * Home / Services / Contact + Login (logged out) or workspace link (signed in).
  * Sign up / Log out / View My Booking stay in the CTA strip or mobile menu.
  */
 export function getMarketingDesktopNavItems({
@@ -62,17 +92,8 @@ export function getMarketingDesktopNavItems({
   const items: MarketingNavLink[] = [...MARKETING_CORE_LINKS];
   if (!ready) return items;
 
-  if (role === "client") {
-    items.push({
-      id: "portal",
-      label: "My Bookings",
-      href: "/portal",
-      emphasize: true,
-    });
-    return items;
-  }
-
-  if (role === "admin" || role === "technician") {
+  if (role === "client" || role === "admin" || role === "technician") {
+    items.push(getWorkspaceNavLink(role));
     return items;
   }
 
@@ -90,20 +111,11 @@ export function getMarketingAuthNavItems({
 }: MarketingNavAuthInput): MarketingNavItem[] {
   if (!ready) return [];
 
-  if (role === "client") {
+  if (role === "client" || role === "admin" || role === "technician") {
     return [
-      {
-        id: "portal",
-        label: "My Bookings",
-        href: "/portal",
-        emphasize: true,
-      },
+      getWorkspaceNavLink(role),
       { id: "logout", label: "Log out", action: "logout" },
     ];
-  }
-
-  if (role === "admin" || role === "technician") {
-    return [{ id: "logout", label: "Log out", action: "logout" }];
   }
 
   return [

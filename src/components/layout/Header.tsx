@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Marketing site header (SCW-34).
- * Never advertises /admin or /tech.
+ * Does not advertise /admin or /tech to anonymous visitors.
+ * Signed-in users get a Dashboard / My Bookings link back to their workspace.
  * Desktop keeps the historical nav + CTA layout; mobile uses a hamburger sheet.
  * Leftover guest JWTs are treated as logged out (SCW-30).
  * Client portal CTAs use /portal (SCW-32).
