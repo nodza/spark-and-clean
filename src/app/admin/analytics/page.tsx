@@ -2,14 +2,28 @@
 
 import { useBookingStore } from "@/store/useBookingStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
+} from "recharts";
+import {
+  AdminBackLink,
+  AdminPortalShell,
+} from "@/components/admin/AdminPortalShell";
 
 export default function AdminAnalytics() {
-  const router = useRouter();
   const { bookings, fetchBookings } = useBookingStore();
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
 
@@ -89,129 +103,179 @@ export default function AdminAnalytics() {
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
   return (
-    <div className="container mx-auto py-10 px-4">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-      </Button>
+    <AdminPortalShell pageTitle="Analytics" active="analytics">
+      <div className="portal-page">
+        <AdminBackLink href="/admin" label="Back to Dashboard" />
 
-      <h1 className="text-3xl font-bold mb-8">Analytics & Reports</h1>
+        <h1
+          className="mt-6 mb-8 text-[22px] font-extrabold sm:text-[28px]"
+          style={{ color: "#000b49" }}
+        >
+          Analytics & Reports
+        </h1>
 
-      {/* Revenue Trends */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Revenue Trends (Last 30 Days)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={revenueByDay}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip formatter={(value) => `R${value}`} />
-              <Line type="monotone" dataKey="revenue" stroke="#0088FE" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <div className="grid md:grid-cols-2 gap-8 mb-8">
-        <Card>
+        {/* Revenue Trends */}
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Bookings by Area</CardTitle>
+            <CardTitle>Revenue Trends (Last 30 Days)</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={areaData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => {
-                    const pct = typeof percent === "number" ? percent : 0;
-                    return `${name} ${(pct * 100).toFixed(0)}%`;
-                  }}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {areaData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Popular Rug Types</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={typeData}>
+              <LineChart data={revenueByDay}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#0088FE" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Driver Performance */}
-      <div className="grid md:grid-cols-2 gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Driver Performance</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={driverData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="completed" fill="#00C49F" name="Completed" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="active" fill="#FFBB28" name="Active" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value) => `R${value}`} />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#0088FE"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Key Metrics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Total Revenue</span>
-                <span className="text-2xl font-bold text-primary">
-                  R{bookings.reduce((sum, b) => sum + ((b.estimatedPriceMin + b.estimatedPriceMax) / 2), 0).toLocaleString()}
-                </span>
+        <div className="mb-8 grid gap-8 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bookings by Area</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={areaData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => {
+                      const pct = typeof percent === "number" ? percent : 0;
+                      return `${name} ${(pct * 100).toFixed(0)}%`;
+                    }}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {areaData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Popular Rug Types</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={typeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar
+                    dataKey="value"
+                    fill="#0088FE"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Driver Performance */}
+        <div className="grid gap-8 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Driver Performance</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={driverData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar
+                    dataKey="completed"
+                    fill="#00C49F"
+                    name="Completed"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="active"
+                    fill="#FFBB28"
+                    name="Active"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Key Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
+                  <span className="font-medium">Total Revenue</span>
+                  <span className="text-2xl font-bold text-primary">
+                    R
+                    {bookings
+                      .reduce(
+                        (sum, b) =>
+                          sum +
+                          (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
+                        0
+                      )
+                      .toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
+                  <span className="font-medium">Avg. Job Value</span>
+                  <span className="text-2xl font-bold text-primary">
+                    R
+                    {Math.round(
+                      bookings.reduce(
+                        (sum, b) =>
+                          sum +
+                          (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
+                        0
+                      ) / (bookings.length || 1)
+                    ).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
+                  <span className="font-medium">Completion Rate</span>
+                  <span className="text-2xl font-bold text-primary">
+                    {Math.round(
+                      (bookings.filter((b) => b.status === "DELIVERED")
+                        .length /
+                        (bookings.length || 1)) *
+                        100
+                    )}
+                    %
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-4 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Avg. Job Value</span>
-                <span className="text-2xl font-bold text-primary">
-                  R{Math.round(bookings.reduce((sum, b) => sum + ((b.estimatedPriceMin + b.estimatedPriceMax) / 2), 0) / bookings.length).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-secondary/20 rounded-lg">
-                <span className="font-medium">Completion Rate</span>
-                <span className="text-2xl font-bold text-primary">
-                  {Math.round((bookings.filter(b => b.status === "DELIVERED").length / bookings.length) * 100)}%
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </AdminPortalShell>
   );
 }

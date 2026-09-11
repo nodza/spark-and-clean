@@ -3,8 +3,26 @@ import {
   getMarketingDesktopNavItems,
   getMarketingMobileMenuItems,
   getMarketingNavItems,
+  getWorkspaceNavLink,
   isMarketingNavAction,
 } from "@/config/nav";
+
+describe("getWorkspaceNavLink", () => {
+  it("sends each role to their home workspace", () => {
+    expect(getWorkspaceNavLink("client")).toMatchObject({
+      href: "/portal",
+      label: "My Bookings",
+    });
+    expect(getWorkspaceNavLink("admin")).toMatchObject({
+      href: "/admin",
+      label: "Dashboard",
+    });
+    expect(getWorkspaceNavLink("technician")).toMatchObject({
+      href: "/tech/dashboard",
+      label: "Dashboard",
+    });
+  });
+});
 
 describe("getMarketingDesktopNavItems", () => {
   it("shows core links only while auth is not ready", () => {
@@ -21,16 +39,21 @@ describe("getMarketingDesktopNavItems", () => {
     ).toEqual(["home", "services", "contact", "login"]);
   });
 
-  it("adds My Bookings for clients (not Sign up / Log out)", () => {
+  it("adds My Bookings for clients", () => {
     expect(
       getMarketingDesktopNavItems({ ready: true, role: "client" }).map((i) => i.id)
     ).toEqual(["home", "services", "contact", "portal"]);
   });
 
-  it("shows only core links for staff", () => {
+  it("adds Dashboard for admin and technician", () => {
     expect(
       getMarketingDesktopNavItems({ ready: true, role: "admin" }).map((i) => i.id)
-    ).toEqual(["home", "services", "contact"]);
+    ).toEqual(["home", "services", "contact", "workspace"]);
+    expect(
+      getMarketingDesktopNavItems({ ready: true, role: "technician" }).map(
+        (i) => i.id
+      )
+    ).toEqual(["home", "services", "contact", "workspace"]);
   });
 });
 
@@ -46,7 +69,7 @@ describe("getMarketingNavItems / mobile menu", () => {
     ]);
   });
 
-  it("includes logout for clients and staff", () => {
+  it("includes workspace + logout for clients and staff", () => {
     const client = getMarketingNavItems({ ready: true, role: "client" });
     expect(client.map((i) => i.id)).toEqual([
       "home",
@@ -59,7 +82,11 @@ describe("getMarketingNavItems / mobile menu", () => {
 
     expect(
       getMarketingNavItems({ ready: true, role: "technician" }).map((i) => i.id)
-    ).toEqual(["home", "services", "contact", "logout"]);
+    ).toEqual(["home", "services", "contact", "workspace", "logout"]);
+
+    expect(
+      getMarketingNavItems({ ready: true, role: "admin" }).map((i) => i.id)
+    ).toEqual(["home", "services", "contact", "workspace", "logout"]);
   });
 
   it("includes book in the mobile menu list", () => {
