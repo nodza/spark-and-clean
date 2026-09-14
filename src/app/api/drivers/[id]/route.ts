@@ -5,8 +5,12 @@ import { toClientDriver } from "@/lib/serialize";
 import { getSession } from "@/lib/session";
 import { Types } from "mongoose";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     await connectDB();
     const session = await getSession();
     
@@ -19,37 +23,38 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     let driver = null;
     
     // Strategy 1: Lookup by business id field
-    driver = await Driver.findOne({ id: params.id }).lean();
+    driver = await Driver.findOne({ id }).lean();
     
     // Strategy 2: Lookup by MongoDB _id if it's a valid ObjectId
-    if (!driver && Types.ObjectId.isValid(params.id)) {
-      driver = await Driver.findById(params.id).lean();
+    if (!driver && Types.ObjectId.isValid(id)) {
+      driver = await Driver.findById(id).lean();
     }
     
     // Strategy 3: Lookup by name (case-insensitive)
     if (!driver) {
-      driver = await Driver.findOne({ name: { $regex: params.id, $options: "i" } }).lean();
+      driver = await Driver.findOne({ name: { $regex: id, $options: "i" } }).lean();
     }
     
     if (!driver) {
-      console.error(`[api/drivers/[id]] Driver not found for id: "${params.id}". Tried: id field, ObjectId, name`);
+      console.error(`[api/drivers/[id]] Driver not found for id: "${id}". Tried: id field, ObjectId, name`);
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
-    console.log(`[api/drivers/[id]] Found driver: ${(driver as any).name} (lookup: ${params.id})`);
+    console.log(`[api/drivers/[id]] Found driver: ${driver.name} (lookup: ${id})`);
     return NextResponse.json(toClientDriver(driver as Record<string, unknown>));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch driver";
-    console.error("[api/drivers/[id] GET]", message, { id: params.id });
+    console.error("[api/drivers/[id] GET]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await connectDB();
     const session = await getSession();
     
@@ -72,14 +77,14 @@ export async function PATCH(
 
     // Try lookup by business id first, then by MongoDB _id
     let driver = await Driver.findOneAndUpdate(
-      { id: params.id },
+      { id },
       { $set: sanitizedUpdates },
       { new: true }
     ).lean();
     
-    if (!driver && Types.ObjectId.isValid(params.id)) {
+    if (!driver && Types.ObjectId.isValid(id)) {
       driver = await Driver.findByIdAndUpdate(
-        params.id,
+        id,
         { $set: sanitizedUpdates },
         { new: true }
       ).lean();

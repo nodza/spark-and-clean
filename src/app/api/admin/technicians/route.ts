@@ -24,7 +24,13 @@ export async function GET() {
     await requireFullAdmin();
     await connectDB();
 
-    const techs = await User.find({ role: "technician" })
+    // Operations manages technicians through their linked driver profiles.
+    // Older standalone login records remain available in the database but do
+    // not belong in the technician directory.
+    const techs = await User.find({
+      role: "technician",
+      driverProfileId: { $exists: true, $ne: null },
+    })
       .sort({ name: 1, email: 1 })
       .lean();
 

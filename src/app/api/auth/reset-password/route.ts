@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
     // updateOne avoids document.save() middleware pitfalls under Next.js HMR
     await User.updateOne(
-      { _id: userId },
+      { _id: userId } as unknown as Parameters<typeof User.updateOne>[0],
       {
         $set: {
           passwordHash,

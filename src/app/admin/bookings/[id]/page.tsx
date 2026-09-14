@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, User } from "lucide-react";
 import { format } from "date-fns";
 
-type DriverOption = { id: string; name: string; vehicle: string };
+type DriverOption = { id: string; name: string; vehicle: string; isActive: boolean };
 
 const STATUS_OPTIONS: BookingStatus[] = [
   "BOOKED", "SCHEDULED", "COLLECTED", "CLEANING", "DRYING", "READY", "DELIVERED"
@@ -32,7 +32,9 @@ export default function AdminBookingDetail() {
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setDrivers(data);
+        if (Array.isArray(data)) {
+          setDrivers(data.filter((driver): driver is DriverOption => driver.isActive));
+        }
       })
       .catch(() => setDrivers([]));
   }, [fetchBookings]);

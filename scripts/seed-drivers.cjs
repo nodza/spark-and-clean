@@ -8,18 +8,18 @@ const path = require("path");
 const mongoose = require("mongoose");
 
 function loadMongoUri() {
-  const envPath = path.join(__dirname, "..", ".env");
-  if (!fs.existsSync(envPath)) {
-    throw new Error("Missing .env — add MONGODB_URI first.");
+  for (const name of [".env.local", ".env"]) {
+    const envPath = path.join(__dirname, "..", name);
+    if (!fs.existsSync(envPath)) continue;
+    const raw = fs.readFileSync(envPath, "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const match = trimmed.match(/^MONGODB_URI=(.*)$/);
+      if (match) return match[1].trim().replace(/^["']|["']$/g, "");
+    }
   }
-  const raw = fs.readFileSync(envPath, "utf8");
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const match = trimmed.match(/^MONGODB_URI=(.*)$/);
-    if (match) return match[1].trim().replace(/^["']|["']$/g, "");
-  }
-  throw new Error("MONGODB_URI not found in .env");
+  throw new Error("MONGODB_URI not found in .env.local or .env");
 }
 
 const DriverSchema = new mongoose.Schema(
