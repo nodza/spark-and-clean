@@ -10,6 +10,7 @@ const DriverSchema = new Schema(
     email: { type: String, lowercase: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },
     city: { type: String, trim: true },
+    notes: { type: String, trim: true },
   },
   {
     timestamps: true,

@@ -24,7 +24,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
-type DriverOption = { id: string; name: string; vehicle?: string };
+type DriverOption = {
+  id: string;
+  name: string;
+  vehicle?: string;
+  isActive?: boolean;
+};
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -99,7 +104,13 @@ export default function AdminBookingDetail() {
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && Array.isArray(data)) setDrivers(data);
+        if (Array.isArray(data)) {
+          setDrivers(
+            data.filter(
+              (driver): driver is DriverOption => driver?.isActive !== false
+            )
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setDrivers([]);

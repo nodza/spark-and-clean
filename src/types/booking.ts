@@ -68,5 +68,10 @@ export interface Booking {
 export interface Driver {
   id: string;
   name: string;
+  phone: string;
+  email?: string;
   vehicle: string;
+  isActive: boolean;
+  city?: string;
+  notes?: string;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -32,6 +33,7 @@ type TechnicianRow = {
   name?: string;
   email: string;
   phone?: string;
+  driverProfileId?: string;
   vehicle?: string | null;
   disabledAt?: string | null;
   lastLoginAt?: string;
@@ -290,7 +292,11 @@ export default function AdminTechniciansPage() {
 
         <div className="grid grid-cols-1 gap-[14px] md:grid-cols-2 xl:grid-cols-3">
           {technicians.map((t) => (
-            <div key={t.id} className="ds-card">
+            <Link
+              key={t.id}
+              href={`/admin/technicians/${t.id}`}
+              className="ds-card block transition-shadow hover:shadow-md"
+            >
               <div className="flex items-center gap-[13px]">
                 <div
                   className="flex size-[46px] flex-none items-center justify-center rounded-full text-[16px] font-extrabold"
@@ -329,7 +335,7 @@ export default function AdminTechniciansPage() {
                   Must change password on next login
                 </div>
               ) : null}
-            </div>
+            </Link>
           ))}
         </div>
 
