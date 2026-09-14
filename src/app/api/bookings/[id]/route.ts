@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { Driver } from "@/models/Driver";
+import { User } from "@/models/User";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
 import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
@@ -153,11 +154,21 @@ export async function PATCH(request: Request, { params }: Params) {
       } else {
         const driver = await Driver.findOne({
           id: nextDriver,
-          isActive: true,
+          $or: [{ isActive: true }, { isActive: { $exists: false } }],
         })
           .select({ id: 1 })
           .lean();
-        if (!driver) {
+        const tech = driver
+          ? null
+          : await User.findOne({
+              role: "technician",
+              driverProfileId: nextDriver,
+              disabledAt: null,
+              $or: [{ isActive: true }, { isActive: { $exists: false } }],
+            })
+              .select({ _id: 1 })
+              .lean();
+        if (!driver && !tech) {
           return NextResponse.json(
             { error: "Unknown or inactive driver" },
             { status: 400 }

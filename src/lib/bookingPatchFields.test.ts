@@ -7,6 +7,7 @@ import {
 describe("bookingPatchFields", () => {
   it("allowlists known booking statuses", () => {
     expect(isBookingStatus("CLEANING")).toBe(true);
+    expect(isBookingStatus("CANCELLED")).toBe(true);
     expect(isBookingStatus("HACKED")).toBe(false);
     expect(isBookingStatus(null)).toBe(false);
   });

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
-import { BookingStatus, PaymentStatus } from "@/types/booking";
+import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import type { BookingStatus, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,17 +22,9 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, User } from "lucide-react";
 import { format } from "date-fns";
 
-type DriverOption = { id: string; name: string; vehicle: string };
+type DriverOption = { id: string; name: string; vehicle?: string };
 
-const STATUS_OPTIONS: BookingStatus[] = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-];
+const STATUS_OPTIONS = BOOKING_STATUSES;
 
 export default function AdminBookingDetail() {
   const params = useParams();
@@ -283,14 +276,15 @@ export default function AdminBookingDetail() {
                   disabled={saving}
                   onValueChange={(val) => void handleAssign(val)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select driver" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
-                        {driver.name} ({driver.vehicle})
+                        {driver.name}
+                        {driver.vehicle ? ` (${driver.vehicle})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
