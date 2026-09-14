@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowLeft, User } from "lucide-react";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
-import { BookingStatus, PaymentStatus, type InternalNote } from "@/types/booking";
+import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
+import type { BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,47 +24,46 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
-type DriverOption = { id: string; name: string; vehicle: string };
+type DriverOption = { id: string; name: string; vehicle?: string };
 
-const STATUS_OPTIONS: BookingStatus[] = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-];
+const STATUS_OPTIONS = BOOKING_STATUSES;
 
-const MAX_NOTE_LEN = 1000;
+function formatNoteTime(iso: string) {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
+}
 
 export default function AdminBookingDetail() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
   const {
     bookings,
-    fetchBookings,
+    fetchBookingById,
     updateBookingStatus,
     updatePaymentStatus,
     assignDriver,
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [loadDone, setLoadDone] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<InternalNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
+    setNotesError(null);
     try {
       const res = await fetch(`/api/bookings/${id}/notes`, {
         credentials: "include",
       });
       if (!res.ok) {
-        setNotes([]);
+        setNotesError("Could not load notes");
         return;
       }
       const data = await res.json();
@@ -68,30 +71,49 @@ export default function AdminBookingDetail() {
       list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       setNotes(list);
     } catch {
-      setNotes([]);
+      setNotesError("Could not load notes");
     } finally {
       setNotesLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    void fetchBookings();
+    let cancelled = false;
+    setLoadDone(false);
+    setNotFound(false);
+
+    void fetchBookingById(id)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) setNotFound(true);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadDone(true);
+      });
+
     void loadNotes();
+
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setDrivers(data);
+        if (!cancelled && Array.isArray(data)) setDrivers(data);
       })
-      .catch(() => setDrivers([]));
-  }, [fetchBookings, loadNotes]);
+      .catch(() => {
+        if (!cancelled) setDrivers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchBookingById, id, loadNotes]);
 
   const addNote = async () => {
     const body = noteDraft.trim();
     setNoteError(null);
-    if (!body) {
-      setNoteError("Note cannot be empty");
-      return;
-    }
+    if (!body) return;
     if (body.length > MAX_NOTE_LEN) {
       setNoteError(`Note must be at most ${MAX_NOTE_LEN} characters`);
       return;
@@ -115,6 +137,7 @@ export default function AdminBookingDetail() {
       const created = data.note as InternalNote | undefined;
       if (created) {
         setNotes((prev) => [created, ...prev]);
+        setNotesError(null);
       } else {
         await loadNotes();
       }
@@ -126,12 +149,69 @@ export default function AdminBookingDetail() {
     }
   };
 
-  if (!booking) return <div className="p-10">Loading...</div>;
+  const handleStatus = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updateBookingStatus(booking.id, val as BookingStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssign = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const driverId = val === "unassigned" ? null : val;
+      const error = await assignDriver(booking.id, driverId);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePayment = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updatePaymentStatus(booking.id, val as PaymentStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loadDone && !booking) {
+    return (
+      <div className="p-10" role="status">
+        Loading...
+      </div>
+    );
+  }
+
+  if (notFound || (loadDone && !booking)) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-10">
+        <p className="mb-4 text-muted-foreground">Booking not found.</p>
+        <Button asChild variant="outline">
+          <Link href="/admin/bookings">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!booking) return null;
 
   return (
     <div className="container mx-auto py-10 px-4 max-w-4xl">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+      <Button asChild variant="ghost" className="mb-6">
+        <Link href="/admin/bookings">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+        </Link>
       </Button>
 
       <div className="flex justify-between items-start mb-8">
@@ -244,7 +324,9 @@ export default function AdminBookingDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="internal-note">Internal note</Label>
                 <Textarea
+                  id="internal-note"
                   value={noteDraft}
                   onChange={(e) => {
                     setNoteDraft(e.target.value);
@@ -253,29 +335,51 @@ export default function AdminBookingDetail() {
                   placeholder="Gate code, dog on site, customer will EFT after collection…"
                   maxLength={MAX_NOTE_LEN}
                   rows={3}
+                  aria-invalid={noteError ? true : undefined}
+                  aria-describedby={noteError ? "internal-note-error" : undefined}
                 />
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
                     {noteDraft.trim().length}/{MAX_NOTE_LEN}
-                    {noteError ? (
-                      <span className="text-destructive ml-2">{noteError}</span>
-                    ) : null}
                   </p>
                   <Button
                     type="button"
                     size="sm"
-                    disabled={noteSaving}
+                    disabled={noteSaving || !noteDraft.trim()}
                     onClick={() => void addNote()}
                   >
                     {noteSaving ? "Adding…" : "Add"}
                   </Button>
                 </div>
+                {noteError ? (
+                  <p
+                    id="internal-note-error"
+                    role="alert"
+                    className="text-xs text-destructive"
+                  >
+                    {noteError}
+                  </p>
+                ) : null}
               </div>
 
               <Separator />
 
               {notesLoading ? (
                 <p className="text-sm text-muted-foreground">Loading notes…</p>
+              ) : notesError ? (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-destructive" role="alert">
+                    {notesError}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadNotes()}
+                  >
+                    Retry
+                  </Button>
+                </div>
               ) : notes.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
                   No internal notes yet.
@@ -291,7 +395,7 @@ export default function AdminBookingDetail() {
                       <p className="mt-2 text-xs text-muted-foreground">
                         {note.author}
                         {" · "}
-                        {format(new Date(note.createdAt), "PPp")}
+                        {formatNoteTime(note.createdAt)}
                       </p>
                     </li>
                   ))}
@@ -311,9 +415,8 @@ export default function AdminBookingDetail() {
                 <Label>Current Status</Label>
                 <Select
                   value={booking.status}
-                  onValueChange={(val) =>
-                    updateBookingStatus(booking.id, val as BookingStatus)
-                  }
+                  disabled={saving}
+                  onValueChange={(val) => void handleStatus(val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -332,18 +435,18 @@ export default function AdminBookingDetail() {
                 <Label>Assign Driver</Label>
                 <Select
                   value={booking.assignedDriverId || "unassigned"}
-                  onValueChange={(val) => assignDriver(booking.id, val)}
+                  disabled={saving}
+                  onValueChange={(val) => void handleAssign(val)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select driver" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned" disabled>
-                      Select driver...
-                    </SelectItem>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
-                        {driver.name} ({driver.vehicle})
+                        {driver.name}
+                        {driver.vehicle ? ` (${driver.vehicle})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -359,24 +462,23 @@ export default function AdminBookingDetail() {
             <CardContent>
               <RadioGroup
                 value={booking.paymentStatus}
-                onValueChange={(val) =>
-                  updatePaymentStatus(booking.id, val as PaymentStatus)
-                }
+                disabled={saving}
+                onValueChange={(val) => void handlePayment(val)}
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="UNPAID" id="unpaid" />
+                  <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
                   <Label htmlFor="unpaid" className="text-destructive font-medium">
                     Unpaid
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="DEPOSIT" id="deposit" />
+                  <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
                   <Label htmlFor="deposit" className="text-orange-500 font-medium">
                     Deposit Paid
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAID" id="paid" />
+                  <RadioGroupItem value="PAID" id="paid" disabled={saving} />
                   <Label htmlFor="paid" className="text-green-600 font-medium">
                     Paid in Full
                   </Label>

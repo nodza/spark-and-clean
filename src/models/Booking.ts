@@ -1,17 +1,9 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import type { BookingStatus, PaymentStatus } from "@/types/booking";
-
-const BOOKING_STATUSES: BookingStatus[] = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-];
-
-const PAYMENT_STATUSES: PaymentStatus[] = ["UNPAID", "DEPOSIT", "PAID"];
+import {
+  BOOKING_STATUSES,
+  PAYMENT_STATUSES,
+} from "@/lib/bookingPatchFields";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 
 const CustomerSchema = new Schema(
   {
@@ -46,7 +38,7 @@ const CoordinatesSchema = new Schema(
 const InternalNoteSchema = new Schema(
   {
     id: { type: String, required: true },
-    body: { type: String, required: true, trim: true, maxlength: 1000 },
+    body: { type: String, required: true, trim: true, maxlength: MAX_NOTE_LEN },
     author: { type: String, required: true, trim: true },
     createdAt: { type: String, required: true },
   },

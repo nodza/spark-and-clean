@@ -3,11 +3,10 @@ import { randomBytes } from "node:crypto";
 import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
+import { MAX_NOTE_LEN, MAX_NOTES_KEPT } from "@/lib/internalNotes";
 import type { InternalNote } from "@/types/booking";
 
 type Params = { params: Promise<{ id: string }> };
-
-const MAX_NOTE_LEN = 1000;
 
 function toNote(raw: Record<string, unknown>): InternalNote {
   return {
@@ -50,13 +49,8 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const session = await requireFullAdmin();
     const { id } = await params;
-    const body = await request.json().catch(() => ({}));
-    const text =
-      typeof body.body === "string"
-        ? body.body.trim()
-        : typeof body.text === "string"
-          ? body.text.trim()
-          : "";
+    const payload = await request.json().catch(() => ({}));
+    const text = typeof payload.body === "string" ? payload.body.trim() : "";
 
     if (!text) {
       return NextResponse.json(
@@ -74,14 +68,21 @@ export async function POST(request: Request, { params }: Params) {
     const note: InternalNote = {
       id: `note_${Date.now()}_${randomBytes(3).toString("hex")}`,
       body: text,
-      author: session.name?.trim() || "Ops",
+      author: session.name?.trim() || session.email?.trim() || "Ops",
       createdAt: new Date().toISOString(),
     };
 
     await connectDB();
     const doc = await Booking.findOneAndUpdate(
       { id },
-      { $push: { notes: note } },
+      {
+        $push: {
+          notes: {
+            $each: [note],
+            $slice: -MAX_NOTES_KEPT,
+          },
+        },
+      },
       { new: true }
     )
       .select({ notes: 1, id: 1 })
