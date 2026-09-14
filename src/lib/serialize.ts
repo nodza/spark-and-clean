@@ -8,6 +8,9 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   if (userId != null) {
     booking.userId = String(userId);
   }
+  if (!booking.assignedDriverId) {
+    delete booking.assignedDriverId;
+  }
   return booking;
 }
 

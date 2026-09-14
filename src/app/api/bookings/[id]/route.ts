@@ -64,20 +64,25 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const body = await request.json();
-    const updates: Record<string, unknown> = {};
+    const $set: Record<string, unknown> = {};
+    const $unset: Record<string, unknown> = {};
 
-    if (body.status) updates.status = body.status as BookingStatus;
+    if (body.status) $set.status = body.status as BookingStatus;
     if (body.paymentStatus) {
-      updates.paymentStatus = body.paymentStatus as PaymentStatus;
+      $set.paymentStatus = body.paymentStatus as PaymentStatus;
     }
     if (body.assignedDriverId !== undefined) {
-      updates.assignedDriverId = body.assignedDriverId;
-      if (body.assignedDriverId && !body.status) {
-        updates.status = "SCHEDULED";
+      if (body.assignedDriverId) {
+        $set.assignedDriverId = body.assignedDriverId;
+        if (!body.status) {
+          $set.status = "SCHEDULED";
+        }
+      } else {
+        $unset.assignedDriverId = 1;
       }
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys($set).length === 0 && Object.keys($unset).length === 0) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
@@ -92,7 +97,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!session.driverProfileId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-      if (body.paymentStatus || body.assignedDriverId) {
+      if (body.paymentStatus !== undefined || body.assignedDriverId !== undefined) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
@@ -110,11 +115,14 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
-    const doc = await Booking.findOneAndUpdate(
-      { id },
-      { $set: updates },
-      { new: true }
-    ).lean();
+    const updateOp: { $set?: Record<string, unknown>; $unset?: Record<string, unknown> } =
+      {};
+    if (Object.keys($set).length > 0) updateOp.$set = $set;
+    if (Object.keys($unset).length > 0) updateOp.$unset = $unset;
+
+    const doc = await Booking.findOneAndUpdate({ id }, updateOp, {
+      new: true,
+    }).lean();
 
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

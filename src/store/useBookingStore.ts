@@ -14,7 +14,7 @@ interface BookingState {
   addBooking: (booking: Booking) => Promise<Booking | undefined>;
   updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
   updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<void>;
-  assignDriver: (id: string, driverId: string) => Promise<void>;
+  assignDriver: (id: string, driverId: string | null) => Promise<void>;
 }
 
 /**
@@ -45,8 +45,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const booking = await bookingService.getBookingById(id);
       if (booking) {
         set((state) => {
-          const others = state.bookings.filter((b) => b.id !== id);
-          return { bookings: [...others, booking] };
+          const idx = state.bookings.findIndex((b) => b.id === id);
+          if (idx === -1) {
+            return { bookings: [booking, ...state.bookings] };
+          }
+          const next = [...state.bookings];
+          next[idx] = booking;
+          return { bookings: next };
         });
       }
       return booking;
@@ -87,7 +92,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }));
     } catch {
       set({ error: "Failed to update status", bookings: prev });
-      await get().fetchBookings();
+      await get().fetchBookings({ silent: true });
     }
   },
 
@@ -105,7 +110,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }));
     } catch {
       set({ error: "Failed to update payment", bookings: prev });
-      await get().fetchBookings();
+      await get().fetchBookings({ silent: true });
     }
   },
 
@@ -114,7 +119,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     set({
       bookings: prev.map((b) =>
         b.id === id
-          ? { ...b, assignedDriverId: driverId, status: "SCHEDULED" }
+          ? {
+              ...b,
+              assignedDriverId: driverId || undefined,
+              status: driverId ? "SCHEDULED" : b.status,
+            }
           : b
       ),
     });
@@ -125,7 +134,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       }));
     } catch {
       set({ error: "Failed to assign driver", bookings: prev });
-      await get().fetchBookings();
+      await get().fetchBookings({ silent: true });
     }
   },
 }));

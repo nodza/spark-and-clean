@@ -53,7 +53,7 @@ class BookingService {
     return res.json();
   }
 
-  async assignDriver(id: string, driverId: string): Promise<Booking> {
+  async assignDriver(id: string, driverId: string | null): Promise<Booking> {
     const res = await fetch(`/api/bookings/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
