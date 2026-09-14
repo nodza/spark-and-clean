@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BookingStatus, PaymentStatus } from "@/types/booking";
@@ -34,11 +35,9 @@ const STATUS_OPTIONS: BookingStatus[] = [
 
 export default function AdminBookingDetail() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
   const {
     bookings,
-    fetchBookings,
     fetchBookingById,
     updateBookingStatus,
     updatePaymentStatus,
@@ -46,46 +45,104 @@ export default function AdminBookingDetail() {
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [loadDone, setLoadDone] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetchBookings();
-    void fetchBookingById(id).catch(() => undefined);
+    let cancelled = false;
+    setLoadDone(false);
+    setNotFound(false);
+
+    void fetchBookingById(id)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) setNotFound(true);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadDone(true);
+      });
+
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setDrivers(data);
+        if (!cancelled && Array.isArray(data)) setDrivers(data);
       })
-      .catch(() => setDrivers([]));
-  }, [fetchBookings, fetchBookingById, id]);
+      .catch(() => {
+        if (!cancelled) setDrivers([]);
+      });
 
-  if (!booking) return <div className="p-10">Loading...</div>;
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchBookingById, id]);
 
   const handleStatus = async (val: string) => {
-    const ok = await updateBookingStatus(booking.id, val as BookingStatus);
-    if (!ok) {
-      toast.error(useBookingStore.getState().error || "Failed to update status");
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updateBookingStatus(booking.id, val as BookingStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAssign = async (val: string) => {
-    const driverId = val === "unassigned" ? null : val;
-    const ok = await assignDriver(booking.id, driverId);
-    if (!ok) {
-      toast.error(useBookingStore.getState().error || "Failed to assign driver");
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const driverId = val === "unassigned" ? null : val;
+      const error = await assignDriver(booking.id, driverId);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handlePayment = async (val: string) => {
-    const ok = await updatePaymentStatus(booking.id, val as PaymentStatus);
-    if (!ok) {
-      toast.error(useBookingStore.getState().error || "Failed to update payment");
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updatePaymentStatus(booking.id, val as PaymentStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
+  if (!loadDone && !booking) {
+    return (
+      <div className="p-10" role="status">
+        Loading...
+      </div>
+    );
+  }
+
+  if (notFound || (loadDone && !booking)) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-10">
+        <p className="mb-4 text-muted-foreground">Booking not found.</p>
+        <Button asChild variant="outline">
+          <Link href="/admin/bookings">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!booking) return null;
+
   return (
     <div className="container mx-auto py-10 px-4 max-w-4xl">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+      <Button asChild variant="ghost" className="mb-6">
+        <Link href="/admin/bookings">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+        </Link>
       </Button>
 
       <div className="flex justify-between items-start mb-8">
@@ -203,6 +260,7 @@ export default function AdminBookingDetail() {
                 <Label>Current Status</Label>
                 <Select
                   value={booking.status}
+                  disabled={saving}
                   onValueChange={(val) => void handleStatus(val)}
                 >
                   <SelectTrigger>
@@ -222,6 +280,7 @@ export default function AdminBookingDetail() {
                 <Label>Assign Driver</Label>
                 <Select
                   value={booking.assignedDriverId || "unassigned"}
+                  disabled={saving}
                   onValueChange={(val) => void handleAssign(val)}
                 >
                   <SelectTrigger>
@@ -247,22 +306,23 @@ export default function AdminBookingDetail() {
             <CardContent>
               <RadioGroup
                 value={booking.paymentStatus}
+                disabled={saving}
                 onValueChange={(val) => void handlePayment(val)}
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="UNPAID" id="unpaid" />
+                  <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
                   <Label htmlFor="unpaid" className="text-destructive font-medium">
                     Unpaid
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="DEPOSIT" id="deposit" />
+                  <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
                   <Label htmlFor="deposit" className="text-orange-500 font-medium">
                     Deposit Paid
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAID" id="paid" />
+                  <RadioGroupItem value="PAID" id="paid" disabled={saving} />
                   <Label htmlFor="paid" className="text-green-600 font-medium">
                     Paid in Full
                   </Label>

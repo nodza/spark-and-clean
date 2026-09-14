@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
+import { Driver } from "@/models/Driver";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
 import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
+import {
+  isBookingStatus,
+  isPaymentStatus,
+} from "@/lib/bookingPatchFields";
+import {
+  isHttpError,
+  requireFullAdminSession,
+} from "@/lib/adminAuth";
 import { isClientRole, isFullAccount } from "@/types/user";
-import type { BookingStatus, PaymentStatus } from "@/types/booking";
+import type { BookingStatus } from "@/types/booking";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,7 +45,6 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     if (session?.role === "technician") {
-      // Fail closed: missing profile or unassigned / other driver's job → 403
       if (
         !session.driverProfileId ||
         booking.assignedDriverId !== session.driverProfileId
@@ -56,6 +64,12 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
+/**
+ * Persist status / paymentStatus / assignedDriverId (null / omit via $unset).
+ *
+ * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
+ * their status. Full admin for ops writes; technicians status-only on assigned jobs.
+ */
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
@@ -89,14 +103,22 @@ export async function PATCH(request: Request, { params }: Params) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     } else if (session.role === "admin") {
-      if (session.adminTier !== "full") {
-        return NextResponse.json(
-          { error: "Full admin required for booking updates" },
-          { status: 403 }
-        );
-      }
+      requireFullAdminSession(session);
     } else {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (wantsStatus && !isBookingStatus(body.status)) {
+      return NextResponse.json(
+        { error: "Invalid status" },
+        { status: 400 }
+      );
+    }
+    if (wantsPayment && !isPaymentStatus(body.paymentStatus)) {
+      return NextResponse.json(
+        { error: "Invalid paymentStatus" },
+        { status: 400 }
+      );
     }
 
     await connectDB();
@@ -111,35 +133,60 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
-    const updates: Record<string, unknown> = {};
+    const $set: Record<string, unknown> = {};
+    const $unset: Record<string, ""> = {};
 
     if (wantsStatus) {
-      updates.status = body.status as BookingStatus;
+      $set.status = body.status as BookingStatus;
     }
     if (wantsPayment) {
-      updates.paymentStatus = body.paymentStatus as PaymentStatus;
+      $set.paymentStatus = body.paymentStatus;
     }
     if (wantsAssign) {
       const nextDriver =
         body.assignedDriverId === null || body.assignedDriverId === ""
           ? null
           : String(body.assignedDriverId);
-      updates.assignedDriverId = nextDriver;
+
+      if (nextDriver === null) {
+        $unset.assignedDriverId = "";
+      } else {
+        const driver = await Driver.findOne({
+          id: nextDriver,
+          isActive: true,
+        })
+          .select({ id: 1 })
+          .lean();
+        if (!driver) {
+          return NextResponse.json(
+            { error: "Unknown or inactive driver" },
+            { status: 400 }
+          );
+        }
+        $set.assignedDriverId = nextDriver;
+      }
 
       if (!wantsStatus) {
         const nextStatus = statusAfterDriverAssign(
           existing.status as BookingStatus,
           nextDriver
         );
-        if (nextStatus) updates.status = nextStatus;
+        if (nextStatus) $set.status = nextStatus;
       }
     }
 
-    const doc = await Booking.findOneAndUpdate(
-      { id },
-      { $set: updates },
-      { new: true }
-    ).lean();
+    const update: Record<string, unknown> = {};
+    if (Object.keys($set).length > 0) update.$set = $set;
+    if (Object.keys($unset).length > 0) update.$unset = $unset;
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+    }
+
+    const doc = await Booking.findOneAndUpdate({ id }, update, {
+      new: true,
+      runValidators: true,
+    }).lean();
 
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -147,6 +194,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
     return NextResponse.json(toClientBooking(doc as Record<string, unknown>));
   } catch (err) {
+    if (isHttpError(err)) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     const message = err instanceof Error ? err.message : "Failed to update booking";
     return NextResponse.json({ error: message }, { status: 500 });
   }

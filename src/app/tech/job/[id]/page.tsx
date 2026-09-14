@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +20,15 @@ export default function TechJobDetail() {
     void fetchBookings();
   }, [fetchBookings]);
 
-  if (!booking) return <div className="p-6">Loading job...</div>;
+  if (!booking) return <div className="p-6" role="status">Loading job...</div>;
 
   const handleStatusUpdate = async (newStatus: "COLLECTED" | "DELIVERED") => {
-    await updateBookingStatus(booking.id, newStatus);
-    router.back(); // Go back to dashboard after action
+    const error = await updateBookingStatus(booking.id, newStatus);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    router.back();
   };
 
   return (

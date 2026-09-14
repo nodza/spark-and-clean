@@ -13,14 +13,24 @@ interface BookingState {
   fetchBookings: (opts?: { silent?: boolean }) => Promise<void>;
   fetchBookingById: (id: string) => Promise<Booking | undefined>;
   addBooking: (booking: Booking) => Promise<Booking | undefined>;
-  updateBookingStatus: (id: string, status: BookingStatus) => Promise<boolean>;
-  updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<boolean>;
-  assignDriver: (id: string, driverId: string | null) => Promise<boolean>;
+  /** null = success; string = error message for toast */
+  updateBookingStatus: (
+    id: string,
+    status: BookingStatus
+  ) => Promise<string | null>;
+  updatePaymentStatus: (
+    id: string,
+    status: PaymentStatus
+  ) => Promise<string | null>;
+  assignDriver: (
+    id: string,
+    driverId: string | null
+  ) => Promise<string | null>;
 }
 
 /**
  * In-memory UI cache only — source of truth is Mongo via /api/bookings.
- * Optimistic updates roll back on PATCH failure.
+ * Optimistic updates roll back on PATCH failure (no silent list refetch).
  */
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
@@ -47,8 +57,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       if (booking) {
         set((state) => {
           const others = state.bookings.filter((b) => b.id !== id);
-          return { bookings: [...others, booking] };
+          return { bookings: [...others, booking], error: null };
         });
+      } else {
+        set((state) => ({
+          bookings: state.bookings.filter((b) => b.id !== id),
+        }));
       }
       return booking;
     } catch (err) {
@@ -87,13 +101,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-      return true;
+      return null;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update status";
       set({ error: message, bookings: prev });
-      await get().fetchBookings({ silent: true });
-      return false;
+      return message;
     }
   },
 
@@ -110,13 +123,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-      return true;
+      return null;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update payment";
       set({ error: message, bookings: prev });
-      await get().fetchBookings({ silent: true });
-      return false;
+      return message;
     }
   },
 
@@ -140,13 +152,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-      return true;
+      return null;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to assign driver";
       set({ error: message, bookings: prev });
-      await get().fetchBookings({ silent: true });
-      return false;
+      return message;
     }
   },
 }));
