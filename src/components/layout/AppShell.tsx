@@ -22,10 +22,6 @@ function shouldShowSupportFab(pathname: string) {
   return true;
 }
 
-// Paths where the global marketing header + footer should NOT appear.
-// Portal layouts (PortalLayout, TechLayout, AuthLayout) manage their own chrome.
-// `/book` and `/booking` keep marketing Header (desktop + mobile) for the booking flow.
-
 function isBookingFlowPath(pathname: string) {
   return (
     pathname === "/book" ||
@@ -33,6 +29,7 @@ function isBookingFlowPath(pathname: string) {
     pathname.startsWith("/booking")
   );
 }
+
 const PORTAL_PATHS = [
   "/admin",
   "/dashboard",

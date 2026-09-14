@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import { bookingService } from "@/services/bookingService";
+import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
 
 interface BookingState {
   bookings: Booking[];
@@ -12,14 +13,24 @@ interface BookingState {
   fetchBookings: (opts?: { silent?: boolean }) => Promise<void>;
   fetchBookingById: (id: string) => Promise<Booking | undefined>;
   addBooking: (booking: Booking) => Promise<Booking | undefined>;
-  updateBookingStatus: (id: string, status: BookingStatus) => Promise<void>;
-  updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<void>;
-  assignDriver: (id: string, driverId: string) => Promise<void>;
+  /** null = success; string = error message for toast */
+  updateBookingStatus: (
+    id: string,
+    status: BookingStatus
+  ) => Promise<string | null>;
+  updatePaymentStatus: (
+    id: string,
+    status: PaymentStatus
+  ) => Promise<string | null>;
+  assignDriver: (
+    id: string,
+    driverId: string | null
+  ) => Promise<string | null>;
 }
 
 /**
  * In-memory UI cache only — source of truth is Mongo via /api/bookings.
- * No localStorage persist (avoids stale offline bookings).
+ * Optimistic updates roll back on PATCH failure (no silent list refetch).
  */
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
@@ -46,8 +57,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       if (booking) {
         set((state) => {
           const others = state.bookings.filter((b) => b.id !== id);
-          return { bookings: [...others, booking] };
+          return { bookings: [...others, booking], error: null };
         });
+      } else {
+        set((state) => ({
+          bookings: state.bookings.filter((b) => b.id !== id),
+        }));
       }
       return booking;
     } catch (err) {
@@ -78,6 +93,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   updateBookingStatus: async (id, status) => {
     const prev = get().bookings;
     set({
+      error: null,
       bookings: prev.map((b) => (b.id === id ? { ...b, status } : b)),
     });
     try {
@@ -85,15 +101,19 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-    } catch {
-      set({ error: "Failed to update status", bookings: prev });
-      await get().fetchBookings();
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update status";
+      set({ error: message, bookings: prev });
+      return message;
     }
   },
 
   updatePaymentStatus: async (id, status) => {
     const prev = get().bookings;
     set({
+      error: null,
       bookings: prev.map((b) =>
         b.id === id ? { ...b, paymentStatus: status } : b
       ),
@@ -103,29 +123,41 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-    } catch {
-      set({ error: "Failed to update payment", bookings: prev });
-      await get().fetchBookings();
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update payment";
+      set({ error: message, bookings: prev });
+      return message;
     }
   },
 
   assignDriver: async (id, driverId) => {
     const prev = get().bookings;
+    const nextDriver = driverId && driverId.length > 0 ? driverId : null;
     set({
-      bookings: prev.map((b) =>
-        b.id === id
-          ? { ...b, assignedDriverId: driverId, status: "SCHEDULED" }
-          : b
-      ),
+      error: null,
+      bookings: prev.map((b) => {
+        if (b.id !== id) return b;
+        const nextStatus = statusAfterDriverAssign(b.status, nextDriver);
+        return {
+          ...b,
+          assignedDriverId: nextDriver ?? undefined,
+          ...(nextStatus ? { status: nextStatus } : {}),
+        };
+      }),
     });
     try {
-      const updated = await bookingService.assignDriver(id, driverId);
+      const updated = await bookingService.assignDriver(id, nextDriver);
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));
-    } catch {
-      set({ error: "Failed to assign driver", bookings: prev });
-      await get().fetchBookings();
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to assign driver";
+      set({ error: message, bookings: prev });
+      return message;
     }
   },
 }));

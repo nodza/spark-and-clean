@@ -1,17 +1,8 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import type { BookingStatus, PaymentStatus } from "@/types/booking";
-
-const BOOKING_STATUSES: BookingStatus[] = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-];
-
-const PAYMENT_STATUSES: PaymentStatus[] = ["UNPAID", "DEPOSIT", "PAID"];
+import {
+  BOOKING_STATUSES,
+  PAYMENT_STATUSES,
+} from "@/lib/bookingPatchFields";
 
 const CustomerSchema = new Schema(
   {
