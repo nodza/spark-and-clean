@@ -64,6 +64,7 @@ export async function POST(request: Request) {
 
     const rest = { ...(body as Record<string, unknown>) };
     delete rest.userId;
+    delete rest.notes;
 
     const payload: Record<string, unknown> = {
       ...rest,

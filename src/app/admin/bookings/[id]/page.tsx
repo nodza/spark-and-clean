@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { format } from "date-fns";
+import { ArrowLeft, User } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
-import type { BookingStatus, PaymentStatus } from "@/types/booking";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
+import type { BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,12 +22,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, User } from "lucide-react";
-import { format } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
 
 type DriverOption = { id: string; name: string; vehicle?: string };
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
+
+function formatNoteTime(iso: string) {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
+}
 
 export default function AdminBookingDetail() {
   const params = useParams();
@@ -41,6 +48,34 @@ export default function AdminBookingDetail() {
   const [loadDone, setLoadDone] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const loadNotes = useCallback(async () => {
+    setNotesLoading(true);
+    setNotesError(null);
+    try {
+      const res = await fetch(`/api/bookings/${id}/notes`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setNotesError("Could not load notes");
+        return;
+      }
+      const data = await res.json();
+      const list: InternalNote[] = Array.isArray(data.notes) ? data.notes : [];
+      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setNotes(list);
+    } catch {
+      setNotesError("Could not load notes");
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +94,8 @@ export default function AdminBookingDetail() {
         if (!cancelled) setLoadDone(true);
       });
 
+    void loadNotes();
+
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
@@ -71,7 +108,46 @@ export default function AdminBookingDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchBookingById, id]);
+  }, [fetchBookingById, id, loadNotes]);
+
+  const addNote = async () => {
+    const body = noteDraft.trim();
+    setNoteError(null);
+    if (!body) return;
+    if (body.length > MAX_NOTE_LEN) {
+      setNoteError(`Note must be at most ${MAX_NOTE_LEN} characters`);
+      return;
+    }
+
+    setNoteSaving(true);
+    try {
+      const res = await fetch(`/api/bookings/${id}/notes`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNoteError(
+          typeof data.error === "string" ? data.error : "Failed to add note"
+        );
+        return;
+      }
+      const created = data.note as InternalNote | undefined;
+      if (created) {
+        setNotes((prev) => [created, ...prev]);
+        setNotesError(null);
+      } else {
+        await loadNotes();
+      }
+      setNoteDraft("");
+    } catch {
+      setNoteError("Failed to add note");
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   const handleStatus = async (val: string) => {
     if (!booking || saving) return;
@@ -241,6 +317,92 @@ export default function AdminBookingDetail() {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Internal notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="internal-note">Internal note</Label>
+                <Textarea
+                  id="internal-note"
+                  value={noteDraft}
+                  onChange={(e) => {
+                    setNoteDraft(e.target.value);
+                    if (noteError) setNoteError(null);
+                  }}
+                  placeholder="Gate code, dog on site, customer will EFT after collection…"
+                  maxLength={MAX_NOTE_LEN}
+                  rows={3}
+                  aria-invalid={noteError ? true : undefined}
+                  aria-describedby={noteError ? "internal-note-error" : undefined}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {noteDraft.trim().length}/{MAX_NOTE_LEN}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={noteSaving || !noteDraft.trim()}
+                    onClick={() => void addNote()}
+                  >
+                    {noteSaving ? "Adding…" : "Add"}
+                  </Button>
+                </div>
+                {noteError ? (
+                  <p
+                    id="internal-note-error"
+                    role="alert"
+                    className="text-xs text-destructive"
+                  >
+                    {noteError}
+                  </p>
+                ) : null}
+              </div>
+
+              <Separator />
+
+              {notesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading notes…</p>
+              ) : notesError ? (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-destructive" role="alert">
+                    {notesError}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadNotes()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  No internal notes yet.
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {notes.map((note) => (
+                    <li
+                      key={note.id}
+                      className="rounded-md border bg-muted/30 px-3 py-3"
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{note.body}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {note.author}
+                        {" · "}
+                        {formatNoteTime(note.createdAt)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6">

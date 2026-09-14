@@ -3,6 +3,7 @@ import {
   BOOKING_STATUSES,
   PAYMENT_STATUSES,
 } from "@/lib/bookingPatchFields";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 
 const CustomerSchema = new Schema(
   {
@@ -30,6 +31,16 @@ const CoordinatesSchema = new Schema(
   {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const InternalNoteSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    body: { type: String, required: true, trim: true, maxlength: MAX_NOTE_LEN },
+    author: { type: String, required: true, trim: true },
+    createdAt: { type: String, required: true },
   },
   { _id: false }
 );
@@ -84,6 +95,8 @@ const BookingSchema = new Schema(
       index: true,
     },
     assignedDriverId: { type: String, trim: true, index: true, sparse: true },
+    /** Ops-only internal notes — never exposed on public booking APIs */
+    notes: { type: [InternalNoteSchema], default: [] },
     createdAt: { type: String, required: true },
   },
   {
