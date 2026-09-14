@@ -66,7 +66,7 @@ export function getMarketingDesktopNavItems({
     items.push({
       id: "portal",
       label: "My Bookings",
-      href: "/dashboard",
+      href: "/portal",
       emphasize: true,
     });
     return items;
@@ -95,7 +95,7 @@ export function getMarketingAuthNavItems({
       {
         id: "portal",
         label: "My Bookings",
-        href: "/dashboard",
+        href: "/portal",
         emphasize: true,
       },
       { id: "logout", label: "Log out", action: "logout" },

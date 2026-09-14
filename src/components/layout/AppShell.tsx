@@ -11,6 +11,7 @@ function shouldShowSupportFab(pathname: string) {
   if (pathname.startsWith("/admin")) return false;
   if (pathname.startsWith("/tech")) return false;
   if (pathname.startsWith("/dashboard")) return false;
+  if (pathname.startsWith("/portal")) return false;
   if (pathname.startsWith("/login")) return false;
   if (pathname.startsWith("/register")) return false;
   if (pathname.startsWith("/signup")) return false;
@@ -34,6 +35,7 @@ function isBookingFlowPath(pathname: string) {
 const PORTAL_PATHS = [
   "/admin",
   "/dashboard",
+  "/portal",
   "/tech",
   "/booking",
   "/login",

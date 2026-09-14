@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { isFullAccount, type UserRole } from "@/types/user";
 
@@ -15,6 +15,7 @@ type AuthGuardProps = {
 
 /**
  * Cookie-session guard using shared AuthProvider (no extra /api/auth/me spam).
+ * Middleware + server layouts are the hard gates; this reduces UI flash.
  */
 export function AuthGuard({
   children,
@@ -23,6 +24,7 @@ export function AuthGuard({
   allowGuest = false,
 }: AuthGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, ready } = useAuth();
   const redirected = useRef(false);
 
@@ -43,12 +45,13 @@ export function AuthGuard({
     if (!ok) {
       if (!redirected.current) {
         redirected.current = true;
-        router.replace(loginPath);
+        const next = encodeURIComponent(pathname || "/");
+        router.replace(`${loginPath}?next=${next}`);
       }
       return;
     }
     redirected.current = false;
-  }, [ready, ok, loginPath, router]);
+  }, [ready, ok, loginPath, router, pathname]);
 
   if (!ready) return null;
   if (!ok) return null;

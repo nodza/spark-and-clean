@@ -6,7 +6,7 @@ import { usePortalEntry } from "@/components/auth/PortalEntryLink";
 
 /**
  * Homepage portal entry — same destinations as header / hero:
- * logged out → /login, logged-in customer → /dashboard.
+ * logged out → /login, logged-in customer → /portal.
  * Provisional copy — Noel to confirm before launch.
  */
 export function HomePortalCta() {

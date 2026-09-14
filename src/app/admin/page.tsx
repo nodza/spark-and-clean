@@ -1,41 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
-import { PortalLayout } from "@/components/layout/PortalLayout";
-import { SidebarNavItem, SidebarNavGroup } from "@/components/ui/sidebar-nav";
-import { format } from "date-fns";
+import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 import {
-  LayoutGrid,
-  CalendarDays,
-  Users,
-  UserCog,
-  Tag,
-  Search,
-} from "lucide-react";
-
-// ─── Sidebar user footer ─────────────────────────────────────────────────────
-function AdminUserFooter() {
-  return (
-    <div className="flex items-center gap-[11px]">
-      <div
-        className="flex size-[36px] flex-none items-center justify-center rounded-full text-[14px] font-extrabold"
-        style={{ background: "#6cf3d5", color: "#000b49" }}
-      >
-        LM
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="truncate text-[13px] font-bold text-white">Lerato Mabaso</div>
-        <div className="mt-[3px] text-[11px]" style={{ color: "rgba(255,255,255,.5)" }}>
-          Operations manager
-        </div>
-      </div>
-    </div>
-  );
-}
+  AdminPortalShell,
+  AdminSearchTopbar,
+} from "@/components/admin/AdminPortalShell";
+import { format } from "date-fns";
 
 // ─── KPI stat tile ───────────────────────────────────────────────────────────
 function StatTile({
@@ -110,7 +85,6 @@ export default function AdminDashboard() {
       <SidebarNavItem
         icon={<UserCog size={17} strokeWidth={1.8} />}
         label="Technicians"
-        onClick={() => router.push("/admin/drivers")}
       />
       <SidebarNavItem
         icon={<Users size={17} strokeWidth={1.8} />}
@@ -165,15 +139,16 @@ export default function AdminDashboard() {
   const capacityPct = Math.round((capacityFilled / capacityTotal) * 100);
 
   return (
-    <PortalLayout
-      portalLabel="OPERATIONS"
-      portalLabelColor="#ffdc39"
-      sidebar={sidebar}
-      sidebarFooter={<AdminUserFooter />}
+    <AdminPortalShell
       pageTitle="Overview"
-      topbarActions={topbarActions}
+      active="overview"
+      bookingsBadge={bookings.length || 12}
+      topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
+        <Suspense fallback={null}>
+          <AccessDeniedBanner />
+        </Suspense>
 
         {/* ── KPI row ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-[14px] lg:grid-cols-4">
@@ -370,6 +345,6 @@ export default function AdminDashboard() {
 
 
       </div>
-    </PortalLayout>
+    </AdminPortalShell>
   );
 }

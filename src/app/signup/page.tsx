@@ -167,7 +167,7 @@ export default function SignupPage() {
     }
 
     await refresh();
-    router.push("/dashboard");
+    router.push("/portal");
   };
 
   return (

@@ -41,7 +41,20 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    // Ignore any client-supplied role / adminTier — always force client (SCW-29 / SCW-30).
+    const requestedRoleRaw = String(body.role ?? "")
+      .trim()
+      .toLowerCase();
+    if (
+      requestedRoleRaw &&
+      requestedRoleRaw !== "client" &&
+      requestedRoleRaw !== "customer"
+    ) {
+      return NextResponse.json(
+        { error: "Public registration is for customer accounts only" },
+        { status: 403 }
+      );
+    }
+    // Ignore any client-supplied role / adminTier — always force client (SCW-29 / SCW-30 / SCW-31).
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
@@ -117,6 +130,7 @@ export async function POST(request: Request) {
             phone: phone || existing.phone,
             role: "client",
             adminTier: null,
+            mustChangePassword: false,
             lastLoginAt: new Date(),
           },
         }
@@ -134,6 +148,7 @@ export async function POST(request: Request) {
         emailVerified: false,
         disabledAt: null,
         isActive: true,
+        mustChangePassword: false,
         lastLoginAt: new Date(),
       });
     }

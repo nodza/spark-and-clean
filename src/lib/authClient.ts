@@ -10,6 +10,7 @@ export type AuthUser = {
   adminTier?: "full" | "marketing-only" | null;
   driverProfileId?: string;
   guest?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export const AUTH_EVENT = "spark-auth-change";

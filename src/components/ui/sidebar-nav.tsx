@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface SidebarNavItemProps {
@@ -6,6 +7,7 @@ interface SidebarNavItemProps {
   label: string;
   active?: boolean;
   badge?: number | string;
+  href?: string;
   onClick?: () => void;
   className?: string;
 }
@@ -26,23 +28,20 @@ function SidebarNavItem({
   label,
   active = false,
   badge,
+  href,
   onClick,
   className,
 }: SidebarNavItemProps) {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.()}
-      className={cn(
-        "flex items-center gap-[11px] rounded-[9px] px-[13px] py-[10px] text-[13.5px] cursor-pointer transition-all duration-150 select-none",
-        active
-          ? "bg-[#6cf3d5] text-[#000b49] font-extrabold"
-          : "bg-transparent text-white/[0.72] font-semibold hover:bg-white/[0.06]",
-        className
-      )}
-    >
+  const classNameResolved = cn(
+    "flex items-center gap-[11px] rounded-[9px] px-[13px] py-[10px] text-[13.5px] cursor-pointer no-underline transition-all duration-150 select-none",
+    active
+      ? "bg-[#6cf3d5] text-[#000b49] font-extrabold"
+      : "bg-transparent text-white/[0.72] font-semibold hover:bg-white/[0.06]",
+    className
+  );
+
+  const content = (
+    <>
       {icon && (
         <span
           className="flex-none"
@@ -57,6 +56,26 @@ function SidebarNavItem({
           {badge}
         </span>
       )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} onClick={onClick} className={classNameResolved}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.()}
+      className={classNameResolved}
+    >
+      {content}
     </div>
   );
 }

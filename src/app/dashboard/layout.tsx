@@ -1,19 +1,20 @@
-"use client";
+import { requirePageSession } from "@/lib/requirePageSession";
 
-import { AuthGuard } from "@/components/auth/AuthGuard";
-import type { UserRole } from "@/types/user";
-
-/** Stable reference — avoids AuthGuard effect churn */
-const CLIENT_ROLES: UserRole[] = ["client"];
-
-export default function DashboardLayout({
+/**
+ * Client portal UI lives under /dashboard and is rewritten from /portal.
+ * Guests / leftover guest JWTs are treated as logged out.
+ */
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <AuthGuard roles={CLIENT_ROLES} allowGuest={false}>
-      {children}
-    </AuthGuard>
-  );
+  await requirePageSession({
+    roles: ["client"],
+    loginPath: "/login",
+    nextPath: "/portal",
+    allowGuest: false,
+  });
+
+  return <>{children}</>;
 }

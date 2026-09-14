@@ -88,6 +88,8 @@ const UserSchema = new Schema(
     marketingOptIn: { type: Boolean, default: false },
     emailVerifiedAt: { type: Date, default: null },
     disabledAt: { type: Date, default: null },
+    /** Admin-created technicians must set their own password on first login. */
+    mustChangePassword: { type: Boolean, default: false },
     /** @deprecated use emailVerifiedAt */
     emailVerified: { type: Boolean, default: false },
     /** @deprecated use disabledAt === null */

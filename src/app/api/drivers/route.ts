@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Driver } from "@/models/Driver";
+import { getSession } from "@/lib/session";
 import { toClientDriver } from "@/lib/serialize";
 import { getSession } from "@/lib/session";
 
+/** Driver directory — full admin operations only. */
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (session.role !== "admin" || session.adminTier === "marketing-only") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     await connectDB();
     const session = await getSession();
 

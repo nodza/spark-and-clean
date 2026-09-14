@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLayout } from "@/components/layout/AuthLayout";
@@ -10,18 +10,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { resolvePostLoginPath } from "@/lib/accessControl";
-import { isFullAccount, type UserRole } from "@/types/user";
-import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
-function redirectForRole(
-  role: string,
-  next?: string | null,
-  adminTier?: "full" | "marketing-only" | null
-) {
-  return resolvePostLoginPath(role as UserRole, next, adminTier);
-}
-
-function LoginForm() {
+function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
@@ -33,26 +23,19 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const signupParams = new URLSearchParams({
-    ...(email.trim() ? { email: email.trim() } : {}),
-  });
-  const signupHref = signupParams.toString()
-    ? `/signup?${signupParams.toString()}`
-    : "/signup";
-
   useEffect(() => {
     if (emailFromQuery) setEmail(emailFromQuery);
   }, [emailFromQuery]);
 
   useEffect(() => {
-    if (ready && isFullAccount(user)) {
+    if (ready && user?.role === "admin") {
       router.replace(
-        redirectForRole(user!.role, next, user!.adminTier ?? null)
+        resolvePostLoginPath("admin", next, user.adminTier ?? null)
       );
     }
   }, [ready, user, router, next]);
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -62,7 +45,11 @@ function LoginForm() {
     }
 
     setLoading(true);
-    const result = await loginUser({ email, password });
+    const result = await loginUser({
+      email,
+      password,
+      role: "admin",
+    });
     setLoading(false);
 
     if (result.error || !result.user) {
@@ -72,7 +59,7 @@ function LoginForm() {
 
     await refresh();
     router.push(
-      redirectForRole(
+      resolvePostLoginPath(
         result.user.role,
         next,
         result.user.adminTier ?? null
@@ -82,31 +69,29 @@ function LoginForm() {
 
   return (
     <AuthLayout
-      portalLabel="CLIENT PORTAL"
+      portalLabel="OPERATIONS"
       tagline={
         <>
-          Cleaned in <span style={{ color: "#ffdc39" }}>7 minutes</span>. Booked
-          in about the same.
+          Bookings, routes, and{" "}
+          <span style={{ color: "#ffdc39" }}>facility status</span> in one
+          place.
         </>
       }
-      subtext="Book collections, track your rugs and reorder past cleans across Gauteng and Cape Town."
+      subtext="Sign in with your operations email and password."
     >
-      <h1 className="text-page-title text-navy">Welcome back</h1>
+      <h1 className="text-page-title text-navy">Admin log in</h1>
       <p className="text-body mt-[9px] text-grey-600">
-        Log in with your email and password to manage bookings.
+        Use your staff email and password.
       </p>
 
-      <form
-        onSubmit={(e) => void handlePasswordLogin(e)}
-        className="mt-[22px]"
-      >
+      <form onSubmit={(e) => void handleLogin(e)} className="mt-[22px]">
         <label className="flex flex-col gap-2">
           <span className="text-eyebrow text-grey-600">EMAIL</span>
           <Input
-            id="email"
+            id="admin-email"
             type="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder="you@sparkandclean.co.za"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -118,18 +103,18 @@ function LoginForm() {
         </label>
 
         <div className="mt-4 mb-2 flex items-center justify-between">
-          <label htmlFor="password" className="text-eyebrow text-grey-600">
+          <label htmlFor="admin-password" className="text-eyebrow text-grey-600">
             PASSWORD
           </label>
           <Link
-            href={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}
+            href={`/forgot-password?from=admin${email.trim() ? `&email=${encodeURIComponent(email.trim())}` : ""}`}
             className="text-[12px] font-bold text-green hover:text-navy"
           >
-            Forgot password?
+            Forgot?
           </Link>
         </div>
         <PasswordInput
-          id="password"
+          id="admin-password"
           autoComplete="current-password"
           placeholder="••••••••"
           value={password}
@@ -139,59 +124,40 @@ function LoginForm() {
           }}
           aria-invalid={Boolean(error)}
           required
-          minLength={MIN_PASSWORD_LENGTH}
+          minLength={6}
         />
 
-        {error && (
+        {error ? (
           <div
             role="alert"
             className="mt-3.5 rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]"
           >
             {error}
           </div>
-        )}
+        ) : null}
 
         <Button
           type="submit"
           className="mt-5 w-full justify-center py-[14px]"
           disabled={loading}
         >
-          {loading ? "Logging in…" : "Log in"}
+          {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-
-      <div className="my-[22px] flex items-center gap-3">
-        <div className="h-px flex-1 bg-[#eceef1]" />
-        <span className="text-[12px] text-grey-400">or</span>
-        <div className="h-px flex-1 bg-[#eceef1]" />
-      </div>
-
-      <p className="text-center text-[13.5px] text-grey-600">
-        New to Spark &amp; Clean?{" "}
-        <Link
-          href={signupHref}
-          className="font-extrabold text-green hover:text-navy"
-        >
-          Create an account
-        </Link>
-      </p>
-      <p className="mt-3 text-center text-[12.5px] text-grey-400">
-        Guests can track a booking with the order ID — no account required.
-      </p>
     </AuthLayout>
   );
 }
 
-export default function ClientLogin() {
+export default function AdminLoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center text-grey-600">
+        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
           Loading…
         </div>
       }
     >
-      <LoginForm />
+      <AdminLoginForm />
     </Suspense>
   );
 }
