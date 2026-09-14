@@ -68,56 +68,6 @@ export default function AdminDashboard() {
   );
   const lateCount = 2; // placeholder until LATE/OVERDUE statuses are added to the type
 
-  // ─── Sidebar ──────────────────────────────────────────────────────────────
-  const sidebar = (
-    <SidebarNavGroup>
-      <SidebarNavItem
-        icon={<LayoutGrid size={17} strokeWidth={1.8} />}
-        label="Overview"
-        active
-      />
-      <SidebarNavItem
-        icon={<CalendarDays size={17} strokeWidth={1.8} />}
-        label="Bookings"
-        badge={bookings.length || 12}
-        onClick={() => router.push("/admin/bookings")}
-      />
-      <SidebarNavItem
-        icon={<UserCog size={17} strokeWidth={1.8} />}
-        label="Technicians"
-      />
-      <SidebarNavItem
-        icon={<Users size={17} strokeWidth={1.8} />}
-        label="Clients"
-      />
-      <SidebarNavItem
-        icon={<Tag size={17} strokeWidth={1.8} />}
-        label="Pricing & coupons"
-      />
-    </SidebarNavGroup>
-  );
-
-  // ─── Topbar ───────────────────────────────────────────────────────────────
-  const topbarActions = (
-    <div className="flex items-center gap-[10px]">
-      <div className="ds-search w-[260px]">
-        <Search size={13} className="flex-none" style={{ color: "#9aa0a6" }} />
-        <input
-          placeholder="Search bookings, clients"
-          className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#9aa0a6]"
-        />
-      </div>
-      <Link href="/book/rug">
-        <button
-          className="flex items-center gap-[8px] rounded-full px-[16px] py-[9px] text-[13px] font-extrabold text-white transition-colors duration-150 hover:bg-[#0a1a6b]"
-          style={{ background: "#000b49" }}
-        >
-          + New booking
-        </button>
-      </Link>
-    </div>
-  );
-
   // ─── Static schedule (replace with real data when API ready) ─────────────
   const schedule = [
     { time: "08:00", client: "Nomsa Khumalo", detail: "Sandton · 3 rugs · delivery", tag: "Delivery", variant: "status-delivering" as const, tech: "T. Mokoena", accent: "#2c4fa6" },

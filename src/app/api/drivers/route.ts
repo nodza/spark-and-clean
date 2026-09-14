@@ -3,7 +3,6 @@ import { connectDB } from "@/lib/mongodb";
 import { Driver } from "@/models/Driver";
 import { getSession } from "@/lib/session";
 import { toClientDriver } from "@/lib/serialize";
-import { getSession } from "@/lib/session";
 
 /** Driver directory — full admin operations only. */
 export async function GET() {
@@ -17,11 +16,6 @@ export async function GET() {
     }
 
     await connectDB();
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     // Admins see all drivers; others see only active drivers
     const filter = session.role === "admin" ? {} : { isActive: true };
