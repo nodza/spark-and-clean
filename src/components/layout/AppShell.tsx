@@ -48,6 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPortal = PORTAL_PATHS.some((p) => pathname.startsWith(p));
   const showFooter = !isBookingFlowPath(pathname);
 
+  // Portal layouts (PortalLayout / AuthLayout / TechLayout) fill the viewport themselves.
   return (
     <AuthProvider>
       {isPortal ? (
@@ -60,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {showFooter ? <Footer /> : null}
         </>
       )}
-      <Toaster richColors position="top-center" closeButton />
+      <Toaster richColors position="top-right" closeButton />
     </AuthProvider>
   );
 }
