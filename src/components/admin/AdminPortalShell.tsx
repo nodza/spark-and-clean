@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ChangeEvent } from "react";
 import {
   CalendarDays,
   LayoutGrid,
@@ -87,7 +88,7 @@ export function AdminPortalShell({
         label="Bookings"
         badge={bookingsBadge}
         active={active === "bookings"}
-        href="/admin"
+        href="/admin/bookings"
       />
       {isFullAdmin ? (
         <SidebarNavItem
@@ -124,12 +125,21 @@ export function AdminPortalShell({
   );
 }
 
-export function AdminSearchTopbar() {
+export function AdminSearchTopbar({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange?: (value: string) => void;
+} = {}) {
   return (
     <div className="flex items-center gap-[10px]">
       <div className="ds-search w-[260px]">
         <Search size={13} className="flex-none" style={{ color: "#9aa0a6" }} />
         <input
+          {...(onChange
+            ? { value: value ?? "", onChange: (e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value) }
+            : {})}
           placeholder="Search bookings, clients"
           className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#9aa0a6]"
         />

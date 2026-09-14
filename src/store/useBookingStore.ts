@@ -56,8 +56,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const booking = await bookingService.getBookingById(id);
       if (booking) {
         set((state) => {
-          const others = state.bookings.filter((b) => b.id !== id);
-          return { bookings: [...others, booking], error: null };
+          const idx = state.bookings.findIndex((b) => b.id === id);
+          if (idx === -1) {
+            return { bookings: [booking, ...state.bookings], error: null };
+          }
+          const next = [...state.bookings];
+          next[idx] = booking;
+          return { bookings: next, error: null };
         });
       } else {
         set((state) => ({

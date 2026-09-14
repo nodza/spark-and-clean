@@ -38,7 +38,10 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const docs = await Booking.find(filter).sort({ createdAt: -1 }).lean();
+    const docs = await Booking.find(filter)
+      // Admin list default: newest createdAt. Client list may re-sort by collectionDate.
+      .sort({ createdAt: -1 })
+      .lean();
     return NextResponse.json(
       docs.map((d) => toClientBooking(d as Record<string, unknown>))
     );

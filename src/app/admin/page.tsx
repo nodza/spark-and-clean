@@ -10,6 +10,8 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import { bookingStatusVariant } from "@/components/admin/bookingBadges";
+import { bookingListHref } from "@/lib/adminBookingQuery";
 import { format } from "date-fns";
 
 // ─── KPI stat tile ───────────────────────────────────────────────────────────
@@ -36,16 +38,6 @@ function StatTile({
       <div className="text-meta mt-[7px]" style={{ color: deltaColor }}>{delta}</div>
     </div>
   );
-}
-
-// ─── Status badge mapping ────────────────────────────────────────────────────
-function statusVariant(status: string): React.ComponentProps<typeof Badge>["variant"] {
-  const s = status.toUpperCase();
-  if (s === "BOOKED" || s === "SCHEDULED") return "status-new";
-  if (s === "COLLECTED") return "status-collected";
-  if (s === "CLEANING" || s === "DRYING" || s === "READY") return "status-cleaning";
-  if (s === "DELIVERED") return "status-completed";
-  return "outline";
 }
 
 // ─── Main page ───────────────────────────────────────────────────────────────
@@ -77,11 +69,31 @@ export default function AdminDashboard() {
     { time: "15:00", client: "Claire Bester", detail: "Bryanston · 1 Persian rug", tag: "Late", variant: "status-overdue" as const, tech: "Unassigned", accent: "#b3261e" },
   ];
 
-  const alerts = [
-    { title: "SC-2390 delivery missed twice", meta: "Bryanston · client unreachable", dot: "#b3261e" },
-    { title: "Cape Town van service due", meta: "CA 442-118 · 2 Sep", dot: "#ffdc39" },
-    { title: "3 bookings unassigned tomorrow", meta: "Gauteng morning slots", dot: "#ffdc39" },
-  ];
+  const unpaid = bookings.filter((b) => b.paymentStatus === "UNPAID");
+  const unassigned = bookings.filter((b) => !b.assignedDriverId);
+  const attention: { href: string; title: string; meta: string; dot: string }[] = [];
+  const seen = new Set<string>();
+  for (const b of unpaid) {
+    if (attention.length >= 5) break;
+    seen.add(b.id);
+    attention.push({
+      href: `/admin/bookings/${b.id}`,
+      title: `${b.id} unpaid`,
+      meta: `${b.customer.name} · ${b.suburb}`,
+      dot: "#b3261e",
+    });
+  }
+  for (const b of unassigned) {
+    if (attention.length >= 5) break;
+    if (seen.has(b.id)) continue;
+    seen.add(b.id);
+    attention.push({
+      href: `/admin/bookings/${b.id}`,
+      title: `${b.id} unassigned`,
+      meta: `${b.suburb} · ${b.collectionDate.slice(0, 10)}`,
+      dot: "#ffdc39",
+    });
+  }
 
   const capacityTotal = 48;
   const capacityFilled = 34;
@@ -224,7 +236,7 @@ export default function AdminDashboard() {
                       {booking.collectionSlot === "MORNING" ? "AM" : "PM"}
                     </div>
                   </div>
-                  <div><Badge variant={statusVariant(booking.status)}>{booking.status}</Badge></div>
+                  <div><Badge variant={bookingStatusVariant(booking.status)}>{booking.status}</Badge></div>
                   <div className="flex justify-end">
                     <button className="ds-text-action">View →</button>
                   </div>
@@ -244,15 +256,29 @@ export default function AdminDashboard() {
 
             {/* Needs attention */}
             <div className="ds-card p-0 overflow-hidden">
-              <div className="px-[20px] py-[16px]" style={{ borderBottom: "1px solid #f0f2f6" }}>
+              <div className="flex items-center justify-between px-[20px] py-[16px]" style={{ borderBottom: "1px solid #f0f2f6" }}>
                 <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>NEEDS ATTENTION</div>
               </div>
+              <div className="flex flex-col gap-[8px] px-[20px] py-[12px]" style={{ borderBottom: "1px solid #f0f2f6" }}>
+                <Link href={bookingListHref({ payment: "UNPAID" })} className="ds-text-action">
+                  {unpaid.length} unpaid →
+                </Link>
+                <Link href={bookingListHref({ assigned: "0" })} className="ds-text-action">
+                  {unassigned.length} unassigned →
+                </Link>
+              </div>
               <div className="flex flex-col">
-                {alerts.map((alert, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-[12px] px-[20px] py-[14px]"
-                    style={{ borderBottom: i < alerts.length - 1 ? "1px solid #f0f2f6" : undefined }}
+                {attention.length === 0 && (
+                  <div className="px-[20px] py-[14px] text-meta" style={{ color: "#9aa0a6" }}>
+                    Nothing waiting on ops.
+                  </div>
+                )}
+                {attention.map((alert, i) => (
+                  <Link
+                    key={`${alert.href}-${alert.title}`}
+                    href={alert.href}
+                    className="flex items-start gap-[12px] px-[20px] py-[14px] hover:bg-[#f7f9fb]"
+                    style={{ borderBottom: i < attention.length - 1 ? "1px solid #f0f2f6" : undefined }}
                   >
                     <div
                       className="mt-[5px] size-[8px] flex-none rounded-full"
@@ -264,7 +290,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>{alert.meta}</div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
