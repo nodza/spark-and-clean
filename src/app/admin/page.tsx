@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +12,8 @@ import {
 } from "@/components/admin/AdminPortalShell";
 import { format } from "date-fns";
 import type { OpsAlert } from "@/types/opsAlert";
+import { isBookingOnLocalDay, localCalendarDate } from "@/lib/localCalendarDate";
+import { isActionableUnassignedToday } from "@/lib/bookingAttention";
 
 const HIGH_VOLUME_THRESHOLD = 5;
 const ALERT_POLL_MS = 12_000;
@@ -53,14 +54,9 @@ function statusVariant(status: string): React.ComponentProps<typeof Badge>["vari
   return "outline";
 }
 
-function isUnassigned(assignedDriverId?: string) {
-  return !assignedDriverId;
-}
-
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const router = useRouter();
-  const { bookings, fetchBookings } = useBookingStore();
+  const { bookings, fetchBookings, isLoading } = useBookingStore();
   const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const knownAlertIdsRef = useRef<Set<string> | null>(null);
@@ -118,20 +114,16 @@ export default function AdminDashboard() {
     return () => window.clearInterval(timer);
   }, [loadAlerts, fetchBookings]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = localCalendarDate();
   const todaysPickups = bookings.filter(
-    (b) => b.collectionDate.startsWith(today) && b.status === "SCHEDULED"
+    (b) => isBookingOnLocalDay(b.collectionDate, today) && b.status === "SCHEDULED"
   ).length;
   const activeJobs = bookings.filter((b) =>
     ["COLLECTED", "CLEANING", "DRYING", "READY"].includes(b.status)
   ).length;
   const unpaidCount = bookings.filter((b) => b.paymentStatus === "UNPAID").length;
-  const unassignedTodayCount = bookings.filter(
-    (b) =>
-      b.collectionDate.startsWith(today) &&
-      isUnassigned(b.assignedDriverId) &&
-      b.status !== "CANCELLED" &&
-      b.status !== "DELIVERED"
+  const unassignedTodayCount = bookings.filter((b) =>
+    isActionableUnassignedToday(b, today)
   ).length;
   const revenue = bookings.reduce(
     (acc, b) => acc + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
@@ -141,7 +133,11 @@ export default function AdminDashboard() {
   const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
   const hasActionable =
     unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
-  const showEmpty = !alertsLoading && !hasActionable && !showHighVolume;
+  const bookingsSettled = !(isLoading && bookings.length === 0);
+  const attentionReady = !alertsLoading && bookingsSettled;
+  const showAttentionLoading =
+    !attentionReady && !hasActionable && !showHighVolume;
+  const showEmpty = attentionReady && !hasActionable && !showHighVolume;
 
   const dismissAlert = async (alertId: string) => {
     const prev = opsAlerts;
@@ -153,9 +149,14 @@ export default function AdminDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dismissed: true }),
       });
-      if (!res.ok) setOpsAlerts(prev);
+      if (!res.ok) {
+        setOpsAlerts(prev);
+        toast.error("Could not dismiss alert");
+        return;
+      }
     } catch {
       setOpsAlerts(prev);
+      toast.error("Could not dismiss alert");
     }
   };
 
@@ -187,23 +188,23 @@ export default function AdminDashboard() {
 
         {/* ── KPI row ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-[14px] lg:grid-cols-4">
-          <StatTile label="BOOKINGS TODAY" value={todaysPickups || 18} delta="+4 vs yesterday" />
-          <StatTile label="IN CLEANING" value={activeJobs || 41} delta="across 2 facilities" deltaColor="#9aa0a6" />
+          <StatTile label="BOOKINGS TODAY" value={todaysPickups} delta="+4 vs yesterday" />
+          <StatTile label="IN CLEANING" value={activeJobs} delta="across 2 facilities" deltaColor="#9aa0a6" />
           <StatTile
             label="REVENUE THIS WEEK"
-            value={revenue > 0 ? `R${revenue.toLocaleString()}` : "R84 200"}
+            value={`R${Math.round(revenue).toLocaleString()}`}
             delta="+12% vs last week"
           />
           <StatTile
             label="LATE DELIVERIES"
-            value={lateCount || 2}
+            value={lateCount}
             delta="needs rescheduling"
             deltaColor="#b3261e"
           />
         </div>
 
         {/* ── Main 2-col layout ─────────────────────────────────────────── */}
-        <div className="flex gap-[18px] items-start">
+        <div className="flex flex-col gap-[18px] items-stretch xl:flex-row xl:items-start">
 
           {/* Left: map + schedule ─────────────────────────────────────── */}
           <div className="flex flex-1 flex-col gap-[18px] min-w-0">
@@ -265,67 +266,84 @@ export default function AdminDashboard() {
             <div className="ds-card p-0 overflow-hidden">
               <div className="ds-card-header">
                 <span className="text-card-title" style={{ color: "#000b49" }}>Recent Bookings</span>
-                <Link href="/admin/bookings"><button className="ds-text-action">View all</button></Link>
+                <Link href="/admin/bookings" className="ds-text-action">
+                  View all
+                </Link>
               </div>
-              <div
-                className="grid px-[22px] py-[14px]"
-                style={{
-                  gridTemplateColumns: "110px 1fr 120px 100px 70px",
-                  background: "#f7f9fb",
-                  borderBottom: "1px solid #f0f2f6",
-                }}
-              >
-                {["ID", "Customer", "Date", "Status", ""].map((h) => (
-                  <div key={h || "actions"} className="text-th">{h}</div>
-                ))}
-              </div>
-              {bookings.slice(0, 5).map((booking) => (
-                <div
-                  key={booking.id}
-                  className="grid cursor-pointer px-[22px] py-[14px] transition-colors duration-150 hover:bg-[#f7f9fb]"
-                  style={{
-                    gridTemplateColumns: "110px 1fr 120px 100px 70px",
-                    borderBottom: "1px solid #f0f2f6",
-                    alignItems: "center",
-                  }}
-                  onClick={() => router.push(`/admin/bookings/${booking.id}`)}
-                >
-                  <div className="text-body tabular" style={{ color: "#000b49" }}>{booking.id}</div>
-                  <div>
-                    <div className="text-body truncate" style={{ color: "#000b49" }}>{booking.customer.name}</div>
-                    <div className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>{booking.suburb}</div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
+                  <div
+                    className="grid px-[22px] py-[14px]"
+                    style={{
+                      gridTemplateColumns: "110px 1fr 120px 100px 70px",
+                      background: "#f7f9fb",
+                      borderBottom: "1px solid #f0f2f6",
+                    }}
+                  >
+                    {["ID", "Customer", "Date", "Status", ""].map((h) => (
+                      <div key={h || "actions"} className="text-th">{h}</div>
+                    ))}
                   </div>
-                  <div>
-                    <div className="text-body" style={{ color: "#32373c" }}>
-                      {format(new Date(booking.collectionDate), "MMM d")}
-                    </div>
-                    <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                      {booking.collectionSlot === "MORNING" ? "AM" : "PM"}
-                    </div>
-                  </div>
-                  <div><Badge variant={statusVariant(booking.status)}>{booking.status}</Badge></div>
-                  <div className="flex justify-end">
-                    <button className="ds-text-action">View →</button>
-                  </div>
+                  {bookings.slice(0, 5).map((booking) => (
+                    <Link
+                      key={booking.id}
+                      href={`/admin/bookings/${booking.id}`}
+                      className="grid px-[22px] py-[14px] no-underline transition-colors duration-150 hover:bg-[#f7f9fb]"
+                      style={{
+                        gridTemplateColumns: "110px 1fr 120px 100px 70px",
+                        borderBottom: "1px solid #f0f2f6",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div className="text-body tabular" style={{ color: "#000b49" }}>{booking.id}</div>
+                      <div>
+                        <div className="text-body truncate" style={{ color: "#000b49" }}>{booking.customer.name}</div>
+                        <div className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>{booking.suburb}</div>
+                      </div>
+                      <div>
+                        <div className="text-body" style={{ color: "#32373c" }}>
+                          {format(new Date(booking.collectionDate), "MMM d")}
+                        </div>
+                        <div className="text-meta" style={{ color: "#9aa0a6" }}>
+                          {booking.collectionSlot === "MORNING" ? "AM" : "PM"}
+                        </div>
+                      </div>
+                      <div><Badge variant={statusVariant(booking.status)}>{booking.status}</Badge></div>
+                      <div className="flex justify-end">
+                        <span className="ds-text-action">View →</span>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-              ))}
-              {bookings.length === 0 && (
+              </div>
+              {bookings.length === 0 && !isLoading ? (
                 <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
                   No bookings yet.
                 </div>
-              )}
+              ) : null}
             </div>
 
           </div>
 
           {/* Right: alerts + capacity */}
-          <div className="flex w-[280px] flex-none flex-col gap-[14px]">
+          <div className="flex w-full flex-none flex-col gap-[14px] xl:w-[280px]">
 
             <div className="ds-card p-0 overflow-hidden">
               <div className="px-[20px] py-[16px]" style={{ borderBottom: "1px solid #f0f2f6" }}>
                 <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>NEEDS ATTENTION</div>
               </div>
               <div className="flex flex-col">
+                {showAttentionLoading ? (
+                  <div className="px-[20px] py-[18px]">
+                    <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                      Checking…
+                    </div>
+                    <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                      Loading unpaid and unassigned work
+                    </div>
+                  </div>
+                ) : null}
+
                 {showEmpty ? (
                   <div className="px-[20px] py-[18px]">
                     <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>

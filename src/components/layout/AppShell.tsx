@@ -51,23 +51,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPortal = PORTAL_PATHS.some((p) => pathname.startsWith(p));
   const showFooter = !isBookingFlowPath(pathname);
 
-  if (isPortal) {
-    // Render bare — no header, no footer, no wrapping <main>.
-    // The layout shell (PortalLayout / AuthLayout / TechLayout) fills the viewport itself.
-    return (
-      <AuthProvider>
-        {children}
-        <Toaster richColors position="top-right" closeButton />
-      </AuthProvider>
-    );
-  }
-
+  // Portal layouts (PortalLayout / AuthLayout / TechLayout) fill the viewport themselves.
   return (
     <AuthProvider>
-      <Header />
-      <main className="flex-1">{children}</main>
-      {shouldShowSupportFab(pathname) && <SupportFab />}
-      {showFooter ? <Footer /> : null}
+      {isPortal ? (
+        children
+      ) : (
+        <>
+          <Header />
+          <main className="flex-1">{children}</main>
+          {shouldShowSupportFab(pathname) && <SupportFab />}
+          {showFooter ? <Footer /> : null}
+        </>
+      )}
       <Toaster richColors position="top-right" closeButton />
     </AuthProvider>
   );
