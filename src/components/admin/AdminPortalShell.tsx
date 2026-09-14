@@ -87,7 +87,7 @@ export function AdminPortalShell({
         label="Bookings"
         badge={bookingsBadge}
         active={active === "bookings"}
-        href="/admin"
+        href="/admin/bookings"
       />
       {isFullAdmin ? (
         <SidebarNavItem

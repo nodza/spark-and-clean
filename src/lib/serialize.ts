@@ -1,9 +1,11 @@
 import type { Booking } from "@/types/booking";
 import { normalizeUserRole, type AdminTier } from "@/types/user";
 
-/** Strip Mongo internal fields for client responses */
+/** Strip Mongo internal fields for client responses.
+ * Always omit `notes` — ops notes are only via /api/bookings/[id]/notes.
+ */
 export function toClientBooking(doc: Record<string, unknown>): Booking {
-  const { _id, __v, updatedAt, userId, ...rest } = doc;
+  const { _id, __v, updatedAt, userId, notes: _notes, ...rest } = doc;
   const booking = rest as unknown as Booking;
   if (userId != null) {
     booking.userId = String(userId);
