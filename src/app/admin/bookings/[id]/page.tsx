@@ -1,48 +1,141 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
-import { BookingStatus, PaymentStatus } from "@/types/booking";
+import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import type { BookingStatus, PaymentStatus } from "@/types/booking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, User } from "lucide-react";
 import { format } from "date-fns";
 
-type DriverOption = { id: string; name: string; vehicle: string };
+type DriverOption = { id: string; name: string; vehicle?: string };
 
-const STATUS_OPTIONS: BookingStatus[] = [
-  "BOOKED", "SCHEDULED", "COLLECTED", "CLEANING", "DRYING", "READY", "DELIVERED"
-];
+const STATUS_OPTIONS = BOOKING_STATUSES;
 
 export default function AdminBookingDetail() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
-  const { bookings, fetchBookings, updateBookingStatus, updatePaymentStatus, assignDriver } = useBookingStore();
+  const {
+    bookings,
+    fetchBookingById,
+    updateBookingStatus,
+    updatePaymentStatus,
+    assignDriver,
+  } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [loadDone, setLoadDone] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetchBookings();
+    let cancelled = false;
+    setLoadDone(false);
+    setNotFound(false);
+
+    void fetchBookingById(id)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) setNotFound(true);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadDone(true);
+      });
+
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setDrivers(data);
+        if (!cancelled && Array.isArray(data)) setDrivers(data);
       })
-      .catch(() => setDrivers([]));
-  }, [fetchBookings]);
+      .catch(() => {
+        if (!cancelled) setDrivers([]);
+      });
 
-  if (!booking) return <div className="p-10">Loading...</div>;
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchBookingById, id]);
+
+  const handleStatus = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updateBookingStatus(booking.id, val as BookingStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssign = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const driverId = val === "unassigned" ? null : val;
+      const error = await assignDriver(booking.id, driverId);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePayment = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updatePaymentStatus(booking.id, val as PaymentStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loadDone && !booking) {
+    return (
+      <div className="p-10" role="status">
+        Loading...
+      </div>
+    );
+  }
+
+  if (notFound || (loadDone && !booking)) {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-10">
+        <p className="mb-4 text-muted-foreground">Booking not found.</p>
+        <Button asChild variant="outline">
+          <Link href="/admin/bookings">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!booking) return null;
 
   return (
     <div className="container mx-auto py-10 px-4 max-w-4xl">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+      <Button asChild variant="ghost" className="mb-6">
+        <Link href="/admin/bookings">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
+        </Link>
       </Button>
 
       <div className="flex justify-between items-start mb-8">
@@ -64,7 +157,6 @@ export default function AdminBookingDetail() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Main Details */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -78,7 +170,10 @@ export default function AdminBookingDetail() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Dimensions</Label>
-                  <p className="font-medium">{booking.rug.widthM}m x {booking.rug.lengthM}m ({booking.rug.areaSqM}m²)</p>
+                  <p className="font-medium">
+                    {booking.rug.widthM}m x {booking.rug.lengthM}m (
+                    {booking.rug.areaSqM}m²)
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Collection Date</Label>
@@ -91,13 +186,15 @@ export default function AdminBookingDetail() {
                   <p className="font-medium">{booking.collectionSlot}</p>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div>
                 <Label className="text-muted-foreground mb-2 block">Address</Label>
                 <p className="font-medium">{booking.addressLine1}</p>
-                <p className="text-muted-foreground">{booking.suburb}, {booking.city}</p>
+                <p className="text-muted-foreground">
+                  {booking.suburb}, {booking.city}
+                </p>
               </div>
 
               <Separator />
@@ -105,22 +202,40 @@ export default function AdminBookingDetail() {
               <div>
                 <Label className="text-muted-foreground mb-2 block">Add-ons</Label>
                 <div className="flex gap-2">
-                  {booking.addOns.odourRemoval && <span className="bg-secondary px-2 py-1 rounded text-sm">Odour Removal & Hygiene Treatment</span>}
-                  {booking.addOns.stainProtection && <span className="bg-secondary px-2 py-1 rounded text-sm">Stain Protection Treatment</span>}
-                  {!booking.addOns.odourRemoval && !booking.addOns.stainProtection && <span className="text-muted-foreground italic">None</span>}
+                  {booking.addOns.odourRemoval && (
+                    <span className="bg-secondary px-2 py-1 rounded text-sm">
+                      Odour Removal & Hygiene Treatment
+                    </span>
+                  )}
+                  {booking.addOns.stainProtection && (
+                    <span className="bg-secondary px-2 py-1 rounded text-sm">
+                      Stain Protection Treatment
+                    </span>
+                  )}
+                  {!booking.addOns.odourRemoval &&
+                    !booking.addOns.stainProtection && (
+                      <span className="text-muted-foreground italic">None</span>
+                    )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Photos would go here */}
           {booking.rug.photos && booking.rug.photos.length > 0 && (
             <Card>
-              <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Photos</CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   {booking.rug.photos.map((photo, i) => (
-                    <img key={i} src={photo} alt="Rug" className="rounded-lg border" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={photo}
+                      alt="Rug"
+                      className="rounded-lg border"
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -128,7 +243,6 @@ export default function AdminBookingDetail() {
           )}
         </div>
 
-        {/* Sidebar Controls */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -137,16 +251,19 @@ export default function AdminBookingDetail() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Current Status</Label>
-                <Select 
-                  value={booking.status} 
-                  onValueChange={(val) => updateBookingStatus(booking.id, val as BookingStatus)}
+                <Select
+                  value={booking.status}
+                  disabled={saving}
+                  onValueChange={(val) => void handleStatus(val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -154,18 +271,20 @@ export default function AdminBookingDetail() {
 
               <div className="space-y-2">
                 <Label>Assign Driver</Label>
-                <Select 
-                  value={booking.assignedDriverId || "unassigned"} 
-                  onValueChange={(val) => assignDriver(booking.id, val)}
+                <Select
+                  value={booking.assignedDriverId || "unassigned"}
+                  disabled={saving}
+                  onValueChange={(val) => void handleAssign(val)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select driver" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned" disabled>Select driver...</SelectItem>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
-                        {driver.name} ({driver.vehicle})
+                        {driver.name}
+                        {driver.vehicle ? ` (${driver.vehicle})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -179,21 +298,28 @@ export default function AdminBookingDetail() {
               <CardTitle>Payment</CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup 
-                value={booking.paymentStatus} 
-                onValueChange={(val) => updatePaymentStatus(booking.id, val as PaymentStatus)}
+              <RadioGroup
+                value={booking.paymentStatus}
+                disabled={saving}
+                onValueChange={(val) => void handlePayment(val)}
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="UNPAID" id="unpaid" />
-                  <Label htmlFor="unpaid" className="text-destructive font-medium">Unpaid</Label>
+                  <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
+                  <Label htmlFor="unpaid" className="text-destructive font-medium">
+                    Unpaid
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="DEPOSIT" id="deposit" />
-                  <Label htmlFor="deposit" className="text-orange-500 font-medium">Deposit Paid</Label>
+                  <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
+                  <Label htmlFor="deposit" className="text-orange-500 font-medium">
+                    Deposit Paid
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAID" id="paid" />
-                  <Label htmlFor="paid" className="text-green-600 font-medium">Paid in Full</Label>
+                  <RadioGroupItem value="PAID" id="paid" disabled={saving} />
+                  <Label htmlFor="paid" className="text-green-600 font-medium">
+                    Paid in Full
+                  </Label>
                 </div>
               </RadioGroup>
             </CardContent>
