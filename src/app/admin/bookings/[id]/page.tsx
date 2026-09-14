@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
+import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
-import { BookingStatus, PaymentStatus, type Driver } from "@/types/booking";
+import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,17 +27,10 @@ import {
   bookingStatusVariant,
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
-import type { Booking } from "@/types/booking";
 
-const STATUS_OPTIONS: BookingStatus[] = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-];
+const STATUS_OPTIONS = BOOKING_STATUSES;
+
+type DriverOption = { id: string; name: string; vehicle?: string };
 
 function telHref(phone: string) {
   const digits = phone.replace(/[^\d+]/g, "");
@@ -76,10 +71,11 @@ export default function AdminBookingDetail() {
     assignDriver,
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "missing">(
     booking ? "ready" : "loading"
   );
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +107,42 @@ export default function AdminBookingDetail() {
     () => drivers.find((d) => d.id === booking?.assignedDriverId),
     [drivers, booking?.assignedDriverId]
   );
+
+  const handleStatus = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updateBookingStatus(booking.id, val as BookingStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssign = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await assignDriver(
+        booking.id,
+        val === "unassigned" ? null : val
+      );
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePayment = async (val: string) => {
+    if (!booking || saving) return;
+    setSaving(true);
+    try {
+      const error = await updatePaymentStatus(booking.id, val as PaymentStatus);
+      if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <AdminPortalShell
@@ -289,9 +321,8 @@ export default function AdminBookingDetail() {
                     <Label>Current status</Label>
                     <Select
                       value={booking.status}
-                      onValueChange={(val) =>
-                        updateBookingStatus(booking.id, val as BookingStatus)
-                      }
+                      disabled={saving}
+                      onValueChange={(val) => void handleStatus(val)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue />
@@ -313,7 +344,9 @@ export default function AdminBookingDetail() {
                   </div>
                   <p className="text-body mt-[10px]" style={{ color: "#32373c" }}>
                     {assigned
-                      ? `${assigned.name} · ${assigned.vehicle}`
+                      ? assigned.vehicle
+                        ? `${assigned.name} · ${assigned.vehicle}`
+                        : assigned.name
                       : booking.assignedDriverId
                         ? booking.assignedDriverId
                         : "Unassigned"}
@@ -322,18 +355,18 @@ export default function AdminBookingDetail() {
                     <Label>Assign driver</Label>
                     <Select
                       value={booking.assignedDriverId || "unassigned"}
-                      onValueChange={(val) =>
-                        assignDriver(booking.id, val === "unassigned" ? null : val)
-                      }
+                      disabled={saving}
+                      onValueChange={(val) => void handleAssign(val)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select driver" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-72 overflow-y-auto">
                         <SelectItem value="unassigned">Unassigned</SelectItem>
                         {drivers.map((driver) => (
                           <SelectItem key={driver.id} value={driver.id}>
-                            {driver.name} ({driver.vehicle})
+                            {driver.name}
+                            {driver.vehicle ? ` (${driver.vehicle})` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -345,7 +378,8 @@ export default function AdminBookingDetail() {
                       variant="secondary"
                       size="sm"
                       className="mt-[12px]"
-                      onClick={() => assignDriver(booking.id, null)}
+                      disabled={saving}
+                      onClick={() => void handleAssign("unassigned")}
                     >
                       Unassign
                     </Button>
@@ -359,24 +393,23 @@ export default function AdminBookingDetail() {
                   <RadioGroup
                     className="mt-[14px]"
                     value={booking.paymentStatus}
-                    onValueChange={(val) =>
-                      updatePaymentStatus(booking.id, val as PaymentStatus)
-                    }
+                    disabled={saving}
+                    onValueChange={(val) => void handlePayment(val)}
                   >
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="UNPAID" id="unpaid" />
+                      <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
                       <Label htmlFor="unpaid" className="text-destructive font-medium">
                         Unpaid
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="DEPOSIT" id="deposit" />
+                      <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
                       <Label htmlFor="deposit" className="text-orange-500 font-medium">
                         Deposit paid
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="PAID" id="paid" />
+                      <RadioGroupItem value="PAID" id="paid" disabled={saving} />
                       <Label htmlFor="paid" className="text-green-600 font-medium">
                         Paid in full
                       </Label>

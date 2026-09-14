@@ -22,18 +22,11 @@ import {
   type AdminBookingFilters,
   type BookingListSort,
 } from "@/lib/adminBookingQuery";
+import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
 import { useBookingStore } from "@/store/useBookingStore";
 import type { Driver } from "@/types/booking";
 
-const STATUS_OPTIONS = [
-  "BOOKED",
-  "SCHEDULED",
-  "COLLECTED",
-  "CLEANING",
-  "DRYING",
-  "READY",
-  "DELIVERED",
-] as const;
+const STATUS_OPTIONS = BOOKING_STATUSES;
 
 const PAYMENT_OPTIONS = ["UNPAID", "DEPOSIT", "PAID"] as const;
 
