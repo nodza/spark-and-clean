@@ -4,8 +4,11 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
+import { toast } from "sonner";
+import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { AdminListPagination } from "@/components/admin/AdminListPagination";
+import { BookingsFilterPanel } from "@/components/admin/BookingsFilterPanel";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
@@ -17,33 +20,101 @@ import {
 import {
   applyBookingListQuery,
   bookingFiltersToSearchParams,
+  countBookingsByStatus,
   EMPTY_BOOKING_FILTERS,
   parseBookingListQuery,
   type AdminBookingFilters,
-  type BookingListSort,
 } from "@/lib/adminBookingQuery";
-import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import { isUnassignedDriver } from "@/lib/bookingAttention";
+import {
+  applyListPaginationParams,
+  DEFAULT_LIST_PAGINATION,
+  paginateList,
+  parseListPagination,
+  type ListPagination,
+  type PageSize,
+} from "@/lib/listPagination";
 import { useBookingStore } from "@/store/useBookingStore";
-import type { Driver } from "@/types/booking";
+import type { Booking, Driver } from "@/types/booking";
 
-const STATUS_OPTIONS = BOOKING_STATUSES;
+const TABLE_COLS =
+  "minmax(188px, 220px) minmax(200px, 2fr) minmax(72px, 0.55fr) minmax(120px, 0.85fr) minmax(110px, 0.85fr) minmax(100px, 0.7fr) minmax(118px, 0.8fr)";
 
-const PAYMENT_OPTIONS = ["UNPAID", "DEPOSIT", "PAID"] as const;
+function formatRand(amount: number) {
+  const rounded = Math.round(amount);
+  return `R${rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
+}
 
-const GRID =
-  "120px minmax(140px,1.3fr) 110px 100px 110px 90px minmax(110px,1fr) 150px";
+function bookingValue(booking: Booking) {
+  return (booking.estimatedPriceMin + booking.estimatedPriceMax) / 2;
+}
 
-const selectClass =
-  "w-full rounded-[10px] border-[1.5px] border-[#dfe2e7] bg-white px-[12px] py-[11px] text-[13.5px] text-[#32373c] outline-none focus:border-[#6cf3d5] focus:shadow-[0_0_0_3px_rgba(108,243,213,0.25)]";
+function collectionLabel(booking: Booking) {
+  const raw = booking.collectionDate;
+  const day = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : "";
+  const date = day
+    ? format(parseISO(day), "d MMM")
+    : format(new Date(raw), "d MMM");
+  const time = booking.collectionSlot === "MORNING" ? "09:00" : "14:00";
+  return `${date} · ${time}`;
+}
 
-function formatCollection(value: string) {
-  const day = /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : "";
-  if (!day) {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "—";
-    return format(parsed, "MMM d");
+function clientAddressLine(booking: Booking) {
+  const street = booking.addressLine1?.trim() || "";
+  const city = booking.city?.trim() || "";
+  if (street && city) return `${street}, ${city}`;
+  return street || city || booking.suburb;
+}
+
+function bookingShareUrl(bookingId: string) {
+  return new URL(`/admin/bookings/${bookingId}`, window.location.origin).href;
+}
+
+function CopyBookingLinkButton({ bookingId }: { bookingId: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(bookingShareUrl(bookingId));
+      setCopied(true);
+      toast.success("Booking link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
   }
-  return format(parseISO(day), "MMM d");
+
+  return (
+    <button
+      type="button"
+      aria-label={`Copy link to booking ${bookingId}`}
+      title="Copy booking link"
+      className="relative z-[2] inline-flex size-7 flex-none items-center justify-center rounded-[7px] text-[#0a7a63] transition-colors hover:bg-[#eafaf5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        void copyLink();
+      }}
+    >
+      {copied ? (
+        <Check size={13} strokeWidth={2.4} aria-hidden />
+      ) : (
+        <Copy size={13} strokeWidth={2.2} aria-hidden />
+      )}
+    </button>
+  );
 }
 
 export default function AdminBookingsPage() {
@@ -71,12 +142,15 @@ function BookingsShellFallback() {
 function AdminBookingsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, fetchBookings, isLoading } = useBookingStore();
+  const { bookings, fetchBookings, isLoading, error } = useBookingStore();
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [copiedBookingId, setCopiedBookingId] = useState<string | null>(null);
 
   const filters = useMemo(
     () => parseBookingListQuery(searchParams),
+    [searchParams]
+  );
+  const pagination = useMemo(
+    () => parseListPagination(searchParams),
     [searchParams]
   );
 
@@ -92,7 +166,10 @@ function AdminBookingsList() {
 
   const driverName = useMemo(() => {
     const map = new Map(drivers.map((d) => [d.id, d.name]));
-    return (id?: string) => (id ? map.get(id) || id : "Unassigned");
+    return (id?: string) => {
+      if (isUnassignedDriver(id)) return "Unassigned";
+      return (id && map.get(id)) || id || "Unassigned";
+    };
   }, [drivers]);
 
   const suburbs = useMemo(
@@ -108,33 +185,46 @@ function AdminBookingsList() {
     () => applyBookingListQuery(bookings, filters),
     [bookings, filters]
   );
+  const statusCounts = useMemo(
+    () => countBookingsByStatus(bookings, filters),
+    [bookings, filters]
+  );
 
-  function replaceFilters(next: AdminBookingFilters) {
-    const qs = bookingFiltersToSearchParams(next).toString();
+  const paged = useMemo(
+    () => paginateList(rows, pagination),
+    [rows, pagination]
+  );
+  const pageItems = paged.items;
+
+  function writeListUrl(
+    nextFilters: AdminBookingFilters,
+    nextPagination: ListPagination
+  ) {
+    const params = bookingFiltersToSearchParams(nextFilters);
+    applyListPaginationParams(params, nextPagination);
+    const qs = params.toString();
     router.replace(qs ? `/admin/bookings?${qs}` : "/admin/bookings", {
       scroll: false,
     });
+  }
+
+  function replaceFilters(next: AdminBookingFilters) {
+    writeListUrl(next, { page: 1, limit: pagination.limit });
   }
 
   function patchFilters(patch: Partial<AdminBookingFilters>) {
     replaceFilters({ ...filters, ...patch });
   }
 
-  function setSort(sort: BookingListSort) {
-    patchFilters({ sort });
+  function setPage(page: number) {
+    writeListUrl(filters, { page, limit: pagination.limit });
   }
 
-  async function copyBookingLink(id: string) {
-    const url = `${window.location.origin}/admin/bookings/${id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      window.prompt("Copy this booking link", url);
-      return;
-    }
-    setCopiedBookingId(id);
-    window.setTimeout(() => setCopiedBookingId(null), 2000);
+  function setLimit(limit: PageSize) {
+    writeListUrl(filters, { page: 1, limit });
   }
+
+  const highlightUnassigned = filters.assigned === "0";
 
   return (
     <AdminPortalShell
@@ -143,307 +233,200 @@ function AdminBookingsList() {
       bookingsBadge={bookings.length || undefined}
       topbarActions={
         <AdminSearchTopbar
-          value={filters.q}
-          onChange={(q) => patchFilters({ q })}
+          searchValue={filters.q}
+          onSearchChange={(q) => patchFilters({ q })}
+          searchPlaceholder="Search ID, name, phone, email"
         />
       }
     >
       <div className="portal-page flex flex-col gap-[18px]">
-        <div className="ds-card">
-          <div className="flex flex-wrap items-start justify-between gap-[12px]">
-            <div>
-              <div className="text-card-title" style={{ color: "#000b49" }}>
-                All bookings
-              </div>
-              <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
-                Default sort is newest created. Toggle to soonest collection for
-                the next pickups.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-[8px]">
-              <button
-                type="button"
-                className={filters.sort === "created" ? "ds-text-action" : "text-meta"}
-                style={{
-                  color: filters.sort === "created" ? undefined : "#9aa0a6",
-                  fontWeight: 800,
-                }}
-                onClick={() => setSort("created")}
-              >
-                Newest created
-              </button>
-              <span className="text-meta" style={{ color: "#dfe2e7" }}>
-                |
-              </span>
-              <button
-                type="button"
-                className={
-                  filters.sort === "collection" ? "ds-text-action" : "text-meta"
-                }
-                style={{
-                  color: filters.sort === "collection" ? undefined : "#9aa0a6",
-                  fontWeight: 800,
-                }}
-                onClick={() => setSort("collection")}
-              >
-                Soonest collection
-              </button>
-            </div>
-          </div>
+        <BookingsFilterPanel
+          filters={filters}
+          matchedCount={rows.length}
+          totalCount={bookings.length}
+          statusCounts={statusCounts}
+          cities={cities}
+          suburbs={suburbs}
+          onPatch={patchFilters}
+          onClear={() =>
+            writeListUrl({ ...EMPTY_BOOKING_FILTERS }, DEFAULT_LIST_PAGINATION)
+          }
+        />
 
-          <div className="mt-[16px] grid gap-[12px] sm:grid-cols-2 lg:grid-cols-4">
-            <label className="flex flex-col gap-[7px] sm:col-span-2">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                SEARCH
-              </span>
-              <Input
-                value={filters.q}
-                placeholder="ID, name, phone, or email"
-                onChange={(e) => patchFilters({ q: e.target.value })}
-              />
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                STATUS
-              </span>
-              <select
-                className={selectClass}
-                value={filters.status}
-                onChange={(e) => patchFilters({ status: e.target.value })}
-              >
-                <option value="">All</option>
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                PAYMENT
-              </span>
-              <select
-                className={selectClass}
-                value={filters.payment}
-                onChange={(e) => patchFilters({ payment: e.target.value })}
-              >
-                <option value="">All</option>
-                {PAYMENT_OPTIONS.map((payment) => (
-                  <option key={payment} value={payment}>
-                    {payment}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                ASSIGNED
-              </span>
-              <select
-                className={selectClass}
-                value={filters.assigned}
-                onChange={(e) =>
-                  patchFilters({
-                    assigned: e.target.value as AdminBookingFilters["assigned"],
-                  })
-                }
-              >
-                <option value="">All</option>
-                <option value="1">Assigned</option>
-                <option value="0">Unassigned</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                SUBURB
-              </span>
-              <select
-                className={selectClass}
-                value={filters.suburb}
-                onChange={(e) => patchFilters({ suburb: e.target.value })}
-              >
-                <option value="">All</option>
-                {suburbs.map((suburb) => (
-                  <option key={suburb} value={suburb}>
-                    {suburb}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                CITY
-              </span>
-              <select
-                className={selectClass}
-                value={filters.city}
-                onChange={(e) => patchFilters({ city: e.target.value })}
-              >
-                <option value="">All</option>
-                {cities.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                ON DATE
-              </span>
-              <Input
-                type="date"
-                value={filters.on}
-                onChange={(e) =>
-                  patchFilters({ on: e.target.value, from: "", to: "" })
-                }
-              />
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                FROM
-              </span>
-              <Input
-                type="date"
-                value={filters.from}
-                disabled={Boolean(filters.on)}
-                onChange={(e) => patchFilters({ from: e.target.value })}
-              />
-            </label>
-            <label className="flex flex-col gap-[7px]">
-              <span className="text-eyebrow" style={{ color: "#6b7280" }}>
-                TO
-              </span>
-              <Input
-                type="date"
-                value={filters.to}
-                disabled={Boolean(filters.on)}
-                onChange={(e) => patchFilters({ to: e.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="mt-[14px] flex items-center justify-between">
-            <div className="text-meta" style={{ color: "#9aa0a6" }}>
-              {rows.length} of {bookings.length} bookings
-            </div>
-            <button
-              type="button"
-              className="ds-text-action"
-              onClick={() => replaceFilters({ ...EMPTY_BOOKING_FILTERS })}
-            >
-              Clear filters
-            </button>
-          </div>
-        </div>
-
-        <div className="ds-card p-0 overflow-hidden">
+        <div className="ds-card overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <div
-              className="grid min-w-[860px] px-[22px] py-[14px]"
-              style={{
-                gridTemplateColumns: GRID,
-                background: "#f7f9fb",
-                borderBottom: "1px solid #f0f2f6",
-              }}
-            >
-              {["ID", "Customer", "Area", "Date", "Status", "Payment", "Assigned", ""].map(
-                (h) => (
+            <div className="min-w-[1080px]">
+              <div
+                className="hidden px-[22px] py-[13px] lg:grid lg:items-center"
+                style={{
+                  gridTemplateColumns: TABLE_COLS,
+                  background: "#f7f9fb",
+                  borderBottom: "1px solid #f0f2f6",
+                  columnGap: 20,
+                }}
+              >
+                {[
+                  "REF",
+                  "CLIENT",
+                  "VALUE",
+                  "COLLECTION",
+                  "DRIVER",
+                  "PAYMENT",
+                  "STATUS",
+                ].map((h) => (
                   <div key={h} className="text-th">
                     {h}
                   </div>
-                )
-              )}
-            </div>
-            {rows.map((booking) => (
-              <div
-                key={booking.id}
-                className="grid min-w-[860px] cursor-pointer px-[22px] py-[14px] transition-colors duration-150 hover:bg-[#f7f9fb]"
-                style={{
-                  gridTemplateColumns: GRID,
-                  borderBottom: "1px solid #f0f2f6",
-                  alignItems: "center",
-                }}
-                onClick={() => router.push(`/admin/bookings/${booking.id}`)}
-              >
-                <div className="text-body tabular" style={{ color: "#000b49" }}>
-                  {booking.id}
+                ))}
+              </div>
+
+              {isLoading && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                  role="status"
+                >
+                  Loading bookings…
                 </div>
-                <div>
-                  <div className="text-body truncate" style={{ color: "#000b49" }}>
-                    {booking.customer.name}
-                  </div>
-                  <div className="text-meta mt-[2px] truncate" style={{ color: "#9aa0a6" }}>
-                    {booking.customer.email}
-                  </div>
+              ) : null}
+
+              {error && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#b3261e" }}
+                  role="alert"
+                >
+                  {error}
                 </div>
-                <div>
-                  <div className="text-body truncate" style={{ color: "#32373c" }}>
-                    {booking.suburb}
-                  </div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    {booking.city}
-                  </div>
+              ) : null}
+
+              {!isLoading && !error && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                >
+                  No bookings yet.
                 </div>
-                <div>
-                  <div className="text-body" style={{ color: "#32373c" }}>
-                    {formatCollection(booking.collectionDate)}
-                  </div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    {booking.collectionSlot === "MORNING" ? "AM" : "PM"}
-                  </div>
+              ) : null}
+
+              {!isLoading && bookings.length > 0 && rows.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                >
+                  No bookings match these filters
+                  {filters.q ? ` for “${filters.q}”` : ""}.
                 </div>
-                <div>
-                  <Badge variant={bookingStatusVariant(booking.status)}>
-                    {booking.status}
-                  </Badge>
-                </div>
-                <div>
-                  <Badge variant={paymentStatusVariant(booking.paymentStatus)}>
-                    {booking.paymentStatus}
-                  </Badge>
-                </div>
-                <div className="text-body truncate" style={{ color: "#32373c" }}>
-                  {driverName(booking.assignedDriverId)}
-                </div>
-                <div className="flex justify-end gap-[12px]">
-                  <button
-                    type="button"
-                    className="ds-text-action"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void copyBookingLink(booking.id);
+              ) : null}
+
+              {pageItems.map((booking) => {
+                const unassigned = isUnassignedDriver(booking.assignedDriverId);
+                const driverLabel = driverName(booking.assignedDriverId);
+                return (
+                  <div
+                    key={booking.id}
+                    className="group relative border-b border-[#f0f2f6] transition-colors duration-150 hover:bg-[#f7f9fb]"
+                    style={{
+                      background:
+                        highlightUnassigned && unassigned
+                          ? "rgba(255, 220, 57, 0.18)"
+                          : undefined,
                     }}
                   >
-                    {copiedBookingId === booking.id ? "Copied" : "Copy link"}
-                  </button>
-                  <Link
-                    href={`/admin/bookings/${booking.id}`}
-                    className="ds-text-action"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    View →
-                  </Link>
-                </div>
-              </div>
-            ))}
+                    <Link
+                      href={`/admin/bookings/${booking.id}`}
+                      className="absolute inset-0 z-[1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49]"
+                      aria-label={`Open booking ${booking.id}`}
+                    />
+                    <div
+                      className="flex w-full flex-col gap-3 px-[18px] py-[16px] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+                      style={{
+                        gridTemplateColumns: TABLE_COLS,
+                        columnGap: 20,
+                      }}
+                    >
+                    <div className="flex items-center justify-between gap-3 lg:contents">
+                      <div className="flex min-w-0 items-center gap-[6px]">
+                        <CopyBookingLinkButton bookingId={booking.id} />
+                        <div
+                          className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums underline-offset-2 group-hover:underline"
+                          style={{ color: "#0a7a63" }}
+                          title={booking.id}
+                        >
+                          {booking.id}
+                        </div>
+                      </div>
+                      <div className="lg:hidden">
+                        <Badge variant={bookingStatusVariant(booking.status)}>
+                          {booking.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div
+                        className="truncate text-[14px] font-bold leading-snug"
+                        style={{ color: "#000b49" }}
+                      >
+                        {booking.customer.name}
+                      </div>
+                      {clientAddressLine(booking) ? (
+                        <div
+                          className="mt-[3px] truncate text-[12px] leading-snug"
+                          style={{ color: "#9aa0a6" }}
+                          title={clientAddressLine(booking)}
+                        >
+                          {clientAddressLine(booking)}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div
+                      className="text-[12px] font-semibold tabular-nums"
+                      style={{ color: "#000b49" }}
+                    >
+                      {formatRand(bookingValue(booking))}
+                    </div>
+
+                    <div className="text-[13px] font-medium" style={{ color: "#6b7280" }}>
+                      {collectionLabel(booking)}
+                    </div>
+
+                    <div
+                      className="truncate text-[13px] font-medium"
+                      style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
+                      title={driverLabel}
+                    >
+                      {driverLabel}
+                    </div>
+
+                    <div>
+                      <Badge variant={paymentStatusVariant(booking.paymentStatus)}>
+                        {booking.paymentStatus}
+                      </Badge>
+                    </div>
+
+                    <div className="hidden lg:block">
+                      <Badge variant={bookingStatusVariant(booking.status)}>
+                        {booking.status}
+                      </Badge>
+                    </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          {isLoading && bookings.length === 0 && (
-            <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
-              Loading bookings…
-            </div>
-          )}
-          {!isLoading && bookings.length === 0 && (
-            <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
-              No bookings yet.
-            </div>
-          )}
-          {bookings.length > 0 && rows.length === 0 && (
-            <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
-              No bookings match these filters.
-            </div>
-          )}
+
+          <AdminListPagination
+            total={paged.total}
+            page={paged.page}
+            limit={paged.limit}
+            shownCount={pageItems.length}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            pageSizeLabel="Per page"
+          />
         </div>
       </div>
     </AdminPortalShell>

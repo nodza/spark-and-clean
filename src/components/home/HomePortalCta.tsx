@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { usePortalEntry } from "@/components/auth/PortalEntryLink";
 
 /**
- * Homepage portal entry — same destinations as header / hero:
- * logged out → /login, logged-in customer → /portal.
- * Provisional copy — Noel to confirm before launch.
+ * Homepage workspace entry — same destinations as the header:
+ * logged out → /login, client → /portal, staff → their dashboard.
  */
 export function HomePortalCta() {
   const entry = usePortalEntry();
   if (!entry.show) return null;
+
+  const isStaffWorkspace =
+    entry.href === "/admin" || entry.href.startsWith("/tech/");
 
   return (
     <section
@@ -24,11 +26,12 @@ export function HomePortalCta() {
             id="portal-entry-heading"
             className="text-lg font-semibold tracking-tight text-foreground"
           >
-            Already booked?
+            {isStaffWorkspace ? "Back to work?" : "Already booked?"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sign in with your booking email to track collection, cleaning, and
-            delivery. Guest access uses email only.
+            {isStaffWorkspace
+              ? "Open your operations dashboard to continue where you left off."
+              : "Sign in with your booking email to track collection, cleaning, and delivery. Guest access uses email only."}
           </p>
         </div>
         <Button asChild variant="outline" size="lg" className="shrink-0">

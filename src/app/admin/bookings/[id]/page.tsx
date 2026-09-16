@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
-import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
+import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,9 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import {
+  AdminBackLink,
   AdminPortalShell,
-  AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import {
   bookingStatusVariant,
@@ -30,7 +32,12 @@ import {
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
-type DriverOption = { id: string; name: string; vehicle?: string };
+type DriverOption = {
+  id: string;
+  name: string;
+  vehicle?: string;
+  isActive?: boolean;
+};
 
 function telHref(phone: string) {
   const digits = phone.replace(/[^\d+]/g, "");
@@ -60,6 +67,11 @@ function formatCollectionLong(value: string) {
   return format(parsed, "PPP");
 }
 
+function formatNoteTime(iso: string) {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
+}
+
 export default function AdminBookingDetail() {
   const params = useParams();
   const id = String(params.id ?? "");
@@ -72,22 +84,62 @@ export default function AdminBookingDetail() {
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [inactiveAssigned, setInactiveAssigned] = useState<DriverOption | null>(
+    null
+  );
   const [loadState, setLoadState] = useState<"loading" | "ready" | "missing">(
     booking ? "ready" : "loading"
   );
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const loadNotes = useCallback(async () => {
+    setNotesLoading(true);
+    setNotesError(null);
+    try {
+      const res = await fetch(`/api/bookings/${id}/notes`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setNotesError("Could not load notes");
+        return;
+      }
+      const data = await res.json();
+      const list: InternalNote[] = Array.isArray(data.notes) ? data.notes : [];
+      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setNotes(list);
+    } catch {
+      setNotesError("Could not load notes");
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
     setLoadState(booking ? "ready" : "loading");
+
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && Array.isArray(data)) setDrivers(data);
+        if (cancelled) return;
+        if (Array.isArray(data)) {
+          setDrivers(
+            data.filter(
+              (driver): driver is DriverOption => driver?.isActive !== false
+            )
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setDrivers([]);
       });
+
     void fetchBookingById(id)
       .then((found) => {
         if (cancelled) return;
@@ -96,17 +148,97 @@ export default function AdminBookingDetail() {
       .catch(() => {
         if (!cancelled) setLoadState("missing");
       });
+
+    void loadNotes();
+
     return () => {
       cancelled = true;
     };
     // Show cached row immediately; refresh this id from S1 without refetching the full list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, fetchBookingById]);
+  }, [id, fetchBookingById, loadNotes]);
+
+  useEffect(() => {
+    const assignedId = booking?.assignedDriverId;
+    if (!assignedId || drivers.some((driver) => driver.id === assignedId)) {
+      setInactiveAssigned(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(`/api/drivers/${assignedId}`, { credentials: "include" })
+      .then(async (res) =>
+        res.ok ? res.json() : { id: assignedId, name: assignedId }
+      )
+      .then((data) => {
+        if (cancelled) return;
+        setInactiveAssigned({
+          id: String(data.id || assignedId),
+          name: String(data.name || assignedId),
+          vehicle: typeof data.vehicle === "string" ? data.vehicle : undefined,
+          isActive: false,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInactiveAssigned({
+            id: assignedId,
+            name: assignedId,
+            isActive: false,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking?.assignedDriverId, drivers]);
 
   const assigned = useMemo(
-    () => drivers.find((d) => d.id === booking?.assignedDriverId),
-    [drivers, booking?.assignedDriverId]
+    () =>
+      drivers.find((d) => d.id === booking?.assignedDriverId) ||
+      inactiveAssigned,
+    [drivers, inactiveAssigned, booking?.assignedDriverId]
   );
+
+  const addNote = async () => {
+    const body = noteDraft.trim();
+    setNoteError(null);
+    if (!body) return;
+    if (body.length > MAX_NOTE_LEN) {
+      setNoteError(`Note must be at most ${MAX_NOTE_LEN} characters`);
+      return;
+    }
+
+    setNoteSaving(true);
+    try {
+      const res = await fetch(`/api/bookings/${id}/notes`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNoteError(
+          typeof data.error === "string" ? data.error : "Failed to add note"
+        );
+        return;
+      }
+      const created = data.note as InternalNote | undefined;
+      if (created) {
+        setNotes((prev) => [created, ...prev]);
+        setNotesError(null);
+      } else {
+        await loadNotes();
+      }
+      setNoteDraft("");
+    } catch {
+      setNoteError("Failed to add note");
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   const handleStatus = async (val: string) => {
     if (!booking || saving) return;
@@ -121,6 +253,9 @@ export default function AdminBookingDetail() {
 
   const handleAssign = async (val: string) => {
     if (!booking || saving) return;
+    if (val !== "unassigned" && !drivers.some((driver) => driver.id === val)) {
+      return;
+    }
     setSaving(true);
     try {
       const error = await assignDriver(
@@ -148,15 +283,12 @@ export default function AdminBookingDetail() {
     <AdminPortalShell
       pageTitle={booking ? booking.id : "Booking"}
       active="bookings"
-      topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
-        <Link href="/admin/bookings" className="ds-text-action w-fit">
-          ← Back to bookings
-        </Link>
+        <AdminBackLink href="/admin/bookings" label="Back to bookings" />
 
         {loadState === "loading" && !booking && (
-          <div className="ds-card text-meta" style={{ color: "#9aa0a6" }}>
+          <div className="ds-card text-meta" style={{ color: "#9aa0a6" }} role="status">
             Loading…
           </div>
         )}
@@ -193,7 +325,10 @@ export default function AdminBookingDetail() {
                 <div className="text-body mt-[8px]" style={{ color: "#32373c" }}>
                   {booking.customer.name}
                 </div>
-                <div className="text-meta mt-[6px] flex flex-wrap gap-x-[14px] gap-y-[4px]" style={{ color: "#6b7280" }}>
+                <div
+                  className="text-meta mt-[6px] flex flex-wrap gap-x-[14px] gap-y-[4px]"
+                  style={{ color: "#6b7280" }}
+                >
                   <a className="ds-text-action" href={telHref(booking.customer.phone)}>
                     {booking.customer.phone}
                   </a>
@@ -213,7 +348,7 @@ export default function AdminBookingDetail() {
             </div>
 
             <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="flex flex-col gap-[18px] min-w-0">
+              <div className="flex min-w-0 flex-col gap-[18px]">
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>
                     Job details
@@ -300,6 +435,7 @@ export default function AdminBookingDetail() {
                     </div>
                     <div className="mt-[14px] grid grid-cols-3 gap-[10px]">
                       {booking.rug.photos.map((photo, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={`${photo}-${i}`}
                           src={photo}
@@ -310,6 +446,93 @@ export default function AdminBookingDetail() {
                     </div>
                   </div>
                 )}
+
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Internal notes
+                  </div>
+                  <div className="mt-[14px] space-y-2">
+                    <Label htmlFor="internal-note">Internal note</Label>
+                    <Textarea
+                      id="internal-note"
+                      value={noteDraft}
+                      onChange={(e) => {
+                        setNoteDraft(e.target.value);
+                        if (noteError) setNoteError(null);
+                      }}
+                      placeholder="Gate code, dog on site, customer will EFT after collection…"
+                      maxLength={MAX_NOTE_LEN}
+                      rows={3}
+                      aria-invalid={noteError ? true : undefined}
+                      aria-describedby={noteError ? "internal-note-error" : undefined}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                        {noteDraft.trim().length}/{MAX_NOTE_LEN}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={noteSaving || !noteDraft.trim()}
+                        onClick={() => void addNote()}
+                      >
+                        {noteSaving ? "Adding…" : "Add"}
+                      </Button>
+                    </div>
+                    {noteError ? (
+                      <p
+                        id="internal-note-error"
+                        role="alert"
+                        className="text-sm"
+                        style={{ color: "#b3261e" }}
+                      >
+                        {noteError}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-[16px]">
+                    {notesLoading ? (
+                      <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                        Loading notes…
+                      </p>
+                    ) : notesError ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
+                          {notesError}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void loadNotes()}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    ) : notes.length === 0 ? (
+                      <p className="text-meta italic" style={{ color: "#9aa0a6" }}>
+                        No internal notes yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {notes.map((note) => (
+                          <li
+                            key={note.id}
+                            className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f9fb] px-3 py-3"
+                          >
+                            <p className="text-body whitespace-pre-wrap" style={{ color: "#32373c" }}>
+                              {note.body}
+                            </p>
+                            <p className="text-meta mt-2" style={{ color: "#9aa0a6" }}>
+                              {note.author} · {formatNoteTime(note.createdAt)}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-[14px]">
@@ -363,6 +586,16 @@ export default function AdminBookingDetail() {
                       </SelectTrigger>
                       <SelectContent className="max-h-72 overflow-y-auto">
                         <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {inactiveAssigned &&
+                        !drivers.some((driver) => driver.id === inactiveAssigned.id) ? (
+                          <SelectItem value={inactiveAssigned.id} disabled>
+                            {inactiveAssigned.name}
+                            {inactiveAssigned.vehicle
+                              ? ` (${inactiveAssigned.vehicle})`
+                              : ""}{" "}
+                            — inactive
+                          </SelectItem>
+                        ) : null}
                         {drivers.map((driver) => (
                           <SelectItem key={driver.id} value={driver.id}>
                             {driver.name}

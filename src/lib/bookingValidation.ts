@@ -123,7 +123,7 @@ export function validateStep3Contact(data: {
   addressLine1?: string;
   suburb?: string;
   city?: string;
-  customer?: { name?: string; phone?: string; email?: string };
+  customer?: { id?: string; name?: string; phone?: string; email?: string };
 }): FieldErrors {
   const errors: FieldErrors = {};
   const customer = data.customer || {};

@@ -1,4 +1,5 @@
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { localCalendarDate } from "@/lib/localCalendarDate";
 
 /** Default list sort: newest `createdAt` first. Toggle to soonest `collectionDate`. */
 export type BookingListSort = "created" | "collection";
@@ -51,11 +52,20 @@ export function parseBookingListQuery(
   const assignedRaw = (params.get("assigned") || "").trim();
   const status = (params.get("status") || "").trim().toUpperCase();
   const payment = (params.get("payment") || "").trim().toUpperCase();
+  const onRaw = (params.get("on") || "").trim();
+  const dateRaw = (params.get("date") || "").trim();
+  const on =
+    onRaw ||
+    (dateRaw === "today"
+      ? localCalendarDate()
+      : /^\d{4}-\d{2}-\d{2}/.test(dateRaw)
+        ? dateRaw.slice(0, 10)
+        : "");
 
   return {
     status: BOOKING_STATUSES.includes(status as BookingStatus) ? status : "",
     payment: PAYMENT_STATUSES.includes(payment as PaymentStatus) ? payment : "",
-    on: (params.get("on") || "").trim(),
+    on,
     from: (params.get("from") || "").trim(),
     to: (params.get("to") || "").trim(),
     suburb: (params.get("suburb") || "").trim(),
@@ -148,6 +158,22 @@ export function filterBookings(
     if (!matchesQuery(booking, filters.q)) return false;
     return true;
   });
+}
+
+export function countBookingsByStatus(
+  bookings: Booking[],
+  filters: AdminBookingFilters
+): { all: number; byStatus: Record<BookingStatus, number> } {
+  const scoped = filterBookings(bookings, { ...filters, status: "" });
+  const byStatus = Object.fromEntries(
+    BOOKING_STATUSES.map((status) => [status, 0])
+  ) as Record<BookingStatus, number>;
+
+  for (const booking of scoped) {
+    byStatus[booking.status] += 1;
+  }
+
+  return { all: scoped.length, byStatus };
 }
 
 export function sortBookings(

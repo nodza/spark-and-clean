@@ -10,6 +10,14 @@ export type BookingStatus =
 
 export type PaymentStatus = "UNPAID" | "DEPOSIT" | "PAID";
 
+/** Ops-only — never sent on customer/public booking payloads */
+export interface InternalNote {
+  id: string;
+  body: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -60,5 +68,10 @@ export interface Booking {
 export interface Driver {
   id: string;
   name: string;
+  phone: string;
+  email?: string;
   vehicle: string;
+  isActive: boolean;
+  city?: string;
+  notes?: string;
 }

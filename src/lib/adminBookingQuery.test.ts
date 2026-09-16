@@ -4,6 +4,7 @@ import {
   applyBookingListQuery,
   bookingFiltersToSearchParams,
   bookingListHref,
+  countBookingsByStatus,
   EMPTY_BOOKING_FILTERS,
   parseBookingListQuery,
 } from "@/lib/adminBookingQuery";
@@ -86,6 +87,14 @@ describe("admin booking query", () => {
     expect(rows.map((b) => b.id)).toEqual(["SC-2025-0001"]);
   });
 
+  it("maps date=today onto the on filter", () => {
+    const parsed = parseBookingListQuery(
+      new URLSearchParams("date=today&assigned=0")
+    );
+    expect(parsed.assigned).toBe("0");
+    expect(parsed.on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it("searches id, name, email, and phone digits", () => {
     const byPhone = applyBookingListQuery(seed, {
       ...EMPTY_BOOKING_FILTERS,
@@ -98,6 +107,20 @@ describe("admin booking query", () => {
       q: "0003",
     });
     expect(byId.map((b) => b.id)).toEqual(["SC-2025-0003"]);
+  });
+
+  it("counts bookings per status without applying the status filter", () => {
+    const all = countBookingsByStatus(seed, EMPTY_BOOKING_FILTERS);
+    expect(all.all).toBe(3);
+    expect(all.byStatus.BOOKED).toBe(3);
+    expect(all.byStatus.COLLECTED).toBe(0);
+
+    const unpaid = countBookingsByStatus(seed, {
+      ...EMPTY_BOOKING_FILTERS,
+      payment: "UNPAID",
+    });
+    expect(unpaid.all).toBe(1);
+    expect(unpaid.byStatus.BOOKED).toBe(1);
   });
 
   it("toggles to soonest collectionDate", () => {
