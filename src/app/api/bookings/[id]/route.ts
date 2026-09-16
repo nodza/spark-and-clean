@@ -10,6 +10,7 @@ import {
   isBookingStatus,
   isPaymentStatus,
 } from "@/lib/bookingPatchFields";
+import { isAssignableDriverPair } from "@/lib/assignableDriver";
 import {
   isHttpError,
   requireFullAdminSession,
@@ -152,23 +153,16 @@ export async function PATCH(request: Request, { params }: Params) {
       if (nextDriver === null) {
         $unset.assignedDriverId = "";
       } else {
-        const driver = await Driver.findOne({
-          id: nextDriver,
-          $or: [{ isActive: true }, { isActive: { $exists: false } }],
-        })
-          .select({ id: 1 })
-          .lean();
-        const tech = driver
-          ? null
-          : await User.findOne({
-              role: "technician",
-              driverProfileId: nextDriver,
-              disabledAt: null,
-              $or: [{ isActive: true }, { isActive: { $exists: false } }],
-            })
-              .select({ _id: 1 })
-              .lean();
-        if (!driver && !tech) {
+        const [driver, tech] = await Promise.all([
+          Driver.findOne({ id: nextDriver }).select({ id: 1, isActive: 1 }).lean(),
+          User.findOne({
+            role: "technician",
+            driverProfileId: nextDriver,
+          })
+            .select({ _id: 1, disabledAt: 1, isActive: 1 })
+            .lean(),
+        ]);
+        if (!isAssignableDriverPair(driver, tech)) {
           return NextResponse.json(
             { error: "Unknown or inactive driver" },
             { status: 400 }

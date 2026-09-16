@@ -41,27 +41,6 @@ if (!DEMO_PASSWORD) {
 }
 const passwordPlain = DEMO_PASSWORD || "ChangeMeLocalOnly!";
 
-const driversSeed = [
-  {
-    id: "driver_1",
-    name: "Thabo Mbeki",
-    vehicle: "Nissan NP200 (CA 123-456)",
-    email: "thabo.driver@sparkandclean.co.za",
-    phone: "082 100 0001",
-    city: "Cape Town",
-    isActive: true,
-  },
-  {
-    id: "driver_2",
-    name: "Sipho Nkosi",
-    vehicle: "Toyota Hilux (CA 987-654)",
-    email: "sipho.driver@sparkandclean.co.za",
-    phone: "082 100 0002",
-    city: "Cape Town",
-    isActive: true,
-  },
-];
-
 /** Ticket seed set: 1 full admin, 1 marketing admin, 2 technicians, 1 client */
 const usersSeed = [
   {
@@ -89,18 +68,18 @@ const usersSeed = [
     preferredCity: "Cape Town",
   },
   {
-    email: "thabo.driver@sparkandclean.co.za",
+    email: "thabo@sparkandclean.co.za",
     name: "Thabo Mbeki",
-    phone: "082 100 0001",
+    phone: "074 281 5432",
     role: "technician",
     adminTier: null,
     driverProfileId: "driver_1",
     preferredCity: "Cape Town",
   },
   {
-    email: "sipho.driver@sparkandclean.co.za",
+    email: "sipho@sparkandclean.co.za",
     name: "Sipho Nkosi",
-    phone: "082 100 0002",
+    phone: "082 456 7890",
     role: "technician",
     adminTier: null,
     driverProfileId: "driver_2",
@@ -121,15 +100,9 @@ async function seed() {
   const passwordHash = await bcrypt.hash(passwordPlain, 10);
   const now = new Date();
 
-  const drivers = mongoose.connection.collection("drivers");
   const users = mongoose.connection.collection("users");
 
   await users.createIndex({ email: 1 }, { unique: true });
-
-  for (const d of driversSeed) {
-    await drivers.updateOne({ id: d.id }, { $set: d }, { upsert: true });
-  }
-  console.log(`[seed] Upserted ${driversSeed.length} drivers (Thabo, Sipho)`);
 
   for (const u of usersSeed) {
     const email = u.email.toLowerCase();

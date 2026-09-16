@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     const notes = Array.isArray(doc.notes)
-      ? (doc.notes as Record<string, unknown>[]).map(toNote)
+      ? (doc.notes as unknown as Record<string, unknown>[]).map(toNote)
       : [];
     notes.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 

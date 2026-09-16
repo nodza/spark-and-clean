@@ -27,7 +27,12 @@ import {
   AdminPortalShell,
 } from "@/components/admin/AdminPortalShell";
 
-type DriverOption = { id: string; name: string; vehicle?: string };
+type DriverOption = {
+  id: string;
+  name: string;
+  vehicle?: string;
+  isActive?: boolean;
+};
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -48,6 +53,9 @@ export default function AdminBookingDetail() {
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [inactiveAssigned, setInactiveAssigned] = useState<DriverOption | null>(
+    null
+  );
   const [loadDone, setLoadDone] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -102,7 +110,14 @@ export default function AdminBookingDetail() {
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && Array.isArray(data)) setDrivers(data);
+        if (cancelled) return;
+        if (Array.isArray(data)) {
+          setDrivers(
+            data.filter(
+              (driver): driver is DriverOption => driver?.isActive !== false
+            )
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) setDrivers([]);
@@ -112,6 +127,42 @@ export default function AdminBookingDetail() {
       cancelled = true;
     };
   }, [fetchBookingById, id, loadNotes]);
+
+  useEffect(() => {
+    const assignedId = booking?.assignedDriverId;
+    if (!assignedId || drivers.some((driver) => driver.id === assignedId)) {
+      setInactiveAssigned(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(`/api/drivers/${assignedId}`, { credentials: "include" })
+      .then(async (res) =>
+        res.ok ? res.json() : { id: assignedId, name: assignedId }
+      )
+      .then((data) => {
+        if (cancelled) return;
+        setInactiveAssigned({
+          id: String(data.id || assignedId),
+          name: String(data.name || assignedId),
+          vehicle: typeof data.vehicle === "string" ? data.vehicle : undefined,
+          isActive: false,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInactiveAssigned({
+            id: assignedId,
+            name: assignedId,
+            isActive: false,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking?.assignedDriverId, drivers]);
 
   const addNote = async () => {
     const body = noteDraft.trim();
@@ -165,6 +216,9 @@ export default function AdminBookingDetail() {
 
   const handleAssign = async (val: string) => {
     if (!booking || saving) return;
+    if (val !== "unassigned" && !drivers.some((driver) => driver.id === val)) {
+      return;
+    }
     setSaving(true);
     try {
       const driverId = val === "unassigned" ? null : val;
@@ -475,6 +529,16 @@ export default function AdminBookingDetail() {
                     </SelectTrigger>
                     <SelectContent className="max-h-72 overflow-y-auto">
                       <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {inactiveAssigned &&
+                      !drivers.some((driver) => driver.id === inactiveAssigned.id) ? (
+                        <SelectItem value={inactiveAssigned.id} disabled>
+                          {inactiveAssigned.name}
+                          {inactiveAssigned.vehicle
+                            ? ` (${inactiveAssigned.vehicle})`
+                            : ""}{" "}
+                          — inactive
+                        </SelectItem>
+                      ) : null}
                       {drivers.map((driver) => (
                         <SelectItem key={driver.id} value={driver.id}>
                           {driver.name}

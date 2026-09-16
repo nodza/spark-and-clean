@@ -4,19 +4,21 @@ import { randomBytes } from "node:crypto";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { Driver } from "@/models/Driver";
-import { toClientUser } from "@/lib/serialize";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import {
   createTechnicianBodySchema,
   shouldGenerateTechnicianPassword,
 } from "@/lib/createTechnician";
 import { generateTemporaryPassword } from "@/lib/temporaryPassword";
+import { toTechnicianRow } from "@/lib/technicianRow";
 
-function authError(err: unknown) {
+function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  throw err;
+  const message = err instanceof Error ? err.message : fallback;
+  console.error("[api/admin/technicians]", message);
+  return NextResponse.json({ error: message }, { status: 500 });
 }
 
 export async function GET() {
@@ -35,24 +37,22 @@ export async function GET() {
     const drivers = driverIds.length
       ? await Driver.find({ id: { $in: driverIds } }).lean()
       : [];
-    const vehicleByDriver = new Map(
-      drivers.map((d) => [d.id, d.vehicle as string | undefined])
+    const driverById = new Map(
+      drivers.map((d) => [d.id as string, d as Record<string, unknown>])
     );
 
     return NextResponse.json({
       technicians: techs.map((t) => {
-        const user = toClientUser(t as Record<string, unknown>);
-        const vehicle = t.driverProfileId
-          ? vehicleByDriver.get(t.driverProfileId) ?? null
-          : null;
-        return { ...user, vehicle };
+        const profileId =
+          typeof t.driverProfileId === "string" ? t.driverProfileId : "";
+        return toTechnicianRow(
+          t as Record<string, unknown>,
+          profileId ? driverById.get(profileId) ?? null : null
+        );
       }),
     });
   } catch (err) {
-    if (isHttpError(err)) return authError(err);
-    const message = err instanceof Error ? err.message : "Failed to list technicians";
-    console.error("[api/admin/technicians GET]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(err, "Failed to list technicians");
   }
 }
 
@@ -86,9 +86,10 @@ export async function POST(request: Request) {
 
     let driverProfileId: string | undefined;
     const vehicle = body.vehicle?.trim();
+    let createdDriver: Record<string, unknown> | null = null;
     if (vehicle) {
       driverProfileId = `driver_${randomBytes(4).toString("hex")}`;
-      await Driver.create({
+      const driver = await Driver.create({
         id: driverProfileId,
         name: body.name,
         vehicle,
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
         email: body.email,
         isActive: true,
       });
+      createdDriver = driver.toObject() as Record<string, unknown>;
     }
 
     const user = await User.create({
@@ -113,23 +115,20 @@ export async function POST(request: Request) {
       mustChangePassword: true,
     });
 
-    const clientUser = {
-      ...toClientUser({
-        ...(user.toObject() as Record<string, unknown>),
-        _id: user._id,
-      }),
-      vehicle: vehicle || null,
-    };
-
     return NextResponse.json(
       {
-        user: clientUser,
+        user: toTechnicianRow(
+          {
+            ...(user.toObject() as Record<string, unknown>),
+            _id: user._id,
+          },
+          createdDriver
+        ),
         temporaryPassword: generate ? plaintext : undefined,
       },
       { status: 201 }
     );
   } catch (err) {
-    if (isHttpError(err)) return authError(err);
     if (
       err &&
       typeof err === "object" &&
@@ -141,8 +140,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const message = err instanceof Error ? err.message : "Failed to create technician";
-    console.error("[api/admin/technicians POST]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(err, "Failed to create technician");
   }
 }
