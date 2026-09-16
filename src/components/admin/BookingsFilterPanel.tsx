@@ -3,7 +3,6 @@
 import { format, parseISO } from "date-fns";
 import { Calendar, X } from "lucide-react";
 import {
-  EMPTY_BOOKING_FILTERS,
   type AdminBookingFilters,
   type BookingListSort,
 } from "@/lib/adminBookingQuery";
@@ -107,10 +106,10 @@ function activeFilterChips(filters: AdminBookingFilters): ActiveChip[] {
 }
 
 const fieldLabelClass =
-  "mb-[7px] block text-[11.5px] font-bold tracking-[0.02em] text-[#8A90A0]";
+  "mb-[4px] block text-[10.5px] font-bold tracking-[0.02em] text-[#8A90A0]";
 
 const controlClass =
-  "h-[42px] w-full appearance-none rounded-[8px] border-[1.5px] bg-white pl-3 pr-9 text-[14px] text-[#171B24] outline-none transition-[border-color,box-shadow,background] hover:border-[#C7CAD2] focus:border-[#0F6E5F] focus:shadow-[0_0_0_4px_#E7F3F0] disabled:cursor-not-allowed disabled:bg-[#F5F6F8] disabled:text-[#8A90A0]";
+  "h-8 w-full appearance-none rounded-[7px] border-[1.5px] bg-white pl-2.5 pr-7 text-[12.5px] text-[#171B24] outline-none transition-[border-color,box-shadow,background] hover:border-[#C7CAD2] focus:border-[#0F6E5F] focus:shadow-[0_0_0_3px_#E7F3F0] disabled:cursor-not-allowed disabled:bg-[#F5F6F8] disabled:text-[#8A90A0]";
 
 function FilterSelect({
   id,
@@ -146,7 +145,7 @@ function FilterSelect({
           {children}
         </select>
         <span
-          className="pointer-events-none absolute right-[13px] top-1/2 size-2 -translate-y-[65%] rotate-45 border-r-[1.5px] border-b-[1.5px] border-[#8A90A0]"
+          className="pointer-events-none absolute right-[10px] top-1/2 size-[7px] -translate-y-[65%] rotate-45 border-r-[1.5px] border-b-[1.5px] border-[#8A90A0]"
           aria-hidden
         />
       </div>
@@ -181,7 +180,7 @@ function FilterDate({
           onChange={(e) => onChange(e.target.value)}
           className={cn(
             controlClass,
-            "[&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0",
+            "[&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-8 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0",
             value
               ? "border-[#0F6E5F] bg-[#E7F3F0] font-semibold text-[#0B5548]"
               : "border-[#E3E5EA]"
@@ -189,9 +188,9 @@ function FilterDate({
           style={{ colorScheme: "light" }}
         />
         <Calendar
-          size={16}
+          size={13}
           strokeWidth={2}
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#8A90A0]"
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A90A0]"
           aria-hidden
         />
       </div>
@@ -228,73 +227,83 @@ export function BookingsFilterPanel({
     onPatch({ sort });
   }
 
+  function chipClass(selected: boolean, empty = false) {
+    return cn(
+      "inline-flex items-center gap-1 rounded-full border px-[9px] py-[3px] text-[12px] font-semibold transition-colors",
+      selected
+        ? "border-[#0F6E5F] bg-[#E7F3F0] text-[#0B5548]"
+        : "border-[#E3E5EA] bg-white text-[#4B5262] hover:border-[#C7CAD2] hover:bg-[#F5F6F8]",
+      empty && !selected ? "opacity-60" : ""
+    );
+  }
+
   return (
-    <section
-      className="rounded-[14px] border border-[#E3E5EA] bg-white px-7 pb-[22px] pt-7"
-      style={{
-        boxShadow:
-          "0 1px 2px rgba(23,27,36,0.04), 0 8px 24px -12px rgba(23,27,36,0.10)",
-      }}
-    >
-      <div className="mb-[22px] flex flex-wrap items-start justify-between gap-6">
-        <div className="max-w-[480px]">
-          <h1 className="m-0 text-[20px] font-bold tracking-[-0.01em] text-[#171B24]">
-            All bookings
-          </h1>
-          <p className="mt-1 mb-0 text-[13.5px] leading-normal text-[#8A90A0]">
-            Default sort is newest created. Search by ID, name, phone or email
-            in the top bar.
+    <section className="rounded-[12px] border border-[#E3E5EA] bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h1 className="m-0 text-[15px] font-bold tracking-[-0.01em] text-[#171B24]">
+          All bookings
+        </h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="m-0 text-[12px] text-[#4B5262]">
+            <strong className="font-bold text-[#171B24]">{matchedCount}</strong>{" "}
+            of {totalCount}
           </p>
-        </div>
-        <div
-          className="inline-flex w-full flex-none rounded-full border border-[#E3E5EA] bg-[#F5F6F8] p-[3px] sm:w-auto"
-          role="group"
-          aria-label="Sort order"
-        >
+          <div
+            className="inline-flex rounded-full border border-[#E3E5EA] bg-[#F5F6F8] p-[2px]"
+            role="group"
+            aria-label="Sort order"
+          >
+            <button
+              type="button"
+              onClick={() => setSort("created")}
+              className={cn(
+                "rounded-full px-2.5 py-[4px] text-[12px] font-semibold whitespace-nowrap transition-colors",
+                filters.sort === "created"
+                  ? "bg-[#171B24] text-white"
+                  : "bg-transparent text-[#8A90A0] hover:text-[#171B24]"
+              )}
+            >
+              Newest
+            </button>
+            <button
+              type="button"
+              onClick={() => setSort("collection")}
+              className={cn(
+                "rounded-full px-2.5 py-[4px] text-[12px] font-semibold whitespace-nowrap transition-colors",
+                filters.sort === "collection"
+                  ? "bg-[#171B24] text-white"
+                  : "bg-transparent text-[#8A90A0] hover:text-[#171B24]"
+              )}
+            >
+              Soonest
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setSort("created")}
+            disabled={!hasFilters}
+            onClick={onClear}
             className={cn(
-              "flex-1 rounded-full px-[14px] py-[7px] text-[13px] font-semibold whitespace-nowrap transition-colors sm:flex-none",
-              filters.sort === "created"
-                ? "bg-[#171B24] text-white"
-                : "bg-transparent text-[#8A90A0] hover:text-[#171B24]"
+              "inline-flex items-center gap-1 border-0 bg-transparent p-0 text-[12px] font-bold",
+              hasFilters
+                ? "cursor-pointer text-[#8A90A0] hover:text-[#B4472A]"
+                : "cursor-default text-[#C7CAD2]"
             )}
           >
-            Newest created
-          </button>
-          <button
-            type="button"
-            onClick={() => setSort("collection")}
-            className={cn(
-              "flex-1 rounded-full px-[14px] py-[7px] text-[13px] font-semibold whitespace-nowrap transition-colors sm:flex-none",
-              filters.sort === "collection"
-                ? "bg-[#171B24] text-white"
-                : "bg-transparent text-[#8A90A0] hover:text-[#171B24]"
-            )}
-          >
-            Soonest collection
+            <X size={12} strokeWidth={2.2} aria-hidden />
+            Clear
           </button>
         </div>
       </div>
 
-      <div className="mb-[9px] text-[11.5px] font-bold tracking-[0.02em] text-[#8A90A0]">
-        Status
-      </div>
-      <div className="mb-[22px] flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-wrap gap-1">
         <button
           type="button"
           aria-pressed={!filters.status}
           onClick={() => onPatch({ status: "" })}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-[14px] py-2 text-[13.5px] font-semibold transition-colors",
-            !filters.status
-              ? "border-[#0F6E5F] bg-[#E7F3F0] text-[#0B5548]"
-              : "border-[#E3E5EA] bg-white text-[#4B5262] hover:border-[#C7CAD2] hover:bg-[#F5F6F8]"
-          )}
+          className={chipClass(!filters.status)}
         >
           All
-          <span className="tabular-nums text-[12px] font-bold opacity-70">
+          <span className="tabular-nums text-[11px] font-bold opacity-70">
             {statusCounts.all}
           </span>
         </button>
@@ -307,16 +316,10 @@ export function BookingsFilterPanel({
               type="button"
               aria-pressed={selected}
               onClick={() => onPatch({ status })}
-              className={cn(
-                "inline-flex items-center gap-[7px] rounded-full border-[1.5px] px-[14px] py-2 text-[13.5px] font-semibold transition-colors",
-                selected
-                  ? "border-[#0F6E5F] bg-[#E7F3F0] text-[#0B5548]"
-                  : "border-[#E3E5EA] bg-white text-[#4B5262] hover:border-[#C7CAD2] hover:bg-[#F5F6F8]",
-                count === 0 && !selected ? "opacity-60" : ""
-              )}
+              className={chipClass(selected, count === 0)}
             >
               <span
-                className="size-[7px] flex-none rounded-full"
+                className="size-[6px] flex-none rounded-full"
                 style={{
                   background: statusDot(status),
                   opacity: selected ? 1 : 0.55,
@@ -324,7 +327,7 @@ export function BookingsFilterPanel({
                 aria-hidden
               />
               {titleCase(status)}
-              <span className="tabular-nums text-[12px] font-bold opacity-70">
+              <span className="tabular-nums text-[11px] font-bold opacity-70">
                 {count}
               </span>
             </button>
@@ -332,7 +335,7 @@ export function BookingsFilterPanel({
         })}
       </div>
 
-      <div className="mb-[18px] grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
         <FilterSelect
           id="booking-filter-payment"
           label="Payment"
@@ -384,12 +387,6 @@ export function BookingsFilterPanel({
             </option>
           ))}
         </FilterSelect>
-      </div>
-
-      <div className="mb-[9px] text-[11.5px] font-bold tracking-[0.02em] text-[#8A90A0]">
-        Collection date
-      </div>
-      <div className="mb-1 grid grid-cols-1 gap-[14px] sm:grid-cols-3">
         <FilterDate
           id="booking-filter-on"
           label="On date"
@@ -413,20 +410,17 @@ export function BookingsFilterPanel({
       </div>
 
       {hasFilters ? (
-        <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-[#ECEDF1] pt-[14px]">
-          <span className="mr-0.5 text-[12.5px] font-semibold text-[#8A90A0]">
-            Active filters:
-          </span>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {chips.map((chip) => (
             <span
               key={chip.key}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#171B24] py-[5px] pr-2 pl-[11px] text-[12.5px] font-semibold text-white"
+              className="inline-flex items-center gap-1 rounded-full bg-[#171B24] py-0.5 pr-1.5 pl-2 text-[11px] font-semibold text-white"
             >
               {chip.label}
               <button
                 type="button"
                 aria-label={`Remove ${chip.label}`}
-                className="inline-flex size-4 items-center justify-center rounded-full bg-white/18 text-[11px] leading-none hover:bg-white/32"
+                className="inline-flex size-3.5 items-center justify-center rounded-full bg-white/18 text-[10px] leading-none hover:bg-white/32"
                 onClick={() => onPatch(chip.clear)}
               >
                 ×
@@ -435,27 +429,6 @@ export function BookingsFilterPanel({
           ))}
         </div>
       ) : null}
-
-      <div className="mt-1 flex flex-col items-start justify-between gap-2.5 border-t border-[#ECEDF1] pt-[18px] sm:flex-row sm:items-center">
-        <p className="m-0 text-[13.5px] text-[#4B5262]">
-          <strong className="font-bold text-[#171B24]">{matchedCount}</strong> of{" "}
-          {totalCount} bookings
-        </p>
-        <button
-          type="button"
-          disabled={!hasFilters}
-          onClick={onClear}
-          className={cn(
-            "inline-flex items-center gap-1.5 border-0 bg-transparent p-[6px_4px] text-[13.5px] font-bold",
-            hasFilters
-              ? "cursor-pointer text-[#8A90A0] hover:text-[#B4472A]"
-              : "cursor-default text-[#C7CAD2]"
-          )}
-        >
-          <X size={14} strokeWidth={2.2} aria-hidden />
-          Clear filters
-        </button>
-      </div>
     </section>
   );
 }

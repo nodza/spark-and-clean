@@ -109,6 +109,39 @@ describe("admin booking query", () => {
     expect(byId.map((b) => b.id)).toEqual(["SC-2025-0003"]);
   });
 
+  it("searches street, suburb, and city including partial address", () => {
+    const withStreet = [
+      ...seed,
+      booking({
+        id: "SC-2025-0042",
+        addressLine1: "42 Protea Way",
+        suburb: "Observatory",
+        city: "Cape Town",
+      }),
+    ];
+
+    expect(
+      applyBookingListQuery(withStreet, {
+        ...EMPTY_BOOKING_FILTERS,
+        q: "42 Protea",
+      }).map((b) => b.id)
+    ).toEqual(["SC-2025-0042"]);
+
+    expect(
+      applyBookingListQuery(withStreet, {
+        ...EMPTY_BOOKING_FILTERS,
+        q: "Prote",
+      }).map((b) => b.id)
+    ).toEqual(["SC-2025-0042"]);
+
+    expect(
+      applyBookingListQuery(withStreet, {
+        ...EMPTY_BOOKING_FILTERS,
+        q: "Observatory",
+      }).map((b) => b.id)
+    ).toEqual(["SC-2025-0042"]);
+  });
+
   it("counts bookings per status without applying the status filter", () => {
     const all = countBookingsByStatus(seed, EMPTY_BOOKING_FILTERS);
     expect(all.all).toBe(3);

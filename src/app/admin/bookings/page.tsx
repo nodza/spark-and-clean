@@ -235,7 +235,7 @@ function AdminBookingsList() {
         <AdminSearchTopbar
           searchValue={filters.q}
           onSearchChange={(q) => patchFilters({ q })}
-          searchPlaceholder="Search ID, name, phone, email"
+          searchPlaceholder="Search by ID, name, phone, email, or address"
         />
       }
     >

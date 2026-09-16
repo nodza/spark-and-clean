@@ -114,17 +114,29 @@ function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+function normalizeSearch(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function matchesQuery(booking: Booking, q: string): boolean {
-  if (!q) return true;
-  const needle = q.trim().toLowerCase();
+  const needle = normalizeSearch(q);
   if (!needle) return true;
+  const combinedAddress = [booking.addressLine1, booking.suburb, booking.city]
+    .filter(Boolean)
+    .join(" ");
   const haystacks = [
     booking.id,
     booking.customer.name,
     booking.customer.email,
     booking.customer.phone,
+    booking.addressLine1,
+    booking.suburb,
+    booking.city,
+    combinedAddress,
   ];
-  if (haystacks.some((part) => part.toLowerCase().includes(needle))) return true;
+  if (haystacks.some((part) => normalizeSearch(part).includes(needle))) {
+    return true;
+  }
   const qDigits = digitsOnly(q);
   if (qDigits.length >= 3 && digitsOnly(booking.customer.phone).includes(qDigits)) {
     return true;
