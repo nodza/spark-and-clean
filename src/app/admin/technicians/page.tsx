@@ -2,6 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  CalendarDays,
+  KeyRound,
+  Mail,
+  Phone,
+  Plus,
+  ShieldOff,
+  Truck,
+  UserCog,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -73,6 +84,28 @@ function initials(name?: string, email?: string) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
   return source.slice(0, 2).toUpperCase();
+}
+
+function MetaRow({
+  icon: Icon,
+  children,
+  className,
+  color = "#6b7280",
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  className?: string;
+  color?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 text-[13px] ${className ?? ""}`}
+      style={{ color }}
+    >
+      <Icon size={14} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+      <span className="min-w-0 truncate">{children}</span>
+    </div>
+  );
 }
 
 function validateTechnicianForm(form: {
@@ -268,7 +301,8 @@ export default function AdminTechniciansPage() {
       <div className="portal-page flex flex-col gap-[18px]">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+            <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+              <UserCog size={14} strokeWidth={1.8} aria-hidden="true" />
               STAFF LOGINS
             </div>
             <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
@@ -276,7 +310,8 @@ export default function AdminTechniciansPage() {
             </p>
           </div>
           <Button type="button" onClick={() => setFormOpen(true)}>
-            + Add technician
+            <Plus size={16} strokeWidth={2} aria-hidden="true" />
+            Add technician
           </Button>
         </div>
 
@@ -348,8 +383,9 @@ export default function AdminTechniciansPage() {
                     <div className="text-[15px] font-bold" style={{ color: "#000b49" }}>
                       {t.name || t.email}
                     </div>
-                    <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>
-                      {t.email}
+                    <div className="text-meta mt-[3px] flex items-center gap-1.5 truncate" style={{ color: "#9aa0a6" }}>
+                      <Mail size={12} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+                      <span className="truncate">{t.email}</span>
                     </div>
                   </div>
                   <span
@@ -360,24 +396,22 @@ export default function AdminTechniciansPage() {
                   </span>
                 </div>
                 <div className="my-[16px] h-px" style={{ background: "#f0f2f6" }} />
-                <div className="text-[13px]" style={{ color: "#6b7280" }}>
-                  {t.phone || "No phone"}
-                </div>
-                <div className="mt-[6px] text-[13px]" style={{ color: "#6b7280" }}>
+                <MetaRow icon={Phone}>{t.phone || "No phone"}</MetaRow>
+                <MetaRow icon={Truck} className="mt-[6px]">
                   {t.vehicle || "No vehicle assigned"}
-                </div>
-                <div className="mt-[6px] text-[13px]" style={{ color: "#6b7280" }}>
+                </MetaRow>
+                <MetaRow icon={CalendarDays} className="mt-[6px]">
                   {todayJobs === 1 ? "1 job today" : `${todayJobs} jobs today`}
-                </div>
+                </MetaRow>
                 {t.disabledAt ? (
-                  <div className="mt-[10px] text-[12px] font-bold" style={{ color: "#8a6d00" }}>
+                  <MetaRow icon={ShieldOff} className="mt-[10px] font-bold" color="#8a6d00">
                     Login disabled
-                  </div>
+                  </MetaRow>
                 ) : null}
                 {t.mustChangePassword ? (
-                  <div className="mt-[10px] text-[12px] font-bold" style={{ color: "#8a6d00" }}>
+                  <MetaRow icon={KeyRound} className="mt-[10px] font-bold" color="#8a6d00">
                     Must change password on next login
-                  </div>
+                  </MetaRow>
                 ) : null}
               </Link>
             );
@@ -408,16 +442,19 @@ export default function AdminTechniciansPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <form onSubmit={(e) => void handleCreate(e)}>
-            <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-md">
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => void handleCreate(e)}
+          >
+            <DialogHeader className="shrink-0 pr-8">
               <DialogTitle>Add technician</DialogTitle>
               <DialogDescription>
                 Creates a technician login. Email is the username. They cannot
                 register themselves.
               </DialogDescription>
             </DialogHeader>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
               <div className="space-y-1.5">
                 <Label htmlFor="tech-name">Name</Label>
                 <Input
@@ -531,7 +568,7 @@ export default function AdminTechniciansPage() {
                 </p>
               )}
             </div>
-            <DialogFooter className="mt-5">
+            <DialogFooter className="mt-5 shrink-0">
               <Button
                 type="button"
                 variant="secondary"
