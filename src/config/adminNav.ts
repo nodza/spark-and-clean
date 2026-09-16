@@ -2,8 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   CalendarDays,
+  ContactRound,
   LayoutGrid,
   MapPinned,
+  Tag,
   Truck,
   Users,
 } from "lucide-react";
@@ -14,10 +16,12 @@ import {
  * Update `shipped` when the route lands.
  */
 export type AdminNavKey =
-  | "dashboard"
+  | "overview"
   | "bookings"
   | "today"
   | "technicians"
+  | "clients"
+  | "pricing"
   | "vehicles"
   | "analytics";
 
@@ -36,8 +40,8 @@ export type AdminNavItem = {
 
 export const ADMIN_OPS_NAV: AdminNavItem[] = [
   {
-    key: "dashboard",
-    label: "Dashboard",
+    key: "overview",
+    label: "Overview",
     href: "/admin",
     shipped: true,
     fullAdminOnly: false,
@@ -69,8 +73,25 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     shipped: true,
     fullAdminOnly: true,
     icon: Users,
-    match: (p) =>
-      p.startsWith("/admin/technicians"),
+    match: (p) => p.startsWith("/admin/technicians"),
+  },
+  {
+    key: "clients",
+    label: "Clients",
+    href: "/admin/clients",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: ContactRound,
+    match: (p) => p.startsWith("/admin/clients"),
+  },
+  {
+    key: "pricing",
+    label: "Pricing & coupons",
+    href: "/admin/pricing",
+    shipped: true,
+    fullAdminOnly: false,
+    icon: Tag,
+    match: (p) => p.startsWith("/admin/pricing"),
   },
   {
     key: "vehicles",
@@ -93,10 +114,12 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
 ];
 
 export const ADMIN_PAGE_TITLES: Record<string, string> = {
-  "/admin": "Dashboard",
+  "/admin": "Overview",
   "/admin/bookings": "Bookings",
   "/admin/assignments": "Today",
   "/admin/technicians": "Technicians",
+  "/admin/clients": "Clients",
+  "/admin/pricing": "Pricing & coupons",
   "/admin/vehicles": "Vehicles",
   "/admin/analytics": "Analytics",
 };
@@ -113,4 +136,17 @@ export function resolveAdminPageTitle(pathname: string): string {
     if (prefix !== "/admin" && pathname.startsWith(prefix)) return title;
   }
   return "Operations";
+}
+
+/** Sidebar items for the signed-in admin. Hidden until auth is ready (no ops flash). */
+export function visibleAdminNavItems(opts: {
+  ready: boolean;
+  marketingOnly: boolean;
+}): AdminNavItem[] {
+  if (!opts.ready) return [];
+  return ADMIN_OPS_NAV.filter((item) => {
+    if (!item.shipped) return false;
+    if (opts.marketingOnly && item.fullAdminOnly) return false;
+    return true;
+  });
 }

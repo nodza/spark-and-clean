@@ -59,7 +59,7 @@ export function getWorkspaceNavLink(
   if (role === "admin") {
     return {
       id: "workspace",
-      label: "Dashboard",
+      label: "Overview",
       href: homeForRole("admin"),
       emphasize: true,
     };

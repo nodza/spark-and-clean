@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import {
   ChevronLeft,
@@ -11,12 +12,20 @@ import {
 } from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, BookingStatus } from "@/types/booking";
+import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import { cn } from "@/lib/utils";
+import {
+  isBookingOnLocalDay,
+  localCalendarDate,
+} from "@/lib/localCalendarDate";
+import {
+  isExcludedFromUnassignedQueue,
+  isUnassignedDriver,
+} from "@/lib/bookingAttention";
 
 /** SA-style currency: R1 640 */
 function formatRand(amount: number) {
@@ -54,6 +63,14 @@ function statusDisplay(status: BookingStatus): {
   }
 }
 
+function paymentDisplay(status: PaymentStatus): {
+  label: string;
+  variant: React.ComponentProps<typeof Badge>["variant"];
+} {
+  if (status === "UNPAID") return { label: "UNPAID", variant: "status-overdue" };
+  return { label: status, variant: "outline" };
+}
+
 function bookingValue(booking: Booking) {
   return (booking.estimatedPriceMin + booking.estimatedPriceMax) / 2;
 }
@@ -64,6 +81,30 @@ function clientAddressLine(booking: Booking) {
   const city = booking.city?.trim() || "";
   if (street && city) return `${street}, ${city}`;
   return street || city;
+}
+
+function matchesAttentionFilters(
+  b: Booking,
+  opts: { payment: string | null; date: string | null; assigned: string | null }
+) {
+  if (opts.payment) {
+    if (b.paymentStatus !== opts.payment.toUpperCase()) return false;
+  }
+
+  if (opts.date) {
+    const day =
+      opts.date === "today" ? localCalendarDate() : opts.date.slice(0, 10);
+    if (!isBookingOnLocalDay(b.collectionDate, day)) return false;
+  }
+
+  if (opts.assigned === "0") {
+    if (!isUnassignedDriver(b.assignedDriverId)) return false;
+    if (isExcludedFromUnassignedQueue(b.status)) return false;
+  } else if (opts.assigned && opts.assigned !== "0") {
+    if (b.assignedDriverId !== opts.assigned) return false;
+  }
+
+  return true;
 }
 
 type StatusFilter =
@@ -99,7 +140,11 @@ function matchesStatus(status: BookingStatus, filter: StatusFilter) {
   return true;
 }
 
-function matchesSearch(booking: Booking, query: string) {
+function matchesSearch(
+  booking: Booking,
+  query: string,
+  driverLabel: string
+) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const haystack = [
@@ -110,6 +155,8 @@ function matchesSearch(booking: Booking, query: string) {
     booking.suburb,
     booking.city,
     booking.addressLine1,
+    booking.paymentStatus,
+    driverLabel,
     statusDisplay(booking.status).label,
   ]
     .filter(Boolean)
@@ -119,7 +166,7 @@ function matchesSearch(booking: Booking, query: string) {
 }
 
 const TABLE_COLS =
-  "minmax(148px, 180px) minmax(200px, 2fr) minmax(120px, 0.85fr) minmax(88px, 0.6fr) minmax(118px, 0.8fr)";
+  "minmax(148px, 180px) minmax(200px, 2fr) minmax(120px, 0.85fr) minmax(88px, 0.6fr) minmax(100px, 0.7fr) minmax(110px, 0.85fr) minmax(118px, 0.8fr)";
 
 function PaginationButton({
   ariaLabel,
@@ -151,9 +198,11 @@ function PaginationButton({
   );
 }
 
-export default function AdminBookingsPage() {
+function BookingsListBody() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { bookings, fetchBookings, isLoading, error } = useBookingStore();
+  const [driverNames, setDriverNames] = useState<Record<string, string>>({});
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [search, setSearch] = useState("");
@@ -161,20 +210,52 @@ export default function AdminBookingsPage() {
   const [pageSize, setPageSize] =
     useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
 
+  const payment = searchParams.get("payment");
+  const date = searchParams.get("date");
+  const assigned = searchParams.get("assigned");
+  const highlightUnassigned = assigned === "0";
+  const hasAttentionFilters = Boolean(payment || date || assigned);
+
   useEffect(() => {
     void fetchBookings();
+    void fetch("/api/drivers", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        const map: Record<string, string> = {};
+        for (const d of data) {
+          if (d && typeof d.id === "string") {
+            map[d.id] =
+              typeof d.name === "string" && d.name.trim() ? d.name : d.id;
+          }
+        }
+        setDriverNames(map);
+      })
+      .catch(() => setDriverNames({}));
   }, [fetchBookings]);
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, search, pageSize]);
+  }, [statusFilter, search, pageSize, payment, date, assigned]);
+
+  const driverLabelFor = (booking: Booking) => {
+    if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
+    return (
+      driverNames[booking.assignedDriverId ?? ""] ??
+      booking.assignedDriverId ??
+      "Unassigned"
+    );
+  };
 
   const filtered = useMemo(
     () =>
       bookings.filter(
-        (b) => matchesStatus(b.status, statusFilter) && matchesSearch(b, search)
+        (b) =>
+          matchesAttentionFilters(b, { payment, date, assigned }) &&
+          matchesStatus(b.status, statusFilter) &&
+          matchesSearch(b, search, driverLabelFor(b))
       ),
-    [bookings, statusFilter, search]
+    [bookings, statusFilter, search, payment, date, assigned, driverNames]
   );
 
   const total = filtered.length;
@@ -189,7 +270,11 @@ export default function AdminBookingsPage() {
   const showingCount = pageItems.length;
 
   const filterCounts = useMemo(() => {
-    const searched = bookings.filter((b) => matchesSearch(b, search));
+    const searched = bookings.filter(
+      (b) =>
+        matchesAttentionFilters(b, { payment, date, assigned }) &&
+        matchesSearch(b, search, driverLabelFor(b))
+    );
     const counts: Record<StatusFilter, number> = {
       ALL: searched.length,
       NEW: 0,
@@ -209,7 +294,7 @@ export default function AdminBookingsPage() {
       else if (b.status === "CANCELLED") counts.CANCELLED += 1;
     }
     return counts;
-  }, [bookings, search]);
+  }, [bookings, search, payment, date, assigned, driverNames]);
 
   return (
     <AdminPortalShell
@@ -231,6 +316,14 @@ export default function AdminBookingsPage() {
           </div>
           <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
             Filter and open a booking to update status or assignment.
+            {hasAttentionFilters ? (
+              <>
+                {" "}
+                <Link href="/admin/bookings" className="ds-text-action">
+                  Clear list filters
+                </Link>
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -276,141 +369,179 @@ export default function AdminBookingsPage() {
         </div>
 
         <div className="ds-card overflow-hidden p-0">
-          <div
-            className="hidden px-[22px] py-[13px] lg:grid lg:items-center"
-            style={{
-              gridTemplateColumns: TABLE_COLS,
-              background: "#f7f9fb",
-              borderBottom: "1px solid #f0f2f6",
-              columnGap: 20,
-            }}
-          >
-            {["REF", "CLIENT", "COLLECTION", "VALUE", "STATUS"].map((h) => (
-              <div key={h} className="text-th">
-                {h}
-              </div>
-            ))}
-          </div>
-
-          {isLoading && bookings.length === 0 ? (
-            <div
-              className="px-[22px] py-[48px] text-center text-meta"
-              style={{ color: "#9aa0a6" }}
-              role="status"
-            >
-              Loading bookings…
-            </div>
-          ) : null}
-
-          {error && bookings.length === 0 ? (
-            <div
-              className="px-[22px] py-[48px] text-center text-meta"
-              style={{ color: "#b3261e" }}
-              role="alert"
-            >
-              {error}
-            </div>
-          ) : null}
-
-          {!isLoading && !error && bookings.length === 0 ? (
-            <div
-              className="px-[22px] py-[48px] text-center text-meta"
-              style={{ color: "#9aa0a6" }}
-            >
-              No bookings yet.
-            </div>
-          ) : null}
-
-          {!isLoading && bookings.length > 0 && total === 0 ? (
-            <div
-              className="px-[22px] py-[48px] text-center text-meta"
-              style={{ color: "#9aa0a6" }}
-            >
-              No bookings match your filters
-              {search.trim() ? ` for “${search.trim()}”` : ""}.
-              <button
-                type="button"
-                className="mt-3 block w-full text-[13px] font-bold text-[#0a7a63] hover:text-[#000b49]"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("ALL");
-                }}
-              >
-                Clear filters
-              </button>
-            </div>
-          ) : null}
-
-          {pageItems.map((booking) => {
-            const status = statusDisplay(booking.status);
-            return (
-              <button
-                key={booking.id}
-                type="button"
-                onClick={() => router.push(`/admin/bookings/${booking.id}`)}
-                className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+          <div className="overflow-x-auto">
+            <div className="min-w-[1080px]">
+              <div
+                className="hidden px-[22px] py-[13px] lg:grid lg:items-center"
                 style={{
                   gridTemplateColumns: TABLE_COLS,
+                  background: "#f7f9fb",
+                  borderBottom: "1px solid #f0f2f6",
                   columnGap: 20,
                 }}
               >
-                <div className="flex items-center justify-between gap-3 lg:contents">
-                  <div
-                    className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums"
-                    style={{ color: "#0a7a63" }}
-                    title={booking.id}
-                  >
-                    {booking.id}
+                {[
+                  "REF",
+                  "CLIENT",
+                  "COLLECTION",
+                  "VALUE",
+                  "PAYMENT",
+                  "DRIVER",
+                  "STATUS",
+                ].map((h) => (
+                  <div key={h} className="text-th">
+                    {h}
                   </div>
-                  <div className="lg:hidden">
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </div>
-                </div>
+                ))}
+              </div>
 
-                <div className="min-w-0">
-                  <div
-                    className="truncate text-[14px] font-bold leading-snug"
-                    style={{ color: "#000b49" }}
+              {isLoading && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                  role="status"
+                >
+                  Loading bookings…
+                </div>
+              ) : null}
+
+              {error && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#b3261e" }}
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : null}
+
+              {!isLoading && !error && bookings.length === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                >
+                  No bookings yet.
+                </div>
+              ) : null}
+
+              {!isLoading && bookings.length > 0 && total === 0 ? (
+                <div
+                  className="px-[22px] py-[48px] text-center text-meta"
+                  style={{ color: "#9aa0a6" }}
+                >
+                  No bookings match your filters
+                  {search.trim() ? ` for “${search.trim()}”` : ""}.
+                  <button
+                    type="button"
+                    className="mt-3 block w-full text-[13px] font-bold text-[#0a7a63] hover:text-[#000b49]"
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("ALL");
+                      if (hasAttentionFilters) router.push("/admin/bookings");
+                    }}
                   >
-                    {booking.customer.name}
-                  </div>
-                  {clientAddressLine(booking) ? (
-                    <div
-                      className="mt-[3px] truncate text-[12px] leading-snug"
-                      style={{ color: "#9aa0a6" }}
-                      title={clientAddressLine(booking)}
-                    >
-                      {clientAddressLine(booking)}
+                    Clear filters
+                  </button>
+                </div>
+              ) : null}
+
+              {pageItems.map((booking) => {
+                const status = statusDisplay(booking.status);
+                const paymentUi = paymentDisplay(booking.paymentStatus);
+                const unassigned = isUnassignedDriver(booking.assignedDriverId);
+                const driverLabel = driverLabelFor(booking);
+                const rowHighlight = highlightUnassigned && unassigned;
+                return (
+                  <button
+                    key={booking.id}
+                    type="button"
+                    onClick={() => router.push(`/admin/bookings/${booking.id}`)}
+                    className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+                    style={{
+                      gridTemplateColumns: TABLE_COLS,
+                      columnGap: 20,
+                      background: rowHighlight
+                        ? "rgba(255, 220, 57, 0.18)"
+                        : undefined,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 lg:contents">
+                      <div
+                        className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums"
+                        style={{ color: "#0a7a63" }}
+                        title={booking.id}
+                      >
+                        {booking.id}
+                      </div>
+                      <div className="lg:hidden">
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </div>
                     </div>
-                  ) : null}
-                </div>
 
-                <div
-                  className="text-[13px] font-medium"
-                  style={{ color: "#6b7280" }}
-                >
-                  <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                    Collection
-                  </span>
-                  {collectionLabel(booking)}
-                </div>
+                    <div className="min-w-0">
+                      <div
+                        className="truncate text-[14px] font-bold leading-snug"
+                        style={{ color: "#000b49" }}
+                      >
+                        {booking.customer.name}
+                      </div>
+                      {clientAddressLine(booking) ? (
+                        <div
+                          className="mt-[3px] truncate text-[12px] leading-snug"
+                          style={{ color: "#9aa0a6" }}
+                          title={clientAddressLine(booking)}
+                        >
+                          {clientAddressLine(booking)}
+                        </div>
+                      ) : null}
+                    </div>
 
-                <div
-                  className="text-[14px] font-extrabold tabular-nums"
-                  style={{ color: "#000b49" }}
-                >
-                  <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                    Value
-                  </span>
-                  {formatRand(bookingValue(booking))}
-                </div>
+                    <div
+                      className="text-[13px] font-medium"
+                      style={{ color: "#6b7280" }}
+                    >
+                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
+                        Collection
+                      </span>
+                      {collectionLabel(booking)}
+                    </div>
 
-                <div className="hidden lg:block">
-                  <Badge variant={status.variant}>{status.label}</Badge>
-                </div>
-              </button>
-            );
-          })}
+                    <div
+                      className="text-[14px] font-extrabold tabular-nums"
+                      style={{ color: "#000b49" }}
+                    >
+                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
+                        Value
+                      </span>
+                      {formatRand(bookingValue(booking))}
+                    </div>
+
+                    <div>
+                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
+                        Payment
+                      </span>
+                      <Badge variant={paymentUi.variant}>{paymentUi.label}</Badge>
+                    </div>
+
+                    <div
+                      className="truncate text-[13px] font-medium"
+                      style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
+                      title={driverLabel}
+                    >
+                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
+                        Driver
+                      </span>
+                      {driverLabel}
+                    </div>
+
+                    <div className="hidden lg:block">
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {total > 0 ? (
             <div
@@ -501,5 +632,21 @@ export default function AdminBookingsPage() {
         </div>
       </div>
     </AdminPortalShell>
+  );
+}
+
+export default function AdminBookingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminPortalShell pageTitle="Bookings" active="bookings">
+          <div className="portal-page text-meta" style={{ color: "#9aa0a6" }}>
+            Loading…
+          </div>
+        </AdminPortalShell>
+      }
+    >
+      <BookingsListBody />
+    </Suspense>
   );
 }

@@ -15,7 +15,7 @@ describe("getWorkspaceNavLink", () => {
     });
     expect(getWorkspaceNavLink("admin")).toMatchObject({
       href: "/admin",
-      label: "Dashboard",
+      label: "Overview",
     });
     expect(getWorkspaceNavLink("technician")).toMatchObject({
       href: "/tech/dashboard",

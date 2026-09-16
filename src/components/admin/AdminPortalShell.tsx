@@ -8,10 +8,10 @@ import { PortalLayout } from "@/components/layout/PortalLayout";
 import { SidebarNavGroup, SidebarNavItem } from "@/components/ui/sidebar-nav";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
-  ADMIN_OPS_NAV,
   type AdminNavKey,
   resolveAdminNavKey,
   resolveAdminPageTitle,
+  visibleAdminNavItems,
 } from "@/config/adminNav";
 
 export type { AdminNavKey };
@@ -81,7 +81,7 @@ function AdminUserFooter() {
 
 /**
  * Ops admin chrome — sidebar nav on every /admin/* screen (except login).
- * Marketing-only admins never see the ops nav items (E6).
+ * Marketing-only admins see shipped items that are not fullAdminOnly (E6).
  */
 export function AdminPortalShell({
   pageTitle,
@@ -104,12 +104,11 @@ export function AdminPortalShell({
   const resolvedActive = active ?? resolveAdminNavKey(pathname) ?? undefined;
   const title = pageTitle ?? resolveAdminPageTitle(pathname);
 
-  // E6: marketing-only never sees ops nav — including during auth load (no flash).
-  // Full admins see shipped items once auth is ready.
-  const visibleItems =
-    !ready || isMarketingOnly
-      ? []
-      : ADMIN_OPS_NAV.filter((item) => item.shipped);
+  // Until auth is ready, show no links (avoids flashing ops items at marketing).
+  const visibleItems = visibleAdminNavItems({
+    ready,
+    marketingOnly: isMarketingOnly,
+  });
 
   const sidebar =
     visibleItems.length > 0 ? (
@@ -131,14 +130,11 @@ export function AdminPortalShell({
     ) : (
       <div className="px-[13px] py-[8px]" aria-busy={!ready}>
         <p className="text-[12px] leading-relaxed text-white/45">
-          {!ready
-            ? "Loading workspace…"
-            : isMarketingOnly
-              ? "Marketing workspace — ops screens are managed by full admins."
-              : "No sections available."}
+          {!ready ? "Loading workspace…" : "No sections available."}
         </p>
       </div>
     );
+
 
   return (
     <PortalLayout
