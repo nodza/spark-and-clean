@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
-import { User } from "lucide-react";
+import { Phone, User } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { telHref } from "@/lib/phone";
 import {
   AdminBackLink,
   AdminPortalShell,
@@ -31,8 +32,53 @@ type DriverOption = {
   id: string;
   name: string;
   vehicle?: string;
+  phone?: string;
   isActive?: boolean;
 };
+
+function CallAction({
+  label,
+  phone,
+  disabledReason,
+  profileHref,
+}: {
+  label: string;
+  phone?: string;
+  disabledReason?: string;
+  profileHref?: string;
+}) {
+  if (phone?.trim()) {
+    return (
+      <a
+        href={telHref(phone)}
+        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md bg-[#000b49] px-3 text-sm font-bold text-white hover:bg-[#0a1a6b]"
+      >
+        <Phone className="h-4 w-4" aria-hidden="true" />
+        {label}
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        disabled
+        title={disabledReason}
+        className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-[#e3e7ed] px-3 text-sm font-bold text-[#6b7280]"
+      >
+        <Phone className="h-4 w-4" aria-hidden="true" />
+        {label}
+      </button>
+      <span className="text-xs text-[#6b7280]">{disabledReason}</span>
+      {profileHref ? (
+        <a href={profileHref} className="text-xs font-bold text-[#0a7a63] hover:underline">
+          Open profile
+        </a>
+      ) : null}
+    </div>
+  );
+}
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -146,6 +192,7 @@ export default function AdminBookingDetail() {
           id: String(data.id || assignedId),
           name: String(data.name || assignedId),
           vehicle: typeof data.vehicle === "string" ? data.vehicle : undefined,
+          phone: typeof data.phone === "string" ? data.phone : undefined,
           isActive: false,
         });
       })
@@ -292,7 +339,11 @@ export default function AdminBookingDetail() {
               <User className="h-4 w-4 flex-none" />
               <span>{booking.customer.name}</span>
               <span aria-hidden="true">•</span>
-              <span>{booking.customer.phone}</span>
+              <CallAction
+                label="Call customer"
+                phone={booking.customer.phone}
+                disabledReason="No customer number"
+              />
             </div>
           </div>
           <div className="sm:text-right">
@@ -548,6 +599,34 @@ export default function AdminBookingDetail() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {(() => {
+                  const assignedDriver =
+                    drivers.find((driver) => driver.id === booking.assignedDriverId) ??
+                    (inactiveAssigned?.id === booking.assignedDriverId
+                      ? inactiveAssigned
+                      : null);
+                  const hasAssignment = Boolean(booking.assignedDriverId);
+                  return (
+                    <div className="space-y-2">
+                      <Label>Driver contact</Label>
+                      <CallAction
+                        label="Call driver"
+                        phone={assignedDriver?.phone}
+                        disabledReason={
+                          hasAssignment
+                            ? "No number on profile"
+                            : "Assign a driver first"
+                        }
+                        profileHref={
+                          assignedDriver
+                            ? `/admin/technicians/${assignedDriver.id}`
+                            : undefined
+                        }
+                      />
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
