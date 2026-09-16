@@ -104,6 +104,7 @@ export default function AdminBookingDetail() {
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         if (Array.isArray(data)) {
           setDrivers(
             data.filter(
