@@ -1,103 +1,70 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Driver } from "@/models/Driver";
+import { User } from "@/models/User";
 import { toClientDriver } from "@/lib/serialize";
-import { getSession } from "@/lib/session";
-import { Types } from "mongoose";
+import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
+import { sanitizeDriverPatch, technicianLoginFields } from "@/lib/driverProfile";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+type Params = { params: Promise<{ id: string }> };
+
+function jsonError(err: unknown, fallback: string) {
+  if (isHttpError(err)) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  const message = err instanceof Error ? err.message : fallback;
+  console.error("[api/drivers/[id]]", message);
+  return NextResponse.json({ error: message }, { status: 500 });
+}
+
+/** Full admin only — driver PII is never public. Lookup by business id only. */
+export async function GET(_request: Request, { params }: Params) {
   try {
+    await requireFullAdmin();
     const { id } = await params;
     await connectDB();
-    const session = await getSession();
-    
-    // Allow viewing - don't require admin role for GET
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    // Try multiple lookup strategies
-    let driver = null;
-    
-    // Strategy 1: Lookup by business id field
-    driver = await Driver.findOne({ id }).lean();
-    
-    // Strategy 2: Lookup by MongoDB _id if it's a valid ObjectId
-    if (!driver && Types.ObjectId.isValid(id)) {
-      driver = await Driver.findById(id).lean();
-    }
-    
-    // Strategy 3: Lookup by name (case-insensitive)
+    const driver = await Driver.findOne({ id }).lean();
     if (!driver) {
-      driver = await Driver.findOne({ name: { $regex: id, $options: "i" } }).lean();
-    }
-    
-    if (!driver) {
-      console.error(`[api/drivers/[id]] Driver not found for id: "${id}". Tried: id field, ObjectId, name`);
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
-    console.log(`[api/drivers/[id]] Found driver: ${driver.name} (lookup: ${id})`);
     return NextResponse.json(toClientDriver(driver as Record<string, unknown>));
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch driver";
-    console.error("[api/drivers/[id] GET]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(err, "Failed to fetch driver");
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/** Full admin only. */
+export async function PATCH(request: Request, { params }: Params) {
   try {
+    await requireFullAdmin();
     const { id } = await params;
+    const parsed = sanitizeDriverPatch(await request.json().catch(() => null));
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
     await connectDB();
-    const session = await getSession();
-    
-    // Only admins can update driver details
-    if (!session || session.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
-
-    const updates = await request.json();
-    
-    // Only allow specific fields to be updated
-    const allowedFields = ["phone", "email", "isActive", "notes", "vehicle", "city"];
-    const sanitizedUpdates: Record<string, unknown> = {};
-    
-    for (const field of allowedFields) {
-      if (field in updates) {
-        sanitizedUpdates[field] = updates[field];
-      }
-    }
-
-    // Try lookup by business id first, then by MongoDB _id
-    let driver = await Driver.findOneAndUpdate(
+    const driver = await Driver.findOneAndUpdate(
       { id },
-      { $set: sanitizedUpdates },
-      { new: true }
+      { $set: parsed.updates },
+      { new: true, runValidators: true }
     ).lean();
-    
-    if (!driver && Types.ObjectId.isValid(id)) {
-      driver = await Driver.findByIdAndUpdate(
-        id,
-        { $set: sanitizedUpdates },
-        { new: true }
-      ).lean();
-    }
 
     if (!driver) {
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
+    if (typeof parsed.updates.isActive === "boolean") {
+      await User.updateMany(
+        { role: "technician", driverProfileId: id },
+        { $set: technicianLoginFields(parsed.updates.isActive) }
+      );
+    }
+
     return NextResponse.json(toClientDriver(driver as Record<string, unknown>));
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to update driver";
-    console.error("[api/drivers/[id] PATCH]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(err, "Failed to update driver");
   }
 }

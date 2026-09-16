@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { MAX_DRIVER_NOTE_LEN } from "@/lib/driverProfile";
 
 const DriverSchema = new Schema(
   {
@@ -10,7 +11,7 @@ const DriverSchema = new Schema(
     email: { type: String, lowercase: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },
     city: { type: String, trim: true },
-    notes: { type: String, trim: true },
+    notes: { type: String, trim: true, maxlength: MAX_DRIVER_NOTE_LEN },
   },
   {
     timestamps: true,

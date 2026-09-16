@@ -20,6 +20,7 @@ import {
 } from "@/components/admin/AdminPortalShell";
 import { FieldError } from "@/components/booking/FieldError";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useBookingStore } from "@/store/useBookingStore";
 import {
   sanitizePhoneInput,
   validateCustomerName,
@@ -27,6 +28,8 @@ import {
   validateSaPhone,
   type FieldErrors,
 } from "@/lib/bookingValidation";
+import { localCalendarDate } from "@/lib/localCalendarDate";
+import { countTechnicianJobsOnDay } from "@/lib/technicianJobs";
 
 type TechnicianRow = {
   id: string;
@@ -35,12 +38,33 @@ type TechnicianRow = {
   phone?: string;
   driverProfileId?: string;
   vehicle?: string | null;
+  driverIsActive?: boolean | null;
   disabledAt?: string | null;
   lastLoginAt?: string;
   mustChangePassword?: boolean;
+  isActive?: boolean;
 };
 
 type TechFormField = "name" | "phone" | "email";
+
+function assignmentBadge(driverIsActive: boolean | null | undefined) {
+  if (driverIsActive === false) {
+    return {
+      label: "INACTIVE",
+      style: { background: "#fdecec", color: "#b33232" },
+    };
+  }
+  if (driverIsActive === true) {
+    return {
+      label: "ACTIVE",
+      style: { background: "#eafaf5", color: "#0a7a63" },
+    };
+  }
+  return {
+    label: "NO PROFILE",
+    style: { background: "#f0f2f6", color: "#6b7280" },
+  };
+}
 
 function initials(name?: string, email?: string) {
   const source = (name || email || "?").trim();
@@ -73,8 +97,11 @@ function validateTechnicianForm(form: {
 export default function AdminTechniciansPage() {
   const { user, ready } = useAuth();
   const isFullAdmin = user?.role === "admin" && user.adminTier === "full";
+  const { bookings, fetchBookings } = useBookingStore();
+  const today = localCalendarDate();
 
   const [technicians, setTechnicians] = useState<TechnicianRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -121,6 +148,7 @@ export default function AdminTechniciansPage() {
 
   const load = async () => {
     setLoadError(null);
+    setLoading(true);
     try {
       const res = await fetch("/api/admin/technicians", {
         credentials: "include",
@@ -135,12 +163,17 @@ export default function AdminTechniciansPage() {
     } catch {
       setLoadError("Could not load technicians");
       setTechnicians([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (ready && isFullAdmin) void load();
-  }, [ready, isFullAdmin]);
+    if (ready && isFullAdmin) {
+      void load();
+      void fetchBookings({ silent: true });
+    }
+  }, [ready, isFullAdmin, fetchBookings]);
 
   const resetForm = () => {
     setName("");
@@ -291,59 +324,81 @@ export default function AdminTechniciansPage() {
         )}
 
         <div className="grid grid-cols-1 gap-[14px] md:grid-cols-2 xl:grid-cols-3">
-          {technicians.map((t) => (
-            <Link
-              key={t.id}
-              href={`/admin/technicians/${t.id}`}
-              className="ds-card block transition-shadow hover:shadow-md"
-            >
-              <div className="flex items-center gap-[13px]">
-                <div
-                  className="flex size-[46px] flex-none items-center justify-center rounded-full text-[16px] font-extrabold"
-                  style={{ background: "#000b49", color: "#6cf3d5" }}
-                >
-                  {initials(t.name, t.email)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-bold" style={{ color: "#000b49" }}>
-                    {t.name || t.email}
+          {technicians.map((t) => {
+            const badge = assignmentBadge(t.driverIsActive);
+            const todayJobs = countTechnicianJobsOnDay(
+              bookings,
+              t.driverProfileId,
+              today
+            );
+            return (
+              <Link
+                key={t.id}
+                href={`/admin/technicians/${t.id}`}
+                className="ds-card block transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-center gap-[13px]">
+                  <div
+                    className="flex size-[46px] flex-none items-center justify-center rounded-full text-[16px] font-extrabold"
+                    style={{ background: "#000b49", color: "#6cf3d5" }}
+                  >
+                    {initials(t.name, t.email)}
                   </div>
-                  <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>
-                    {t.email}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-bold" style={{ color: "#000b49" }}>
+                      {t.name || t.email}
+                    </div>
+                    <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>
+                      {t.email}
+                    </div>
                   </div>
+                  <span
+                    className="rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
+                    style={badge.style}
+                  >
+                    {badge.label}
+                  </span>
                 </div>
-                <span
-                  className="rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
-                  style={
-                    t.disabledAt
-                      ? { background: "#fdecec", color: "#b33232" }
-                      : { background: "#eafaf5", color: "#0a7a63" }
-                  }
-                >
-                  {t.disabledAt ? "DISABLED" : "ACTIVE"}
-                </span>
-              </div>
-              <div className="my-[16px] h-px" style={{ background: "#f0f2f6" }} />
-              <div className="text-[13px]" style={{ color: "#6b7280" }}>
-                {t.phone || "No phone"}
-              </div>
-              <div className="mt-[6px] text-[13px]" style={{ color: "#6b7280" }}>
-                {t.vehicle || "No vehicle assigned"}
-              </div>
-              {t.mustChangePassword ? (
-                <div className="mt-[10px] text-[12px] font-bold" style={{ color: "#8a6d00" }}>
-                  Must change password on next login
+                <div className="my-[16px] h-px" style={{ background: "#f0f2f6" }} />
+                <div className="text-[13px]" style={{ color: "#6b7280" }}>
+                  {t.phone || "No phone"}
                 </div>
-              ) : null}
-            </Link>
-          ))}
+                <div className="mt-[6px] text-[13px]" style={{ color: "#6b7280" }}>
+                  {t.vehicle || "No vehicle assigned"}
+                </div>
+                <div className="mt-[6px] text-[13px]" style={{ color: "#6b7280" }}>
+                  {todayJobs === 1 ? "1 job today" : `${todayJobs} jobs today`}
+                </div>
+                {t.disabledAt ? (
+                  <div className="mt-[10px] text-[12px] font-bold" style={{ color: "#8a6d00" }}>
+                    Login disabled
+                  </div>
+                ) : null}
+                {t.mustChangePassword ? (
+                  <div className="mt-[10px] text-[12px] font-bold" style={{ color: "#8a6d00" }}>
+                    Must change password on next login
+                  </div>
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
 
-        {technicians.length === 0 && !loadError && (
+        {loading && technicians.length === 0 && !loadError ? (
+          <div
+            className="ds-card py-[40px] text-center text-meta"
+            style={{ color: "#9aa0a6" }}
+            role="status"
+          >
+            Loading technicians…
+          </div>
+        ) : null}
+
+        {!loading && technicians.length === 0 && !loadError ? (
           <div className="ds-card py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
             No technicians yet. Add one to create a driver login.
           </div>
-        )}
+        ) : null}
       </div>
 
       <Dialog
