@@ -4,6 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
+import {
+  CalendarDays,
+  CalendarRange,
+  Mail,
+  MapPin,
+  Phone,
+  StickyNote,
+  Truck,
+  User,
+  UserCog,
+  type LucideIcon,
+} from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { useBookingStore } from "@/store/useBookingStore";
 import { AdminBackLink } from "@/components/admin/AdminBackLink";
@@ -42,6 +54,21 @@ function statusVariant(
   }
   if (value === "DELIVERED") return "status-completed";
   return "outline";
+}
+
+function FieldLabel({
+  icon: Icon,
+  children,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-meta" style={{ color: "#9aa0a6" }}>
+      <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
+      {children}
+    </div>
+  );
 }
 
 function JobList({ jobs }: { jobs: Booking[] }) {
@@ -225,40 +252,30 @@ export default function TechnicianProfilePage() {
               </div>
               <div className="mt-[14px] grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    Name
-                  </div>
+                  <FieldLabel icon={User}>Name</FieldLabel>
                   <p className="mt-1 text-[16px] font-bold text-[#000b49]">
                     {technician.name || technician.email}
                   </p>
                 </div>
                 <div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    Email
-                  </div>
+                  <FieldLabel icon={Mail}>Email</FieldLabel>
                   <p className="mt-1 font-medium text-[#000b49]">{technician.email}</p>
                 </div>
                 <div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    Phone
-                  </div>
+                  <FieldLabel icon={Phone}>Phone</FieldLabel>
                   <p className="mt-1 font-medium text-[#000b49]">
                     {driver?.phone || technician.phone || "No phone"}
                   </p>
                 </div>
                 <div>
-                  <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                    Vehicle
-                  </div>
+                  <FieldLabel icon={Truck}>Vehicle</FieldLabel>
                   <p className="mt-1 font-medium text-[#000b49]">
                     {driver?.vehicle || technician.vehicle || "No vehicle assigned"}
                   </p>
                 </div>
                 {driver?.city ? (
                   <div className="sm:col-span-2">
-                    <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                      City
-                    </div>
+                    <FieldLabel icon={MapPin}>City</FieldLabel>
                     <p className="mt-1 font-medium text-[#000b49]">{driver.city}</p>
                   </div>
                 ) : null}
@@ -266,7 +283,8 @@ export default function TechnicianProfilePage() {
             </div>
 
             <div className="ds-card">
-              <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+              <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+                <CalendarDays size={14} strokeWidth={1.8} aria-hidden="true" />
                 TODAY&apos;S JOBS
               </div>
               <p className="mt-[6px] text-[15px] font-bold text-[#000b49]">
@@ -284,7 +302,8 @@ export default function TechnicianProfilePage() {
             </div>
 
             <div className="ds-card">
-              <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+              <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+                <CalendarRange size={14} strokeWidth={1.8} aria-hidden="true" />
                 UPCOMING JOBS
               </div>
               <p className="mt-[6px] text-[15px] font-bold text-[#000b49]">
@@ -304,7 +323,8 @@ export default function TechnicianProfilePage() {
 
           <div className="flex flex-col gap-[18px]">
             <div className="ds-card">
-              <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+              <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+                <UserCog size={14} strokeWidth={1.8} aria-hidden="true" />
                 ASSIGNMENT
               </div>
               <div className="mt-[14px] flex flex-wrap items-center gap-2">
@@ -355,7 +375,8 @@ export default function TechnicianProfilePage() {
 
             {driver ? (
               <div className="ds-card">
-                <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+                  <StickyNote size={14} strokeWidth={1.8} aria-hidden="true" />
                   NOTES
                 </div>
                 <Label htmlFor="driver-notes" className="sr-only">
