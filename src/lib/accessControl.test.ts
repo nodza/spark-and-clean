@@ -41,7 +41,12 @@ describe("accessControl", () => {
   it("marks admin full-only paths", () => {
     expect(isAdminFullOnlyPath("/admin/analytics")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/bookings/x")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/technicians")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/clients")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/assignments")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/vehicles")).toBe(true);
     expect(isAdminFullOnlyPath("/admin")).toBe(false);
+    expect(isAdminFullOnlyPath("/admin/pricing")).toBe(false);
   });
 
   it("redirects anonymous users to the right login with next=", () => {
@@ -69,6 +74,7 @@ describe("accessControl", () => {
     if (!hit.ok) expect(hit.redirectTo).toContain("/admin?access=denied");
 
     expect(canAccessPath(adminMarketing, "/admin").ok).toBe(true);
+    expect(canAccessPath(adminMarketing, "/admin/pricing").ok).toBe(true);
     expect(canAccessPath(adminFull, "/admin/analytics").ok).toBe(true);
   });
 
