@@ -10,6 +10,10 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
+function httpError(message: string, status: number): Error {
+  return Object.assign(new Error(message), { status });
+}
+
 class BookingService {
   async getBookings(): Promise<Booking[]> {
     const res = await fetch("/api/bookings", { credentials: "include" });
@@ -20,8 +24,11 @@ class BookingService {
   async getBookingById(id: string): Promise<Booking | undefined> {
     const res = await fetch(`/api/bookings/${id}`, { credentials: "include" });
     if (res.status === 404) return undefined;
+    if (res.status === 401) {
+      throw httpError("Unauthorized", 401);
+    }
     if (res.status === 403) {
-      throw Object.assign(new Error("Forbidden"), { status: 403 });
+      throw httpError("Forbidden", 403);
     }
     if (!res.ok) throw new Error(await readError(res, "Failed to fetch booking"));
     return res.json();
@@ -45,7 +52,18 @@ class BookingService {
       credentials: "include",
       body: JSON.stringify({ status }),
     });
-    if (!res.ok) throw new Error(await readError(res, "Failed to update status"));
+    if (res.status === 401) {
+      throw httpError("Unauthorized", 401);
+    }
+    if (res.status === 403) {
+      throw httpError("You can only update your own jobs", 403);
+    }
+    if (!res.ok) {
+      throw httpError(
+        await readError(res, "Failed to update status"),
+        res.status
+      );
+    }
     return res.json();
   }
 

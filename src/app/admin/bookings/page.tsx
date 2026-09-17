@@ -10,7 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { useBookingStore } from "@/store/useBookingStore";
+import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import { Badge } from "@/components/ui/badge";
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import {
@@ -201,7 +201,7 @@ function PaginationButton({
 function BookingsListBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, fetchBookings, isLoading, error } = useBookingStore();
+  const { bookings, loading: isLoading, error } = useBookingsLiveList(true);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -217,7 +217,6 @@ function BookingsListBody() {
   const hasAttentionFilters = Boolean(payment || date || assigned);
 
   useEffect(() => {
-    void fetchBookings();
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
@@ -232,7 +231,7 @@ function BookingsListBody() {
         setDriverNames(map);
       })
       .catch(() => setDriverNames({}));
-  }, [fetchBookings]);
+  }, []);
 
   useEffect(() => {
     setPage(1);

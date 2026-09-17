@@ -5,7 +5,8 @@ import { useBookingStore } from "@/store/useBookingStore";
 import { BOOKING_LIVE_POLL_MS } from "@/lib/bookingLive";
 
 /**
- * Loads the customer's bookings list and polls for admin status/payment updates.
+ * Loads bookings and polls for status updates (tech Mark Collected, admin edits).
+ * Shared by client portal, tech van, and admin ops lists.
  */
 export function useBookingsLiveList(enabled: boolean) {
   const fetchBookings = useBookingStore((s) => s.fetchBookings);
