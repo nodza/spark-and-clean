@@ -11,15 +11,16 @@ describe("visibleAdminNavItems", () => {
   it("shows shipped marketing-safe items to marketing-only admins", () => {
     expect(
       visibleAdminNavItems({ ready: true, marketingOnly: true }).map((i) => i.key)
-    ).toEqual(["dashboard", "pricing"]);
+    ).toEqual(["overview", "pricing"]);
   });
 
   it("shows all shipped items to full admins", () => {
     expect(
       visibleAdminNavItems({ ready: true, marketingOnly: false }).map((i) => i.key)
     ).toEqual([
-      "dashboard",
+      "overview",
       "bookings",
+      "assignments",
       "technicians",
       "clients",
       "pricing",
