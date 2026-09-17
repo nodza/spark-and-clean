@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
@@ -24,13 +24,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_DRIVER_NOTE_LEN } from "@/lib/driverProfile";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import { localCalendarDate } from "@/lib/localCalendarDate";
 import {
   technicianJobsOnDay,
   technicianUpcomingJobs,
 } from "@/lib/technicianJobs";
-import type { Booking, Driver } from "@/types/booking";
+import type { Booking, Driver, InternalNote } from "@/types/booking";
 
 type Technician = {
   id: string;
@@ -54,6 +54,11 @@ function statusVariant(
   }
   if (value === "DELIVERED") return "status-completed";
   return "outline";
+}
+
+function formatNoteTime(iso: string) {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
 }
 
 function FieldLabel({
@@ -105,11 +110,37 @@ export default function TechnicianProfilePage() {
   const { bookings, fetchBookings } = useBookingStore();
   const [technician, setTechnician] = useState<Technician | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadNotes = useCallback(async (driverId: string) => {
+    setNotesLoading(true);
+    setNotesError(null);
+    try {
+      const res = await fetch(`/api/drivers/${driverId}/notes`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setNotesError("Could not load notes");
+        return;
+      }
+      const data = await res.json();
+      const list: InternalNote[] = Array.isArray(data.notes) ? data.notes : [];
+      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setNotes(list);
+    } catch {
+      setNotesError("Could not load notes");
+    } finally {
+      setNotesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,11 +163,16 @@ export default function TechnicianProfilePage() {
         setTechnician(data.technician as Technician);
         const profile = (data.driver as Driver | null) ?? null;
         setDriver(profile);
-        setNotes(profile?.notes || "");
+        if (profile?.id) {
+          void loadNotes(profile.id);
+        } else {
+          setNotes([]);
+        }
       } catch (err) {
         if (!cancelled) {
           setTechnician(null);
           setDriver(null);
+          setNotes([]);
           setError(
             err instanceof Error ? err.message : "Could not load technician"
           );
@@ -150,7 +186,7 @@ export default function TechnicianProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchBookings, technicianId]);
+  }, [fetchBookings, loadNotes, technicianId]);
 
   const today = localCalendarDate();
   const driverId = driver?.id ?? technician?.driverProfileId;
@@ -190,23 +226,47 @@ export default function TechnicianProfilePage() {
     }
   };
 
-  const handleSaveNotes = async () => {
+  const addNote = async () => {
     if (!driver) return;
-    setSavingNotes(true);
-    setError(null);
+    const body = noteDraft.trim();
+    setNoteError(null);
+    if (!body) return;
+    if (body.length > MAX_NOTE_LEN) {
+      setNoteError(`Note must be at most ${MAX_NOTE_LEN} characters`);
+      return;
+    }
+
+    setNoteSaving(true);
     try {
-      const updated = await driverService.updateDriver(driver.id, { notes });
-      setDriver(updated);
-      setNotes(updated.notes || "");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save notes");
+      const res = await fetch(`/api/drivers/${driver.id}/notes`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNoteError(
+          typeof data.error === "string" ? data.error : "Failed to add note"
+        );
+        return;
+      }
+      const created = data.note as InternalNote | undefined;
+      if (created) {
+        setNotes((prev) => [created, ...prev]);
+        setNotesError(null);
+      } else {
+        await loadNotes(driver.id);
+      }
+      setNoteDraft("");
+    } catch {
+      setNoteError("Failed to add note");
     } finally {
-      setSavingNotes(false);
+      setNoteSaving(false);
     }
   };
 
   const title = technician?.name || technician?.email || "Technician";
-  const notesDirty = (driver?.notes || "") !== notes;
 
   if (loading) {
     return (
@@ -375,32 +435,108 @@ export default function TechnicianProfilePage() {
 
             {driver ? (
               <div className="ds-card">
-                <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
+                <div
+                  className="flex items-center gap-2 text-eyebrow"
+                  style={{ color: "#6b7280" }}
+                >
                   <StickyNote size={14} strokeWidth={1.8} aria-hidden="true" />
-                  NOTES
+                  INTERNAL NOTES
                 </div>
-                <Label htmlFor="driver-notes" className="sr-only">
-                  Driver notes
+                <Label htmlFor="technician-internal-note" className="sr-only">
+                  Internal note
                 </Label>
                 <Textarea
-                  id="driver-notes"
-                  className="mt-[14px]"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Add useful context about this technician…"
-                  rows={5}
-                  maxLength={MAX_DRIVER_NOTE_LEN}
+                  id="technician-internal-note"
+                  className="mt-[14px] placeholder:text-xs"
+                  value={noteDraft}
+                  onChange={(event) => {
+                    setNoteDraft(event.target.value);
+                    if (noteError) setNoteError(null);
+                  }}
+                  placeholder="Bakkie in for service Friday, prefers northern suburbs…"
+                  rows={3}
+                  maxLength={MAX_NOTE_LEN}
+                  aria-invalid={noteError ? true : undefined}
+                  aria-describedby={
+                    noteError ? "technician-internal-note-error" : undefined
+                  }
                 />
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <p className="text-meta" style={{ color: "#9aa0a6" }}>
-                    {notes.length}/{MAX_DRIVER_NOTE_LEN}
+                    {noteDraft.trim().length}/{MAX_NOTE_LEN}
                   </p>
                   <Button
-                    onClick={() => void handleSaveNotes()}
-                    disabled={savingNotes || !notesDirty}
+                    type="button"
+                    size="sm"
+                    disabled={noteSaving || !noteDraft.trim()}
+                    onClick={() => void addNote()}
                   >
-                    {savingNotes ? "Saving…" : "Save notes"}
+                    {noteSaving ? "Adding…" : "Add"}
                   </Button>
+                </div>
+                {noteError ? (
+                  <p
+                    id="technician-internal-note-error"
+                    role="alert"
+                    className="mt-2 text-xs"
+                    style={{ color: "#b3261e" }}
+                  >
+                    {noteError}
+                  </p>
+                ) : null}
+
+                <div className="mt-[14px] border-t border-[#f0f2f6] pt-[14px]">
+                  {notesLoading ? (
+                    <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                      Loading notes…
+                    </p>
+                  ) : notesError ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <p
+                        className="text-sm"
+                        style={{ color: "#b3261e" }}
+                        role="alert"
+                      >
+                        {notesError}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadNotes(driver.id)}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : notes.length === 0 ? (
+                    <p
+                      className="text-sm italic"
+                      style={{ color: "#9aa0a6" }}
+                    >
+                      No internal notes yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {notes.map((note) => (
+                        <li
+                          key={note.id}
+                          className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f8fb] px-3 py-3"
+                        >
+                          <p className="text-sm whitespace-pre-wrap text-[#000b49]">
+                            {note.body}
+                          </p>
+                          <p
+                            className="mt-2 text-xs"
+                            style={{ color: "#9aa0a6" }}
+                          >
+                            {note.author}
+                            {" · "}
+                            {formatNoteTime(note.createdAt)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             ) : null}
