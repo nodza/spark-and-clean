@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
+import { CallAction } from "@/components/admin/CallAction";
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import {
   AdminPortalShell,
@@ -128,6 +129,23 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
+type DriverContact = {
+  name: string;
+  phone?: string;
+};
+
+function driverLabelFor(
+  booking: Booking,
+  driverContacts: Record<string, DriverContact>
+) {
+  if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
+  return (
+    driverContacts[booking.assignedDriverId ?? ""]?.name ??
+    booking.assignedDriverId ??
+    "Unassigned"
+  );
+}
+
 function matchesStatus(status: BookingStatus, filter: StatusFilter) {
   if (filter === "ALL") return true;
   if (filter === "NEW") return status === "BOOKED" || status === "SCHEDULED";
@@ -202,7 +220,7 @@ function BookingsListBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { bookings, fetchBookings, isLoading, error } = useBookingStore();
-  const [driverNames, setDriverNames] = useState<Record<string, string>>({});
+  const [driverContacts, setDriverContacts] = useState<Record<string, DriverContact>>({});
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [search, setSearch] = useState("");
@@ -222,30 +240,23 @@ function BookingsListBody() {
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data)) return;
-        const map: Record<string, string> = {};
+        const map: Record<string, DriverContact> = {};
         for (const d of data) {
           if (d && typeof d.id === "string") {
-            map[d.id] =
-              typeof d.name === "string" && d.name.trim() ? d.name : d.id;
+            map[d.id] = {
+              name: typeof d.name === "string" && d.name.trim() ? d.name : d.id,
+              phone: typeof d.phone === "string" ? d.phone : undefined,
+            };
           }
         }
-        setDriverNames(map);
+        setDriverContacts(map);
       })
-      .catch(() => setDriverNames({}));
+      .catch(() => setDriverContacts({}));
   }, [fetchBookings]);
 
   useEffect(() => {
     setPage(1);
   }, [statusFilter, search, pageSize, payment, date, assigned]);
-
-  const driverLabelFor = (booking: Booking) => {
-    if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
-    return (
-      driverNames[booking.assignedDriverId ?? ""] ??
-      booking.assignedDriverId ??
-      "Unassigned"
-    );
-  };
 
   const filtered = useMemo(
     () =>
@@ -253,9 +264,9 @@ function BookingsListBody() {
         (b) =>
           matchesAttentionFilters(b, { payment, date, assigned }) &&
           matchesStatus(b.status, statusFilter) &&
-          matchesSearch(b, search, driverLabelFor(b))
+          matchesSearch(b, search, driverLabelFor(b, driverContacts))
       ),
-    [bookings, statusFilter, search, payment, date, assigned, driverNames]
+    [bookings, statusFilter, search, payment, date, assigned, driverContacts]
   );
 
   const total = filtered.length;
@@ -273,7 +284,7 @@ function BookingsListBody() {
     const searched = bookings.filter(
       (b) =>
         matchesAttentionFilters(b, { payment, date, assigned }) &&
-        matchesSearch(b, search, driverLabelFor(b))
+        matchesSearch(b, search, driverLabelFor(b, driverContacts))
     );
     const counts: Record<StatusFilter, number> = {
       ALL: searched.length,
@@ -294,7 +305,7 @@ function BookingsListBody() {
       else if (b.status === "CANCELLED") counts.CANCELLED += 1;
     }
     return counts;
-  }, [bookings, search, payment, date, assigned, driverNames]);
+  }, [bookings, search, payment, date, assigned, driverContacts]);
 
   return (
     <AdminPortalShell
@@ -449,13 +460,20 @@ function BookingsListBody() {
                 const status = statusDisplay(booking.status);
                 const paymentUi = paymentDisplay(booking.paymentStatus);
                 const unassigned = isUnassignedDriver(booking.assignedDriverId);
-                const driverLabel = driverLabelFor(booking);
+                const driverLabel = driverLabelFor(booking, driverContacts);
                 const rowHighlight = highlightUnassigned && unassigned;
                 return (
-                  <button
+                  <div
                     key={booking.id}
-                    type="button"
+                    role="link"
+                    tabIndex={0}
                     onClick={() => router.push(`/admin/bookings/${booking.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/admin/bookings/${booking.id}`);
+                      }
+                    }}
                     className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
                     style={{
                       gridTemplateColumns: TABLE_COLS,
@@ -524,20 +542,32 @@ function BookingsListBody() {
                     </div>
 
                     <div
-                      className="truncate text-[13px] font-medium"
+                      className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-medium"
                       style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
                       title={driverLabel}
                     >
                       <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
                         Driver
                       </span>
-                      {driverLabel}
+                      <span className="truncate">{driverLabel}</span>
+                      <CallAction
+                        label="Call driver"
+                        phone={driverContacts[booking.assignedDriverId ?? ""]?.phone}
+                        disabledReason={
+                          unassigned ? "Assign a driver first" : "No number on profile"
+                        }
+                        profileHref={
+                          !unassigned && booking.assignedDriverId
+                            ? `/admin/technicians/${booking.assignedDriverId}`
+                            : undefined
+                        }
+                      />
                     </div>
 
                     <div className="hidden lg:block">
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

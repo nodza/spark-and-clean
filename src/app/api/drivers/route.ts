@@ -8,7 +8,7 @@ import { accountIsDisabled, isHttpError, requireFullAdmin } from "@/lib/adminAut
 /** Treat missing isActive as active (legacy rows). */
 const ACTIVE = { $or: [{ isActive: true }, { isActive: { $exists: false } }] };
 
-type DriverOption = { id: string; name: string; vehicle?: string };
+type DriverOption = { id: string; name: string; phone?: string; vehicle?: string };
 
 /** Active, logged-in technicians only — used by the booking assign dropdown. */
 export async function GET() {
