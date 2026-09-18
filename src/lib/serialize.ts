@@ -17,7 +17,8 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
 }
 
 export function toClientDriver(doc: Record<string, unknown>) {
-  const { _id, __v, createdAt, updatedAt, ...rest } = doc;
+  // Always omit notes — ops notes only via /api/drivers/[id]/notes
+  const { _id, __v, createdAt, updatedAt, notes: _notes, ...rest } = doc;
   return rest;
 }
 
