@@ -38,7 +38,7 @@ import { useBookingStore } from "@/store/useBookingStore";
 import type { Booking, Driver } from "@/types/booking";
 
 const TABLE_COLS =
-  "minmax(188px, 220px) minmax(200px, 2fr) minmax(72px, 0.55fr) minmax(120px, 0.85fr) minmax(110px, 0.85fr) minmax(100px, 0.7fr) minmax(118px, 0.8fr)";
+  "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(88px, 0.7fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
 
 function formatRand(amount: number) {
   const rounded = Math.round(amount);
@@ -255,14 +255,14 @@ function AdminBookingsList() {
 
         <div className="ds-card overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <div className="min-w-[1080px]">
+            <div className="w-full">
               <div
-                className="hidden px-[22px] py-[13px] lg:grid lg:items-center"
+                className="hidden px-[16px] py-[11px] lg:grid lg:items-center xl:px-[18px]"
                 style={{
                   gridTemplateColumns: TABLE_COLS,
                   background: "#f7f9fb",
                   borderBottom: "1px solid #f0f2f6",
-                  columnGap: 20,
+                  columnGap: 13,
                 }}
               >
                 {[
@@ -339,10 +339,10 @@ function AdminBookingsList() {
                       aria-label={`Open booking ${booking.id}`}
                     />
                     <div
-                      className="flex w-full flex-col gap-3 px-[18px] py-[16px] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+                      className="flex w-full flex-col gap-3 px-[16px] py-[14px] sm:px-[18px] lg:grid lg:items-center lg:gap-0 lg:py-[16px]"
                       style={{
                         gridTemplateColumns: TABLE_COLS,
-                        columnGap: 20,
+                        columnGap: 12,
                       }}
                     >
                     <div className="flex items-center justify-between gap-3 lg:contents">
@@ -388,26 +388,36 @@ function AdminBookingsList() {
                       {formatRand(bookingValue(booking))}
                     </div>
 
-                    <div className="text-[13px] font-medium" style={{ color: "#6b7280" }}>
+                    <div
+                      className="truncate text-[12px] font-medium tabular-nums"
+                      style={{ color: "#6b7280" }}
+                      title={collectionLabel(booking)}
+                    >
                       {collectionLabel(booking)}
                     </div>
 
                     <div
-                      className="truncate text-[13px] font-medium"
+                      className="truncate text-[12px] font-medium"
                       style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
                       title={driverLabel}
                     >
                       {driverLabel}
                     </div>
 
-                    <div>
-                      <Badge variant={paymentStatusVariant(booking.paymentStatus)}>
+                    <div className="min-w-0">
+                      <Badge
+                        variant={paymentStatusVariant(booking.paymentStatus)}
+                        className="px-[8px] py-[3px] text-[10px]"
+                      >
                         {booking.paymentStatus}
                       </Badge>
                     </div>
 
-                    <div className="hidden lg:block">
-                      <Badge variant={bookingStatusVariant(booking.status)}>
+                    <div className="hidden min-w-0 lg:block">
+                      <Badge
+                        variant={bookingStatusVariant(booking.status)}
+                        className="px-[8px] py-[3px] text-[10px]"
+                      >
                         {booking.status}
                       </Badge>
                     </div>

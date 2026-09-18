@@ -106,7 +106,7 @@ function activeFilterChips(filters: AdminBookingFilters): ActiveChip[] {
 }
 
 const fieldLabelClass =
-  "mb-[4px] block text-[10.5px] font-bold tracking-[0.02em] text-[#8A90A0]";
+  "mb-[5px] block text-[12.5px] font-bold tracking-[0.01em] text-[#6B7280]";
 
 const controlClass =
   "h-8 w-full appearance-none rounded-[7px] border-[1.5px] bg-white pl-2.5 pr-7 text-[12.5px] text-[#171B24] outline-none transition-[border-color,box-shadow,background] hover:border-[#C7CAD2] focus:border-[#0F6E5F] focus:shadow-[0_0_0_3px_#E7F3F0] disabled:cursor-not-allowed disabled:bg-[#F5F6F8] disabled:text-[#8A90A0]";
