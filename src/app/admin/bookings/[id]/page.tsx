@@ -22,7 +22,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { CallAction } from "@/components/admin/CallAction";
+import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
 import {
   AdminBackLink,
   AdminPortalShell,
@@ -41,6 +44,45 @@ const STATUS_OPTIONS = BOOKING_STATUSES;
 function formatNoteTime(iso: string) {
   const parsed = new Date(iso);
   return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
+}
+
+function AssignedDriverCall({
+  assignedDriverId,
+  drivers,
+  inactiveAssigned,
+}: {
+  assignedDriverId?: string;
+  drivers: DriverOption[];
+  inactiveAssigned: DriverOption | null;
+}) {
+  const assignedDriver =
+    drivers.find((driver) => driver.id === assignedDriverId) ??
+    (inactiveAssigned?.id === assignedDriverId ? inactiveAssigned : null);
+  const hasAssignment = Boolean(assignedDriverId);
+  const phone = assignedDriver?.phone?.trim();
+
+  return (
+    <div className="space-y-2">
+      <Label>Driver contact</Label>
+      <div
+        className="flex flex-wrap items-center gap-2 text-[13px]"
+        style={{ color: "#6b7280" }}
+      >
+        {phone ? <span>{phone}</span> : null}
+        <CallAction
+          appearance="inline"
+          label="Call driver"
+          phone={phone}
+          disabledReason={
+            hasAssignment ? "No number on profile" : "Assign a driver first"
+          }
+          profileHref={
+            assignedDriver ? driverProfileHref(assignedDriver.id) : undefined
+          }
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function AdminBookingDetail() {
@@ -295,7 +337,9 @@ export default function AdminBookingDetail() {
               <User className="h-4 w-4 flex-none" />
               <span>{booking.customer.name}</span>
               <span aria-hidden="true">•</span>
+              <span>{booking.customer.phone}</span>
               <CallAction
+                appearance="inline"
                 label="Call customer"
                 phone={booking.customer.phone}
                 disabledReason="No customer number"
@@ -556,33 +600,11 @@ export default function AdminBookingDetail() {
                   </Select>
                 </div>
 
-                {(() => {
-                  const assignedDriver =
-                    drivers.find((driver) => driver.id === booking.assignedDriverId) ??
-                    (inactiveAssigned?.id === booking.assignedDriverId
-                      ? inactiveAssigned
-                      : null);
-                  const hasAssignment = Boolean(booking.assignedDriverId);
-                  return (
-                    <div className="space-y-2">
-                      <Label>Driver contact</Label>
-                      <CallAction
-                        label="Call driver"
-                        phone={assignedDriver?.phone}
-                        disabledReason={
-                          hasAssignment
-                            ? "No number on profile"
-                            : "Assign a driver first"
-                        }
-                        profileHref={
-                          assignedDriver
-                            ? `/admin/technicians/${assignedDriver.id}`
-                            : undefined
-                        }
-                      />
-                    </div>
-                  );
-                })()}
+                <AssignedDriverCall
+                  assignedDriverId={booking.assignedDriverId}
+                  drivers={drivers}
+                  inactiveAssigned={inactiveAssigned}
+                />
               </CardContent>
             </Card>
 

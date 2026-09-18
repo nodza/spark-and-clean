@@ -44,14 +44,23 @@ export async function GET() {
       if (!profileId) continue;
       const existing = byId.get(profileId);
       const name = String(tech.name || tech.email || profileId);
+      const techPhone =
+        typeof tech.phone === "string" && tech.phone.trim()
+          ? tech.phone.trim()
+          : undefined;
       if (!existing) {
         byId.set(profileId, {
           id: profileId,
           name,
+          phone: techPhone,
           vehicle: undefined,
         });
-      } else if (!existing.name) {
-        existing.name = name;
+      } else {
+        if (!existing.name) existing.name = name;
+        // Match technician profile UI: Driver.phone, else User.phone
+        if (!existing.phone?.trim() && techPhone) {
+          existing.phone = techPhone;
+        }
       }
     }
 

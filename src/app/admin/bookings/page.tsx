@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
-import { CallAction } from "@/components/admin/CallAction";
+import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import {
   AdminPortalShell,
@@ -184,7 +187,7 @@ function matchesSearch(
 }
 
 const TABLE_COLS =
-  "minmax(148px, 180px) minmax(200px, 2fr) minmax(120px, 0.85fr) minmax(88px, 0.6fr) minmax(100px, 0.7fr) minmax(110px, 0.85fr) minmax(118px, 0.8fr)";
+  "minmax(148px, 180px) minmax(200px, 2fr) minmax(120px, 0.85fr) minmax(88px, 0.6fr) minmax(100px, 0.7fr) minmax(160px, 1.1fr) minmax(118px, 0.8fr)";
 
 function PaginationButton({
   ariaLabel,
@@ -465,16 +468,17 @@ function BookingsListBody() {
                 return (
                   <div
                     key={booking.id}
-                    role="link"
-                    tabIndex={0}
-                    onClick={() => router.push(`/admin/bookings/${booking.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        router.push(`/admin/bookings/${booking.id}`);
+                    onClick={(event) => {
+                      if (
+                        (event.target as HTMLElement).closest(
+                          "a, button, [role='button']"
+                        )
+                      ) {
+                        return;
                       }
+                      router.push(`/admin/bookings/${booking.id}`);
                     }}
-                    className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+                    className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
                     style={{
                       gridTemplateColumns: TABLE_COLS,
                       columnGap: 20,
@@ -484,13 +488,15 @@ function BookingsListBody() {
                     }}
                   >
                     <div className="flex items-center justify-between gap-3 lg:contents">
-                      <div
-                        className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums"
+                      <Link
+                        href={`/admin/bookings/${booking.id}`}
+                        className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
                         style={{ color: "#0a7a63" }}
                         title={booking.id}
+                        onClick={(event) => event.stopPropagation()}
                       >
                         {booking.id}
-                      </div>
+                      </Link>
                       <div className="lg:hidden">
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </div>
@@ -549,16 +555,21 @@ function BookingsListBody() {
                       <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
                         Driver
                       </span>
-                      <span className="truncate">{driverLabel}</span>
+                      <span className="min-w-0 truncate">{driverLabel}</span>
                       <CallAction
+                        compact
                         label="Call driver"
-                        phone={driverContacts[booking.assignedDriverId ?? ""]?.phone}
+                        phone={
+                          driverContacts[booking.assignedDriverId ?? ""]?.phone
+                        }
                         disabledReason={
-                          unassigned ? "Assign a driver first" : "No number on profile"
+                          unassigned
+                            ? "Assign a driver first"
+                            : "No number on profile"
                         }
                         profileHref={
                           !unassigned && booking.assignedDriverId
-                            ? `/admin/technicians/${booking.assignedDriverId}`
+                            ? driverProfileHref(booking.assignedDriverId)
                             : undefined
                         }
                       />
