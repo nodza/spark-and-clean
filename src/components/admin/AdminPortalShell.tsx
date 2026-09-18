@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Search } from "lucide-react";
@@ -153,7 +153,7 @@ export function AdminPortalShell({
 export function AdminSearchTopbar({
   searchValue,
   onSearchChange,
-  searchPlaceholder = "Search bookings, clients",
+  searchPlaceholder = "Search by ID, name, phone, email, or address",
 }: {
   /** When provided, wires the topbar search input (controlled). */
   searchValue?: string;
@@ -161,18 +161,42 @@ export function AdminSearchTopbar({
   searchPlaceholder?: string;
 } = {}) {
   const controlled = typeof onSearchChange === "function";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const onSearchChangeRef = useRef(onSearchChange);
+  const searchValueRef = useRef(searchValue);
+  const [draft, setDraft] = useState(searchValue ?? "");
+
+  onSearchChangeRef.current = onSearchChange;
+  searchValueRef.current = searchValue;
+
+  useEffect(() => {
+    if (inputRef.current === document.activeElement) return;
+    setDraft(searchValue ?? "");
+  }, [searchValue]);
+
+  useEffect(() => {
+    if (!controlled) return;
+    const timer = window.setTimeout(() => {
+      if (draft !== (searchValueRef.current ?? "")) {
+        onSearchChangeRef.current?.(draft);
+      }
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [controlled, draft]);
+
   return (
-    <div className="flex min-w-0 items-center gap-[8px] sm:gap-[10px]">
-      <div className="ds-search flex w-[min(220px,42vw)] sm:w-[min(280px,36vw)]">
-        <Search size={13} className="flex-none" style={{ color: "#9aa0a6" }} />
+    <div className="flex min-w-0 flex-1 items-center justify-end gap-[8px] sm:gap-[10px]">
+      <div className="ds-search flex w-full min-w-[220px] max-w-[520px] sm:w-[min(480px,52vw)]">
+        <Search size={15} className="flex-none" style={{ color: "#9aa0a6" }} />
         <input
-          value={controlled ? (searchValue ?? "") : undefined}
+          ref={inputRef}
+          value={controlled ? draft : undefined}
           onChange={
-            controlled ? (e) => onSearchChange(e.target.value) : undefined
+            controlled ? (e) => setDraft(e.target.value) : undefined
           }
           placeholder={searchPlaceholder}
-          className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#9aa0a6]"
-          aria-label="Search bookings and clients"
+          className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#9aa0a6]"
+          aria-label="Search bookings by ID, name, phone, email, or address"
         />
       </div>
       <Link href="/book/rug" className="flex-none">
