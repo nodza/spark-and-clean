@@ -22,6 +22,11 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
+import { InactiveDriverBadge } from "@/components/admin/InactiveDriverBadge";
+import {
   AdminBackLink,
   AdminPortalShell,
 } from "@/components/admin/AdminPortalShell";
@@ -36,13 +41,9 @@ type DriverOption = {
   id: string;
   name: string;
   vehicle?: string;
+  phone?: string;
   isActive?: boolean;
 };
-
-function telHref(phone: string) {
-  const digits = phone.replace(/[^\d+]/g, "");
-  return `tel:${digits || phone.trim()}`;
-}
 
 function addOnLabels(booking: Booking): string[] {
   const addOns = booking.addOns as Booking["addOns"] & {
@@ -70,6 +71,98 @@ function formatCollectionLong(value: string) {
 function formatNoteTime(iso: string) {
   const parsed = new Date(iso);
   return Number.isNaN(parsed.getTime()) ? iso : format(parsed, "PPp");
+}
+
+function AssignedDriverCall({
+  assignedDriverId,
+  drivers,
+  inactiveAssigned,
+}: {
+  assignedDriverId?: string;
+  drivers: DriverOption[];
+  inactiveAssigned: DriverOption | null;
+}) {
+  const assignedDriver =
+    drivers.find((driver) => driver.id === assignedDriverId) ??
+    (inactiveAssigned?.id === assignedDriverId ? inactiveAssigned : null);
+  const hasAssignment = Boolean(assignedDriverId);
+  const isInactive =
+    hasAssignment &&
+    (assignedDriver?.isActive === false ||
+      !drivers.some((driver) => driver.id === assignedDriverId));
+  const phone = assignedDriver?.phone?.trim();
+
+  if (!hasAssignment || isInactive) {
+    return null;
+  }
+
+  return (
+    <div className="mt-[14px] space-y-2">
+      <Label>Driver contact</Label>
+      <div
+        className="flex flex-wrap items-center gap-2 text-[13px]"
+        style={{ color: "#6b7280" }}
+      >
+        {phone ? <span>{phone}</span> : null}
+        <CallAction
+          appearance="inline"
+          label="Call driver"
+          phone={phone}
+          disabledReason="No number on profile"
+          profileHref={
+            assignedDriver ? driverProfileHref(assignedDriver.id) : undefined
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function AssignedDriverSummary({
+  assignedDriverId,
+  assigned,
+  drivers,
+}: {
+  assignedDriverId?: string;
+  assigned: DriverOption | null;
+  drivers: DriverOption[];
+}) {
+  if (!assignedDriverId) {
+    return (
+      <p className="text-body mt-[10px]" style={{ color: "#32373c" }}>
+        Unassigned
+      </p>
+    );
+  }
+
+  const isInactive =
+    assigned?.isActive === false ||
+    !drivers.some((driver) => driver.id === assignedDriverId);
+  const showName =
+    assigned && assigned.name.trim() && assigned.name !== assigned.id
+      ? assigned.vehicle
+        ? `${assigned.name} · ${assigned.vehicle}`
+        : assigned.name
+      : null;
+
+  if (isInactive) {
+    return (
+      <div className="mt-[10px] flex flex-wrap items-center gap-2">
+        {showName ? (
+          <span className="text-body" style={{ color: "#32373c" }}>
+            {showName}
+          </span>
+        ) : null}
+        <InactiveDriverBadge />
+      </div>
+    );
+  }
+
+  return (
+    <p className="text-body mt-[10px]" style={{ color: "#32373c" }}>
+      {showName ?? assigned?.name ?? "Assigned"}
+    </p>
+  );
 }
 
 export default function AdminBookingDetail() {
@@ -176,6 +269,7 @@ export default function AdminBookingDetail() {
           id: String(data.id || assignedId),
           name: String(data.name || assignedId),
           vehicle: typeof data.vehicle === "string" ? data.vehicle : undefined,
+          phone: typeof data.phone === "string" ? data.phone : undefined,
           isActive: false,
         });
       })
@@ -326,12 +420,18 @@ export default function AdminBookingDetail() {
                   {booking.customer.name}
                 </div>
                 <div
-                  className="text-meta mt-[6px] flex flex-wrap gap-x-[14px] gap-y-[4px]"
+                  className="text-meta mt-[6px] flex flex-wrap items-center gap-x-[14px] gap-y-[4px]"
                   style={{ color: "#6b7280" }}
                 >
-                  <a className="ds-text-action" href={telHref(booking.customer.phone)}>
-                    {booking.customer.phone}
-                  </a>
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <span>{booking.customer.phone}</span>
+                    <CallAction
+                      appearance="inline"
+                      label="Call customer"
+                      phone={booking.customer.phone}
+                      disabledReason="No customer number"
+                    />
+                  </span>
                   <a className="ds-text-action" href={`mailto:${booking.customer.email}`}>
                     {booking.customer.email}
                   </a>
@@ -565,15 +665,11 @@ export default function AdminBookingDetail() {
                   <div className="text-card-title" style={{ color: "#000b49" }}>
                     Assignment
                   </div>
-                  <p className="text-body mt-[10px]" style={{ color: "#32373c" }}>
-                    {assigned
-                      ? assigned.vehicle
-                        ? `${assigned.name} · ${assigned.vehicle}`
-                        : assigned.name
-                      : booking.assignedDriverId
-                        ? booking.assignedDriverId
-                        : "Unassigned"}
-                  </p>
+                  <AssignedDriverSummary
+                    assignedDriverId={booking.assignedDriverId}
+                    assigned={assigned ?? null}
+                    drivers={drivers}
+                  />
                   <div className="mt-[14px] space-y-2">
                     <Label>Assign driver</Label>
                     <Select
@@ -589,7 +685,10 @@ export default function AdminBookingDetail() {
                         {inactiveAssigned &&
                         !drivers.some((driver) => driver.id === inactiveAssigned.id) ? (
                           <SelectItem value={inactiveAssigned.id} disabled>
-                            {inactiveAssigned.name}
+                            {inactiveAssigned.name &&
+                            inactiveAssigned.name !== inactiveAssigned.id
+                              ? inactiveAssigned.name
+                              : "Assigned driver"}
                             {inactiveAssigned.vehicle
                               ? ` (${inactiveAssigned.vehicle})`
                               : ""}{" "}
@@ -605,6 +704,11 @@ export default function AdminBookingDetail() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <AssignedDriverCall
+                    assignedDriverId={booking.assignedDriverId}
+                    drivers={drivers}
+                    inactiveAssigned={inactiveAssigned}
+                  />
                   {booking.assignedDriverId ? (
                     <Button
                       type="button"

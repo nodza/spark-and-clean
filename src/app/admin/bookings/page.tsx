@@ -7,6 +7,11 @@ import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
+import { InactiveDriverBadge } from "@/components/admin/InactiveDriverBadge";
 import { AdminListPagination } from "@/components/admin/AdminListPagination";
 import { BookingsFilterPanel } from "@/components/admin/BookingsFilterPanel";
 import {
@@ -38,7 +43,7 @@ import { useBookingStore } from "@/store/useBookingStore";
 import type { Booking, Driver } from "@/types/booking";
 
 const TABLE_COLS =
-  "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(88px, 0.7fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
+  "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(118px, 0.85fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
 
 function formatRand(amount: number) {
   const rounded = Math.round(amount);
@@ -168,8 +173,23 @@ function AdminBookingsList() {
     const map = new Map(drivers.map((d) => [d.id, d.name]));
     return (id?: string) => {
       if (isUnassignedDriver(id)) return "Unassigned";
-      return (id && map.get(id)) || id || "Unassigned";
+      return (id && map.get(id)) || null;
     };
+  }, [drivers]);
+
+  const isKnownDriver = useMemo(() => {
+    const ids = new Set(drivers.map((d) => d.id));
+    return (id?: string) => Boolean(id && ids.has(id));
+  }, [drivers]);
+
+  const driverPhone = useMemo(() => {
+    const map = new Map(
+      drivers.map((d) => [
+        d.id,
+        typeof d.phone === "string" && d.phone.trim() ? d.phone.trim() : undefined,
+      ])
+    );
+    return (id?: string) => (id ? map.get(id) : undefined);
   }, [drivers]);
 
   const suburbs = useMemo(
@@ -321,7 +341,11 @@ function AdminBookingsList() {
 
               {pageItems.map((booking) => {
                 const unassigned = isUnassignedDriver(booking.assignedDriverId);
-                const driverLabel = driverName(booking.assignedDriverId);
+                const knownDriver = isKnownDriver(booking.assignedDriverId);
+                const inactive = !unassigned && !knownDriver;
+                const driverLabel = unassigned
+                  ? "Unassigned"
+                  : driverName(booking.assignedDriverId) ?? "Assigned driver";
                 return (
                   <div
                     key={booking.id}
@@ -397,11 +421,40 @@ function AdminBookingsList() {
                     </div>
 
                     <div
-                      className="truncate text-[12px] font-medium"
-                      style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
-                      title={driverLabel}
+                      className="relative z-[2] flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] font-medium"
+                      style={{
+                        color: unassigned
+                          ? "#b3261e"
+                          : inactive
+                            ? "#b33232"
+                            : "#6b7280",
+                      }}
+                      title={
+                        inactive
+                          ? "Assigned driver is inactive"
+                          : driverLabel
+                      }
                     >
-                      {driverLabel}
+                      {inactive ? (
+                        <InactiveDriverBadge className="px-[8px] py-[3px] text-[10px]" />
+                      ) : (
+                        <>
+                          <span className="min-w-0 truncate">{driverLabel}</span>
+                          {!unassigned ? (
+                            <CallAction
+                              compact
+                              label="Call driver"
+                              phone={driverPhone(booking.assignedDriverId)}
+                              disabledReason="No number on profile"
+                              profileHref={
+                                booking.assignedDriverId
+                                  ? driverProfileHref(booking.assignedDriverId)
+                                  : undefined
+                              }
+                            />
+                          ) : null}
+                        </>
+                      )}
                     </div>
 
                     <div className="min-w-0">
