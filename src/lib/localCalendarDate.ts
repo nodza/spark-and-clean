@@ -5,6 +5,35 @@ export function localCalendarDate(date: Date = new Date()): string {
   return format(date, "yyyy-MM-dd");
 }
 
+export function calendarDateInTimeZone(
+  value: Date | string,
+  timeZone: string
+): string | null {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function johannesburgCalendarDate(date: Date = new Date()): string {
+  return calendarDateInTimeZone(date, "Africa/Johannesburg") ?? localCalendarDate(date);
+}
+
 /** Booking collection calendar day in the local timezone. */
 export function bookingCalendarDate(collectionDate: string): string | null {
   const prefix = collectionDate.slice(0, 10);

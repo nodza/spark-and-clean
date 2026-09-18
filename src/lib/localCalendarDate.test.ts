@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bookingCalendarDate,
+  calendarDateInTimeZone,
   isBookingOnLocalDay,
   localCalendarDate,
 } from "@/lib/localCalendarDate";
@@ -19,6 +20,14 @@ describe("bookingCalendarDate", () => {
 
   it("keeps a date-only yyyy-MM-dd string as that calendar day", () => {
     expect(bookingCalendarDate("2026-09-14")).toBe("2026-09-14");
+  });
+});
+
+describe("calendarDateInTimeZone", () => {
+  it("uses Johannesburg time at a UTC day boundary", () => {
+    expect(
+      calendarDateInTimeZone("2026-09-16T22:30:00.000Z", "Africa/Johannesburg")
+    ).toBe("2026-09-17");
   });
 });
 
