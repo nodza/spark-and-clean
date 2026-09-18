@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { format } from "date-fns";
-import { User } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
-import type { BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,14 +19,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AdminBackLink,
   AdminPortalShell,
 } from "@/components/admin/AdminPortalShell";
+import {
+  bookingStatusVariant,
+  paymentStatusVariant,
+} from "@/components/admin/bookingBadges";
+
+const STATUS_OPTIONS = BOOKING_STATUSES;
 
 type DriverOption = {
   id: string;
@@ -34,7 +39,33 @@ type DriverOption = {
   isActive?: boolean;
 };
 
-const STATUS_OPTIONS = BOOKING_STATUSES;
+function telHref(phone: string) {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return `tel:${digits || phone.trim()}`;
+}
+
+function addOnLabels(booking: Booking): string[] {
+  const addOns = booking.addOns as Booking["addOns"] & {
+    stainTreatment?: boolean;
+    fabricProtection?: boolean;
+  };
+  const labels: string[] = [];
+  if (addOns?.odourRemoval || addOns?.stainTreatment) {
+    labels.push("Odour Removal & Hygiene Treatment");
+  }
+  if (addOns?.stainProtection || addOns?.fabricProtection) {
+    labels.push("Stain Protection Treatment");
+  }
+  return labels;
+}
+
+function formatCollectionLong(value: string) {
+  const day = /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : "";
+  if (day) return format(parseISO(day), "PPP");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, "PPP");
+}
 
 function formatNoteTime(iso: string) {
   const parsed = new Date(iso);
@@ -43,7 +74,7 @@ function formatNoteTime(iso: string) {
 
 export default function AdminBookingDetail() {
   const params = useParams();
-  const id = params.id as string;
+  const id = String(params.id ?? "");
   const {
     bookings,
     fetchBookingById,
@@ -56,8 +87,9 @@ export default function AdminBookingDetail() {
   const [inactiveAssigned, setInactiveAssigned] = useState<DriverOption | null>(
     null
   );
-  const [loadDone, setLoadDone] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "missing">(
+    booking ? "ready" : "loading"
+  );
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<InternalNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
@@ -90,22 +122,7 @@ export default function AdminBookingDetail() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoadDone(false);
-    setNotFound(false);
-
-    void fetchBookingById(id)
-      .then((found) => {
-        if (cancelled) return;
-        if (!found) setNotFound(true);
-      })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadDone(true);
-      });
-
-    void loadNotes();
+    setLoadState(booking ? "ready" : "loading");
 
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
@@ -123,10 +140,23 @@ export default function AdminBookingDetail() {
         if (!cancelled) setDrivers([]);
       });
 
+    void fetchBookingById(id)
+      .then((found) => {
+        if (cancelled) return;
+        setLoadState(found ? "ready" : "missing");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadState("missing");
+      });
+
+    void loadNotes();
+
     return () => {
       cancelled = true;
     };
-  }, [fetchBookingById, id, loadNotes]);
+    // Show cached row immediately; refresh this id from S1 without refetching the full list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, fetchBookingById, loadNotes]);
 
   useEffect(() => {
     const assignedId = booking?.assignedDriverId;
@@ -163,6 +193,13 @@ export default function AdminBookingDetail() {
       cancelled = true;
     };
   }, [booking?.assignedDriverId, drivers]);
+
+  const assigned = useMemo(
+    () =>
+      drivers.find((d) => d.id === booking?.assignedDriverId) ||
+      inactiveAssigned,
+    [drivers, inactiveAssigned, booking?.assignedDriverId]
+  );
 
   const addNote = async () => {
     const body = noteDraft.trim();
@@ -221,8 +258,10 @@ export default function AdminBookingDetail() {
     }
     setSaving(true);
     try {
-      const driverId = val === "unassigned" ? null : val;
-      const error = await assignDriver(booking.id, driverId);
+      const error = await assignDriver(
+        booking.id,
+        val === "unassigned" ? null : val
+      );
       if (error) toast.error(error);
     } finally {
       setSaving(false);
@@ -240,364 +279,380 @@ export default function AdminBookingDetail() {
     }
   };
 
-  if (!loadDone && !booking) {
-    return (
-      <AdminPortalShell pageTitle="Booking detail" active="bookings">
-        <div className="portal-page">
-          <AdminBackLink href="/admin/bookings" label="Back to Bookings" />
-          <div
-            className="mt-6 text-meta"
-            style={{ color: "#9aa0a6" }}
-            role="status"
-          >
-            Loading booking…
-          </div>
-        </div>
-      </AdminPortalShell>
-    );
-  }
-
-  if (notFound || (loadDone && !booking)) {
-    return (
-      <AdminPortalShell pageTitle="Booking detail" active="bookings">
-        <div className="portal-page">
-          <AdminBackLink href="/admin/bookings" label="Back to Bookings" />
-          <p className="mt-6 text-meta" style={{ color: "#9aa0a6" }}>
-            Booking not found.
-          </p>
-        </div>
-      </AdminPortalShell>
-    );
-  }
-
-  if (!booking) return null;
-
   return (
-    <AdminPortalShell pageTitle={`Booking ${booking.id}`} active="bookings">
-      <div className="portal-page mx-auto max-w-4xl">
-        <AdminBackLink href="/admin/bookings" label="Back to Bookings" />
+    <AdminPortalShell
+      pageTitle={booking ? booking.id : "Booking"}
+      active="bookings"
+    >
+      <div className="portal-page flex flex-col gap-[18px]">
+        <AdminBackLink href="/admin/bookings" label="Back to bookings" />
 
-        <div className="mt-6 mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1
-              className="text-[22px] font-extrabold sm:text-[28px]"
-              style={{ color: "#000b49" }}
-            >
-              Booking #{booking.id}
-            </h1>
-            <div
-              className="mt-2 flex flex-wrap items-center gap-2 text-[13px]"
-              style={{ color: "#6b7280" }}
-            >
-              <User className="h-4 w-4 flex-none" />
-              <span>{booking.customer.name}</span>
-              <span aria-hidden="true">•</span>
-              <span>{booking.customer.phone}</span>
-            </div>
+        {loadState === "loading" && !booking && (
+          <div className="ds-card text-meta" style={{ color: "#9aa0a6" }} role="status">
+            Loading…
           </div>
-          <div className="sm:text-right">
-            <div
-              className="text-[22px] font-extrabold tabular"
-              style={{ color: "#000b49" }}
-            >
-              R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
+        )}
+
+        {loadState === "missing" && !booking && (
+          <div className="ds-card">
+            <div className="text-card-title" style={{ color: "#000b49" }}>
+              Booking not found
             </div>
-            <p className="text-meta mt-1" style={{ color: "#9aa0a6" }}>
-              Estimated total
+            <p className="text-body mt-[8px]" style={{ color: "#6b7280" }}>
+              No booking exists for <span className="tabular">{id}</span>.
             </p>
+            <Link href="/admin/bookings" className="ds-text-action mt-[14px] inline-block">
+              Back to the bookings list
+            </Link>
           </div>
-        </div>
+        )}
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="space-y-6 md:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label className="text-muted-foreground">Rug Type</Label>
-                    <p className="font-medium">{booking.rug.type}</p>
+        {booking && (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-[16px]">
+              <div>
+                <div className="flex flex-wrap items-center gap-[10px]">
+                  <h1 className="text-page-title" style={{ color: "#000b49" }}>
+                    {booking.id}
+                  </h1>
+                  <Badge variant={bookingStatusVariant(booking.status)}>
+                    {booking.status}
+                  </Badge>
+                  <Badge variant={paymentStatusVariant(booking.paymentStatus)}>
+                    {booking.paymentStatus}
+                  </Badge>
+                </div>
+                <div className="text-body mt-[8px]" style={{ color: "#32373c" }}>
+                  {booking.customer.name}
+                </div>
+                <div
+                  className="text-meta mt-[6px] flex flex-wrap gap-x-[14px] gap-y-[4px]"
+                  style={{ color: "#6b7280" }}
+                >
+                  <a className="ds-text-action" href={telHref(booking.customer.phone)}>
+                    {booking.customer.phone}
+                  </a>
+                  <a className="ds-text-action" href={`mailto:${booking.customer.email}`}>
+                    {booking.customer.email}
+                  </a>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="tabular text-[22px] font-extrabold" style={{ color: "#000b49" }}>
+                  R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
+                </div>
+                <div className="text-meta" style={{ color: "#9aa0a6" }}>
+                  Estimated total
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="flex min-w-0 flex-col gap-[18px]">
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Job details
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Dimensions</Label>
-                    <p className="font-medium">
-                      {booking.rug.widthM}m x {booking.rug.lengthM}m (
-                      {booking.rug.areaSqM}m²)
+                  <div className="mt-[16px] grid grid-cols-2 gap-[14px]">
+                    <div>
+                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                        RUG TYPE
+                      </div>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {booking.rug.type}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                        DIMENSIONS
+                      </div>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {booking.rug.widthM}m × {booking.rug.lengthM}m ({booking.rug.areaSqM}m²)
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                        COLLECTION DATE
+                      </div>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {formatCollectionLong(booking.collectionDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                        TIME SLOT
+                      </div>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {booking.collectionSlot}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-[16px]">
+                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                      ADDRESS
+                    </div>
+                    <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                      {booking.addressLine1}
+                    </p>
+                    <p className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>
+                      {booking.suburb}, {booking.city}
                     </p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">
-                      Collection Date
-                    </Label>
-                    <p className="font-medium">
-                      {format(new Date(booking.collectionDate), "PPP")}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Time Slot</Label>
-                    <p className="font-medium">{booking.collectionSlot}</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <Label className="mb-2 block text-muted-foreground">
-                    Address
-                  </Label>
-                  <p className="font-medium">{booking.addressLine1}</p>
-                  <p className="text-muted-foreground">
-                    {booking.suburb}, {booking.city}
-                  </p>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <Label className="mb-2 block text-muted-foreground">
-                    Add-ons
-                  </Label>
-                  <div className="flex flex-wrap gap-2">
-                    {booking.addOns.odourRemoval && (
-                      <span className="rounded bg-secondary px-2 py-1 text-sm">
-                        Odour Removal & Hygiene Treatment
-                      </span>
-                    )}
-                    {booking.addOns.stainProtection && (
-                      <span className="rounded bg-secondary px-2 py-1 text-sm">
-                        Stain Protection Treatment
-                      </span>
-                    )}
-                    {!booking.addOns.odourRemoval &&
-                      !booking.addOns.stainProtection && (
-                        <span className="italic text-muted-foreground">
+                  <div className="mt-[16px]">
+                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                      ADD-ONS
+                    </div>
+                    <div className="mt-[8px] flex flex-wrap gap-[8px]">
+                      {addOnLabels(booking).length === 0 ? (
+                        <span className="text-meta" style={{ color: "#9aa0a6" }}>
                           None
                         </span>
+                      ) : (
+                        addOnLabels(booking).map((label) => (
+                          <Badge key={label} variant="outline">
+                            {label}
+                          </Badge>
+                        ))
                       )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {booking.rug.photos && booking.rug.photos.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Photos</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    {booking.rug.photos.map((photo, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={i}
-                        src={photo}
-                        alt={`Rug photo ${i + 1}`}
-                        className="rounded-lg border"
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Internal notes</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="internal-note">Internal note</Label>
-                  <Textarea
-                    id="internal-note"
-                    value={noteDraft}
-                    onChange={(e) => {
-                      setNoteDraft(e.target.value);
-                      if (noteError) setNoteError(null);
-                    }}
-                    placeholder="Gate code, dog on site, customer will EFT after collection…"
-                    maxLength={MAX_NOTE_LEN}
-                    rows={3}
-                    aria-invalid={noteError ? true : undefined}
-                    aria-describedby={
-                      noteError ? "internal-note-error" : undefined
-                    }
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground">
-                      {noteDraft.trim().length}/{MAX_NOTE_LEN}
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={noteSaving || !noteDraft.trim()}
-                      onClick={() => void addNote()}
-                    >
-                      {noteSaving ? "Adding…" : "Add"}
-                    </Button>
-                  </div>
-                  {noteError ? (
-                    <p
-                      id="internal-note-error"
-                      role="alert"
-                      className="text-xs text-destructive"
-                    >
-                      {noteError}
-                    </p>
+                  {booking.couponCode ? (
+                    <div className="mt-[16px]">
+                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                        COUPON
+                      </div>
+                      <p className="text-body mt-[4px] tabular" style={{ color: "#32373c" }}>
+                        {booking.couponCode}
+                      </p>
+                    </div>
                   ) : null}
                 </div>
 
-                <Separator />
+                {booking.rug.photos && booking.rug.photos.length > 0 && (
+                  <div className="ds-card">
+                    <div className="text-card-title" style={{ color: "#000b49" }}>
+                      Photos
+                    </div>
+                    <div className="mt-[14px] grid grid-cols-3 gap-[10px]">
+                      {booking.rug.photos.map((photo, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={`${photo}-${i}`}
+                          src={photo}
+                          alt={`Rug photo ${i + 1}`}
+                          className="rounded-[10px] border border-[#f0f2f6]"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                {notesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading notes…</p>
-                ) : notesError ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-destructive" role="alert">
-                      {notesError}
-                    </p>
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Internal notes
+                  </div>
+                  <div className="mt-[14px] space-y-2">
+                    <Label htmlFor="internal-note">Internal note</Label>
+                    <Textarea
+                      id="internal-note"
+                      value={noteDraft}
+                      onChange={(e) => {
+                        setNoteDraft(e.target.value);
+                        if (noteError) setNoteError(null);
+                      }}
+                      placeholder="Gate code, dog on site, customer will EFT after collection…"
+                      maxLength={MAX_NOTE_LEN}
+                      rows={3}
+                      aria-invalid={noteError ? true : undefined}
+                      aria-describedby={noteError ? "internal-note-error" : undefined}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                        {noteDraft.trim().length}/{MAX_NOTE_LEN}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={noteSaving || !noteDraft.trim()}
+                        onClick={() => void addNote()}
+                      >
+                        {noteSaving ? "Adding…" : "Add"}
+                      </Button>
+                    </div>
+                    {noteError ? (
+                      <p
+                        id="internal-note-error"
+                        role="alert"
+                        className="text-sm"
+                        style={{ color: "#b3261e" }}
+                      >
+                        {noteError}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-[16px]">
+                    {notesLoading ? (
+                      <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                        Loading notes…
+                      </p>
+                    ) : notesError ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
+                          {notesError}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void loadNotes()}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    ) : notes.length === 0 ? (
+                      <p className="text-meta italic" style={{ color: "#9aa0a6" }}>
+                        No internal notes yet.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {notes.map((note) => (
+                          <li
+                            key={note.id}
+                            className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f9fb] px-3 py-3"
+                          >
+                            <p className="text-body whitespace-pre-wrap" style={{ color: "#32373c" }}>
+                              {note.body}
+                            </p>
+                            <p className="text-meta mt-2" style={{ color: "#9aa0a6" }}>
+                              {note.author} · {formatNoteTime(note.createdAt)}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-[14px]">
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Status
+                  </div>
+                  <div className="mt-[14px] space-y-2">
+                    <Label>Current status</Label>
+                    <Select
+                      value={booking.status}
+                      disabled={saving}
+                      onValueChange={(val) => void handleStatus(val)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Assignment
+                  </div>
+                  <p className="text-body mt-[10px]" style={{ color: "#32373c" }}>
+                    {assigned
+                      ? assigned.vehicle
+                        ? `${assigned.name} · ${assigned.vehicle}`
+                        : assigned.name
+                      : booking.assignedDriverId
+                        ? booking.assignedDriverId
+                        : "Unassigned"}
+                  </p>
+                  <div className="mt-[14px] space-y-2">
+                    <Label>Assign driver</Label>
+                    <Select
+                      value={booking.assignedDriverId || "unassigned"}
+                      disabled={saving}
+                      onValueChange={(val) => void handleAssign(val)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select driver" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72 overflow-y-auto">
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {inactiveAssigned &&
+                        !drivers.some((driver) => driver.id === inactiveAssigned.id) ? (
+                          <SelectItem value={inactiveAssigned.id} disabled>
+                            {inactiveAssigned.name}
+                            {inactiveAssigned.vehicle
+                              ? ` (${inactiveAssigned.vehicle})`
+                              : ""}{" "}
+                            — inactive
+                          </SelectItem>
+                        ) : null}
+                        {drivers.map((driver) => (
+                          <SelectItem key={driver.id} value={driver.id}>
+                            {driver.name}
+                            {driver.vehicle ? ` (${driver.vehicle})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {booking.assignedDriverId ? (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-                      onClick={() => void loadNotes()}
+                      className="mt-[12px]"
+                      disabled={saving}
+                      onClick={() => void handleAssign("unassigned")}
                     >
-                      Retry
+                      Unassign
                     </Button>
-                  </div>
-                ) : notes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">
-                    No internal notes yet.
-                  </p>
-                ) : (
-                  <ul className="space-y-4">
-                    {notes.map((note) => (
-                      <li
-                        key={note.id}
-                        className="rounded-md border bg-muted/30 px-3 py-3"
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{note.body}</p>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {note.author}
-                          {" · "}
-                          {formatNoteTime(note.createdAt)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Status & Assignment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Current Status</Label>
-                  <Select
-                    value={booking.status}
-                    disabled={saving}
-                    onValueChange={(val) => void handleStatus(val)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  ) : null}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Assign Driver</Label>
-                  <Select
-                    value={booking.assignedDriverId || "unassigned"}
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Payment
+                  </div>
+                  <RadioGroup
+                    className="mt-[14px]"
+                    value={booking.paymentStatus}
                     disabled={saving}
-                    onValueChange={(val) => void handleAssign(val)}
+                    onValueChange={(val) => void handlePayment(val)}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select driver" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72 overflow-y-auto">
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {inactiveAssigned &&
-                      !drivers.some((driver) => driver.id === inactiveAssigned.id) ? (
-                        <SelectItem value={inactiveAssigned.id} disabled>
-                          {inactiveAssigned.name}
-                          {inactiveAssigned.vehicle
-                            ? ` (${inactiveAssigned.vehicle})`
-                            : ""}{" "}
-                          — inactive
-                        </SelectItem>
-                      ) : null}
-                      {drivers.map((driver) => (
-                        <SelectItem key={driver.id} value={driver.id}>
-                          {driver.name}
-                          {driver.vehicle ? ` (${driver.vehicle})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
+                      <Label htmlFor="unpaid" className="text-destructive font-medium">
+                        Unpaid
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
+                      <Label htmlFor="deposit" className="text-orange-500 font-medium">
+                        Deposit paid
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="PAID" id="paid" disabled={saving} />
+                      <Label htmlFor="paid" className="text-green-600 font-medium">
+                        Paid in full
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={booking.paymentStatus}
-                  disabled={saving}
-                  onValueChange={(val) => void handlePayment(val)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="UNPAID"
-                      id="unpaid"
-                      disabled={saving}
-                    />
-                    <Label
-                      htmlFor="unpaid"
-                      className="font-medium text-destructive"
-                    >
-                      Unpaid
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="DEPOSIT"
-                      id="deposit"
-                      disabled={saving}
-                    />
-                    <Label
-                      htmlFor="deposit"
-                      className="font-medium text-orange-500"
-                    >
-                      Deposit Paid
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="PAID" id="paid" disabled={saving} />
-                    <Label htmlFor="paid" className="font-medium text-green-600">
-                      Paid in Full
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </AdminPortalShell>
   );

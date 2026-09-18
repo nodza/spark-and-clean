@@ -187,11 +187,11 @@ export function PortalLayout({
           >
             <Menu size={22} strokeWidth={2} />
           </button>
-          <span className="min-w-0 flex-1 truncate text-[16px] font-extrabold text-[#000b49]">
+          <span className="min-w-0 shrink truncate text-[16px] font-extrabold text-[#000b49]">
             {pageTitle}
           </span>
           {topbarActions ? (
-            <div className="flex min-w-0 flex-none items-center gap-[10px] overflow-x-auto">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-[10px]">
               {topbarActions}
             </div>
           ) : null}
