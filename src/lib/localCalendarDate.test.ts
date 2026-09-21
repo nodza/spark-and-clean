@@ -8,7 +8,7 @@ import {
 } from "@/lib/localCalendarDate";
 
 describe("calendarDateInTimeZone", () => {
-  it("uses Africa/Johannesburg (UTC+2) for ISO timestamps", () => {
+  it("uses Africa/Johannesburg (UTC+2) for Date values", () => {
     // 21:30 UTC on 13 Sep → 23:30 SAST still 13 Sep
     expect(
       calendarDateInTimeZone(
@@ -24,6 +24,18 @@ describe("calendarDateInTimeZone", () => {
         APP_TIMEZONE
       )
     ).toBe("2026-09-14");
+  });
+
+  it("accepts ISO strings and maps at a UTC day boundary", () => {
+    expect(
+      calendarDateInTimeZone("2026-09-16T22:30:00.000Z", "Africa/Johannesburg")
+    ).toBe("2026-09-17");
+  });
+
+  it("returns date-only yyyy-MM-dd strings unchanged", () => {
+    expect(calendarDateInTimeZone("2026-09-16", APP_TIMEZONE)).toBe(
+      "2026-09-16"
+    );
   });
 });
 

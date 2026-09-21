@@ -62,6 +62,7 @@ export interface Booking {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 

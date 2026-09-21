@@ -1,14 +1,23 @@
 import type { Booking, BookingStatus } from "@/types/booking";
 import { isExcludedFromUnassignedQueue } from "@/lib/bookingAttention";
 import {
+  calendarDateInTimeZone,
   bookingCalendarDate,
   isBookingOnLocalDay,
 } from "@/lib/localCalendarDate";
 
 type Job = Pick<
   Booking,
-  "assignedDriverId" | "collectionDate" | "collectionSlot" | "status"
+  | "assignedDriverId"
+  | "collectionDate"
+  | "collectionSlot"
+  | "status"
+  | "updatedAt"
 >;
+
+const JOHANNESBURG = "Africa/Johannesburg";
+const PICKUP_STATUSES: BookingStatus[] = ["BOOKED", "SCHEDULED"];
+const SLOT_ORDER = { MORNING: 0, AFTERNOON: 1 } as const;
 
 function isAssignedOpenJob(job: Job, driverProfileId: string): boolean {
   return (
@@ -43,8 +52,6 @@ export function technicianJobsOnDay<T extends Job>(
   );
 }
 
-const SLOT_ORDER = { MORNING: 0, AFTERNOON: 1 } as const;
-
 export function technicianUpcomingJobs<T extends Job>(
   bookings: T[],
   driverProfileId: string | undefined,
@@ -63,4 +70,42 @@ export function technicianUpcomingJobs<T extends Job>(
       if (dayA !== dayB) return dayA.localeCompare(dayB);
       return SLOT_ORDER[a.collectionSlot] - SLOT_ORDER[b.collectionSlot];
     });
+}
+
+function sortBySlot<T extends Job>(a: T, b: T): number {
+  return SLOT_ORDER[a.collectionSlot] - SLOT_ORDER[b.collectionSlot];
+}
+
+export function technicianTodayStops<T extends Job>(
+  bookings: T[],
+  driverProfileId: string | undefined,
+  today: string
+): T[] {
+  if (!driverProfileId) return [];
+  return bookings
+    .filter((job) => {
+      if (job.assignedDriverId !== driverProfileId) return false;
+      if (job.status === "READY") return true;
+      return (
+        PICKUP_STATUSES.includes(job.status as BookingStatus) &&
+        calendarDateInTimeZone(job.collectionDate, JOHANNESBURG) === today
+      );
+    })
+    .sort(sortBySlot);
+}
+
+export function technicianDoneToday<T extends Job>(
+  bookings: T[],
+  driverProfileId: string | undefined,
+  today: string
+): T[] {
+  if (!driverProfileId) return [];
+  return bookings
+    .filter(
+      (job) =>
+        job.assignedDriverId === driverProfileId &&
+        job.status === "DELIVERED" &&
+        calendarDateInTimeZone(job.updatedAt ?? "", JOHANNESBURG) === today
+    )
+    .sort(sortBySlot);
 }

@@ -8,11 +8,7 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-/** Calendar `yyyy-MM-dd` for a Date in the given IANA zone (default: SA). */
-export function calendarDateInTimeZone(
-  date: Date = new Date(),
-  timeZone: string = APP_TIMEZONE
-): string {
+function formatDateInTimeZone(date: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-ZA", {
     timeZone,
     year: "numeric",
@@ -29,9 +25,37 @@ export function calendarDateInTimeZone(
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
+/**
+ * Calendar `yyyy-MM-dd` for a Date or ISO/date string in the given IANA zone
+ * (default: South Africa). Date-only `yyyy-MM-dd` strings are returned as-is.
+ */
+export function calendarDateInTimeZone(
+  value: Date | string = new Date(),
+  timeZone: string = APP_TIMEZONE
+): string | null {
+  if (typeof value === "string") {
+    if (!value.trim()) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return formatDateInTimeZone(parsed, timeZone);
+  }
+
+  if (Number.isNaN(value.getTime())) return null;
+  return formatDateInTimeZone(value, timeZone);
+}
+
 /** Today as `yyyy-MM-dd` in South Africa. */
 export function localCalendarDate(date: Date = new Date()): string {
-  return calendarDateInTimeZone(date, APP_TIMEZONE);
+  return (
+    calendarDateInTimeZone(date, APP_TIMEZONE) ??
+    formatDateInTimeZone(date, APP_TIMEZONE)
+  );
+}
+
+/** Alias used by technician Today filtering (same zone as localCalendarDate). */
+export function johannesburgCalendarDate(date: Date = new Date()): string {
+  return localCalendarDate(date);
 }
 
 /** Booking collection calendar day in South Africa. */

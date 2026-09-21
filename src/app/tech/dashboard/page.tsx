@@ -1,40 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, MapPin, RefreshCw } from "lucide-react";
+import { ChevronDown, Loader2, MapPin, RefreshCw } from "lucide-react";
 import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { localCalendarDate } from "@/lib/localCalendarDate";
 import {
-  bookingCalendarDate,
-  localCalendarDate,
-} from "@/lib/localCalendarDate";
+  technicianDoneToday,
+  technicianTodayStops,
+  technicianUpcomingJobs,
+} from "@/lib/technicianJobs";
 import {
   formatRouteDate,
   formatUpcomingDate,
   rugSummary,
   slotTimeLabel,
   slotWindowLabel,
-  sortJobsBySlotThenId,
   techAccentColor,
   techStopKind,
   techTagClass,
   techTagLabel,
 } from "@/lib/techUi";
-import type { Booking, BookingStatus } from "@/types/booking";
+import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
-
-/** Van stop finished for today — show faint + DONE (design). */
-function isTodayStopDone(status: BookingStatus): boolean {
-  return (
-    status === "COLLECTED" ||
-    status === "CLEANING" ||
-    status === "DRYING" ||
-    status === "DELIVERED"
-  );
-}
 
 export default function TechDashboardPage() {
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
@@ -45,83 +36,37 @@ export default function TechDashboardPage() {
     isRefreshing,
     refresh,
   } = useBookingsLiveList(!!ready);
+  const [doneOpen, setDoneOpen] = useState(false);
 
   const driverId = user?.driverProfileId;
   const todaySa = localCalendarDate();
 
-  const { todayJobs, upcomingJobs, doneTodayCount, overdueCount } = useMemo(() => {
-    const mine = bookings.filter(
-      (b) => !driverId || b.assignedDriverId === driverId
-    );
-
-    const todayOpen: Booking[] = [];
-    const todayDone: Booking[] = [];
-    const upcoming: Booking[] = [];
-    let overdue = 0;
-
-    for (const job of mine) {
-      if (job.status === "CANCELLED") continue;
-
-      const day = bookingCalendarDate(job.collectionDate);
-      const done = isTodayStopDone(job.status);
-
-      if (day === todaySa) {
-        if (done) todayDone.push(job);
-        else todayOpen.push(job);
-        continue;
-      }
-
-      if (done) continue; // finished on another day — Completed tab
-
-      if (!day) {
-        todayOpen.push(job);
-        continue;
-      }
-
-      if (day < todaySa) {
-        overdue += 1;
-        todayOpen.push(job);
-      } else {
-        upcoming.push(job);
-      }
-    }
-
-    // Design order: faint DONE stops first, then remaining route
-    const today = [
-      ...sortJobsBySlotThenId(todayDone),
-      ...sortJobsBySlotThenId(todayOpen),
-    ];
-
+  const { morning, afternoon, done, upcoming } = useMemo(() => {
+    const stops = technicianTodayStops(bookings, driverId, todaySa);
     return {
-      todayJobs: today,
-      upcomingJobs: [...upcoming].sort((a, b) => {
-        const dayA = bookingCalendarDate(a.collectionDate) ?? "";
-        const dayB = bookingCalendarDate(b.collectionDate) ?? "";
-        if (dayA !== dayB) return dayA.localeCompare(dayB);
-        const slot =
-          (a.collectionSlot === "MORNING" ? 0 : 1) -
-          (b.collectionSlot === "MORNING" ? 0 : 1);
-        if (slot !== 0) return slot;
-        return a.id.localeCompare(b.id);
-      }),
-      doneTodayCount: todayDone.length,
-      overdueCount: overdue,
+      morning: stops.filter((job) => job.collectionSlot === "MORNING"),
+      afternoon: stops.filter((job) => job.collectionSlot === "AFTERNOON"),
+      done: technicianDoneToday(bookings, driverId, todaySa),
+      upcoming: technicianUpcomingJobs(bookings, driverId, todaySa),
     };
   }, [bookings, driverId, todaySa]);
 
-  const nextId = todayJobs.find((j) => !isTodayStopDone(j.status))?.id;
+  const openStops = morning.length + afternoon.length;
+  const nextId =
+    morning[0]?.id ?? afternoon[0]?.id ?? undefined;
   const todayHeading = formatRouteDate(todaySa);
+  const hasAnyJobs = openStops > 0 || done.length > 0 || upcoming.length > 0;
 
   return (
     <TechAppShell activeTab="today">
       <div className="mb-[18px] grid grid-cols-3 gap-2.5">
-        <StatCard label="TODAY" value={String(todayJobs.length)} />
+        <StatCard label="TODAY" value={String(openStops)} />
         <StatCard
           label="DONE"
-          value={String(doneTodayCount)}
+          value={String(done.length)}
           valueClassName="text-[#0a7a63]"
         />
-        <StatCard label="UPCOMING" value={String(upcomingJobs.length)} />
+        <StatCard label="UPCOMING" value={String(upcoming.length)} />
       </div>
 
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -136,7 +81,7 @@ export default function TechDashboardPage() {
             className="size-8 text-[#9aa0a6]"
             onClick={() => void refresh()}
             disabled={isLoading || isRefreshing}
-            aria-label="Refresh jobs"
+            aria-label="Refresh today's stops"
           >
             <RefreshCw
               className={cn(
@@ -172,7 +117,7 @@ export default function TechDashboardPage() {
         </div>
       ) : null}
 
-      {isLoading && todayJobs.length === 0 && upcomingJobs.length === 0 ? (
+      {isLoading && !hasAnyJobs ? (
         <div
           className="flex flex-col items-center justify-center gap-3 py-16 text-[#9aa0a6]"
           role="status"
@@ -182,72 +127,84 @@ export default function TechDashboardPage() {
         </div>
       ) : null}
 
-      {!isLoading && todayJobs.length === 0 && upcomingJobs.length === 0 ? (
+      {!isLoading && openStops === 0 && done.length === 0 ? (
         <div className="rounded-[14px] border border-[#e3e7ed] bg-white px-6 py-12 text-center">
-          <p className="font-bold text-navy">No jobs assigned yet</p>
+          <p className="font-bold text-navy">No stops for today</p>
           <p className="mt-1 text-sm text-[#9aa0a6]">
-            Check with dispatch — new stops will appear here.
+            Dispatch has not assigned any pickups or returns to you yet.
           </p>
         </div>
       ) : null}
 
-      {/* ——— Today ——— */}
-      {todayJobs.length > 0 ? (
-        <section aria-labelledby="today-stops-heading">
+      {morning.length > 0 ? (
+        <section className="mb-5" aria-labelledby="morning-stops-heading">
           <div className="mb-2.5 flex items-baseline justify-between gap-2">
             <h2
-              id="today-stops-heading"
+              id="morning-stops-heading"
               className="text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]"
             >
-              TODAY&apos;S STOPS
+              MORNING
             </h2>
-            {overdueCount > 0 ? (
-              <span className="text-[11px] font-bold text-[#8a6b00]">
-                {overdueCount} overdue
-              </span>
-            ) : null}
+            <span className="text-[11px] font-bold text-[#9aa0a6]">
+              {morning.length}
+            </span>
           </div>
-          <JobList
-            jobs={todayJobs}
-            nextId={nextId}
-            showCollectionDate={false}
-            todaySa={todaySa}
-          />
-          {upcomingJobs.length === 0 ? (
-            <p className="mt-4 text-center text-xs text-[#b3b9c2]">
-              That&apos;s your full route for today.
-            </p>
-          ) : null}
+          <JobList jobs={morning} nextId={nextId} />
         </section>
       ) : null}
 
-      {!isLoading && todayJobs.length === 0 && upcomingJobs.length > 0 ? (
-        <div className="mb-5 rounded-[14px] border border-dashed border-[#d8dde4] bg-white/70 px-5 py-8 text-center">
-          <p className="font-bold text-navy">Nothing scheduled for today</p>
-          <p className="mt-1 text-sm text-[#9aa0a6]">
-            Upcoming collections are listed below.
-          </p>
-        </div>
+      {afternoon.length > 0 ? (
+        <section className="mb-5" aria-labelledby="afternoon-stops-heading">
+          <div className="mb-2.5 flex items-baseline justify-between gap-2">
+            <h2
+              id="afternoon-stops-heading"
+              className="text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]"
+            >
+              AFTERNOON
+            </h2>
+            <span className="text-[11px] font-bold text-[#9aa0a6]">
+              {afternoon.length}
+            </span>
+          </div>
+          <JobList jobs={afternoon} nextId={nextId} />
+        </section>
       ) : null}
 
-      {/* ——— Upcoming ——— */}
-      {upcomingJobs.length > 0 ? (
-        <section
-          className={cn(todayJobs.length > 0 && "mt-7")}
-          aria-labelledby="upcoming-stops-heading"
+      {openStops > 0 && upcoming.length === 0 ? (
+        <p className="mb-5 text-center text-xs text-[#b3b9c2]">
+          That&apos;s your full route for today.
+        </p>
+      ) : null}
+
+      <section className="border-t border-[#f0f2f6] pt-4">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]"
+          onClick={() => setDoneOpen((open) => !open)}
+          aria-expanded={doneOpen}
         >
+          <span>DONE TODAY ({done.length})</span>
+          <ChevronDown
+            className={cn("size-4 transition-transform", doneOpen && "rotate-180")}
+            aria-hidden
+          />
+        </button>
+        {doneOpen && done.length > 0 ? (
+          <div className="mt-3">
+            <JobList jobs={done} forceDone />
+          </div>
+        ) : null}
+      </section>
+
+      {upcoming.length > 0 ? (
+        <section className="mt-7" aria-labelledby="upcoming-stops-heading">
           <h2
             id="upcoming-stops-heading"
             className="mb-2.5 text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]"
           >
             UPCOMING
           </h2>
-          <JobList
-            jobs={upcomingJobs}
-            nextId={undefined}
-            showCollectionDate
-            todaySa={todaySa}
-          />
+          <JobList jobs={upcoming} showCollectionDate />
         </section>
       ) : null}
     </TechAppShell>
@@ -257,22 +214,20 @@ export default function TechDashboardPage() {
 function JobList({
   jobs,
   nextId,
-  showCollectionDate,
-  todaySa,
+  showCollectionDate = false,
+  forceDone = false,
 }: {
   jobs: Booking[];
   nextId?: string;
-  showCollectionDate: boolean;
-  todaySa: string;
+  showCollectionDate?: boolean;
+  forceDone?: boolean;
 }) {
   return (
     <ul className="space-y-2.5">
       {jobs.map((job) => {
         const kind = techStopKind(job.status);
-        const isDone = isTodayStopDone(job.status);
+        const isDone = forceDone || job.status === "DELIVERED";
         const isNext = !isDone && job.id === nextId;
-        const day = bookingCalendarDate(job.collectionDate);
-        const isOverdue = !isDone && !!day && day < todaySa;
 
         return (
           <li key={job.id}>
@@ -302,9 +257,7 @@ function JobList({
                         {slotTimeLabel(job.collectionSlot)}
                       </div>
                       <div className="mt-0.5 text-[11px] text-[#9aa0a6]">
-                        {isOverdue
-                          ? "Overdue"
-                          : slotWindowLabel(job.collectionSlot)}
+                        {slotWindowLabel(job.collectionSlot)}
                       </div>
                     </>
                   )}
@@ -313,13 +266,7 @@ function JobList({
                   className="min-h-[38px] w-[3px] shrink-0 self-stretch rounded-full"
                   style={{
                     background: techAccentColor(
-                      isDone
-                        ? "done"
-                        : isOverdue
-                          ? "collect"
-                          : isNext
-                            ? "collect"
-                            : kind
+                      isDone ? "done" : isNext ? "collect" : kind
                     ),
                   }}
                   aria-hidden
@@ -337,16 +284,10 @@ function JobList({
                     "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold tracking-wide",
                     isDone
                       ? techTagClass("done")
-                      : isOverdue
-                        ? "border-[#f0c4c4] bg-[#fff0f0] text-[#a33]"
-                        : techTagClass(isNext ? "collect" : kind)
+                      : techTagClass(isNext ? "collect" : kind)
                   )}
                 >
-                  {isDone
-                    ? "DONE"
-                    : isOverdue
-                      ? "OVERDUE"
-                      : techTagLabel(job.status, isNext)}
+                  {isDone ? "DONE" : techTagLabel(job.status, isNext)}
                 </span>
               </div>
             </Link>

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   countTechnicianJobsOnDay,
+  technicianDoneToday,
   technicianJobsOnDay,
+  technicianTodayStops,
   technicianUpcomingJobs,
 } from "@/lib/technicianJobs";
 import type { Booking } from "@/types/booking";
@@ -15,7 +17,11 @@ function job(
   partial: Partial<
     Pick<
       Booking,
-      "assignedDriverId" | "collectionDate" | "collectionSlot" | "status"
+      | "assignedDriverId"
+      | "collectionDate"
+      | "collectionSlot"
+      | "status"
+      | "updatedAt"
     >
   >
 ) {
@@ -56,5 +62,36 @@ describe("technician job helpers", () => {
       "MORNING",
     ]);
     expect(upcoming).toHaveLength(3);
+  });
+
+  it("shows only today's pickups and assigned READY returns", () => {
+    const jobs = [
+      job({ status: "SCHEDULED", collectionSlot: "MORNING" }),
+      job({ status: "BOOKED", collectionSlot: "AFTERNOON" }),
+      job({
+        status: "READY",
+        collectionDate: tomorrowIso,
+        collectionSlot: "AFTERNOON",
+      }),
+      job({ status: "CLEANING", collectionDate: todayIso }),
+      job({ status: "SCHEDULED", assignedDriverId: "driver_2" }),
+      job({ status: "SCHEDULED", collectionDate: laterIso }),
+    ];
+
+    expect(technicianTodayStops(jobs, "driver_1", today).map((item) => item.status)).toEqual([
+      "SCHEDULED",
+      "BOOKED",
+      "READY",
+    ]);
+  });
+
+  it("puts delivered jobs updated today in Done", () => {
+    const jobs = [
+      job({ status: "DELIVERED", updatedAt: `${today}T12:00:00.000Z` }),
+      job({ status: "DELIVERED", updatedAt: `${tomorrowIso}` }),
+      job({ status: "READY" }),
+    ];
+
+    expect(technicianDoneToday(jobs, "driver_1", today)).toHaveLength(1);
   });
 });
