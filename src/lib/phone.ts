@@ -10,6 +10,11 @@ export function telHref(phone: string): string {
   return `tel:+${toE164Digits(phone)}`;
 }
 
+/** Canonical profile deep-link for an assigned driver business id. */
+export function driverProfileHref(driverProfileId: string) {
+  return `/admin/drivers/${driverProfileId}`;
+}
+
 /**
  * Click-to-chat URL. Prefill is support-oriented — WhatsApp is not a booking
  * channel (see docs/wiki/booking-channels.md).

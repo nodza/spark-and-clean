@@ -29,7 +29,24 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
-    return NextResponse.json(toClientDriver(driver as Record<string, unknown>));
+    const row = toClientDriver(driver as Record<string, unknown>) as {
+      id?: string;
+      phone?: string;
+      [key: string]: unknown;
+    };
+    if (!row.phone?.trim()) {
+      const tech = await User.findOne({
+        role: "technician",
+        driverProfileId: id,
+      })
+        .select("phone")
+        .lean();
+      if (typeof tech?.phone === "string" && tech.phone.trim()) {
+        row.phone = tech.phone.trim();
+      }
+    }
+
+    return NextResponse.json(row);
   } catch (err) {
     return jsonError(err, "Failed to fetch driver");
   }
