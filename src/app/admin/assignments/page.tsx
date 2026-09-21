@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { ASSIGNMENT_SLOT_CAPACITY } from "@/config/assignmentBoard";
 import {
@@ -11,8 +12,10 @@ import {
   collectionsForAssignmentDay,
   customerSurname,
   type AssignmentBoardDriver,
+  type AssignmentBoardJob,
   type AssignmentSlot,
 } from "@/lib/assignmentBoard";
+import { isUnassignedDriver } from "@/lib/bookingAttention";
 import {
   isValidCalendarDate,
   johannesburgCalendarDate,
@@ -61,17 +64,52 @@ function slotLabel(slot: AssignmentSlot) {
   return slot === "MORNING" ? "Morning" : "Afternoon";
 }
 
+function matchesAssignmentSearch(
+  job: AssignmentBoardJob,
+  query: string,
+  drivers: AssignmentBoardDriver[]
+) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const driverLabel = isUnassignedDriver(job.assignedDriverId)
+    ? "unassigned"
+    : drivers.find((driver) => driver.id === job.assignedDriverId)?.name ??
+      job.assignedDriverId ??
+      "";
+  const haystack = [
+    job.id,
+    job.customer.name,
+    customerSurname(job.customer.name),
+    job.customer.phone,
+    job.customer.email,
+    job.suburb,
+    job.status,
+    job.paymentStatus,
+    driverLabel,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
 function AssignmentBoardBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { bookings, fetchBookings, isLoading, assignDriver } = useBookingStore();
   const [drivers, setDrivers] = useState<AssignmentBoardDriver[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const today = johannesburgCalendarDate();
   const dateParam = searchParams.get("date");
   const selectedDay =
     dateParam && isValidCalendarDate(dateParam) ? dateParam : today;
+
+  const activeDriverIds = useMemo(
+    () => new Set(drivers.map((driver) => driver.id)),
+    [drivers]
+  );
 
   useEffect(() => {
     void fetchBookings();
@@ -104,9 +142,15 @@ function AssignmentBoardBody() {
     [bookings, selectedDay]
   );
 
+  const filteredJobs = useMemo(
+    () =>
+      dayJobs.filter((job) => matchesAssignmentSearch(job, search, drivers)),
+    [dayJobs, search, drivers]
+  );
+
   const columns = useMemo(
-    () => buildAssignmentBoard(dayJobs, drivers),
-    [dayJobs, drivers]
+    () => buildAssignmentBoard(filteredJobs, drivers),
+    [filteredJobs, drivers]
   );
 
   const setDay = (next: string) => {
@@ -124,7 +168,8 @@ function AssignmentBoardBody() {
     value: string
   ) => {
     const current = currentDriverId || "unassigned";
-    if (value === current || assigningId) return;
+    if (value === current) return;
+    if (assigningId === bookingId) return;
     if (value !== "unassigned" && !drivers.some((driver) => driver.id === value)) {
       return;
     }
@@ -141,12 +186,20 @@ function AssignmentBoardBody() {
   };
 
   const showEmpty = !isLoading && dayJobs.length === 0;
+  const showNoMatches =
+    !isLoading && dayJobs.length > 0 && filteredJobs.length === 0;
 
   return (
     <AdminPortalShell
       pageTitle="Assignments"
       active="assignments"
-      topbarActions={<AdminSearchTopbar />}
+      topbarActions={
+        <AdminSearchTopbar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search id, client, suburb, or driver"
+        />
+      }
     >
       <div className="portal-page">
         <div className="mb-[18px] flex flex-wrap items-end justify-between gap-[14px]">
@@ -179,6 +232,15 @@ function AssignmentBoardBody() {
             </p>
             <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
               BOOKED and SCHEDULED pickups for this date will appear here.
+            </p>
+          </div>
+        ) : showNoMatches ? (
+          <div className="ds-card">
+            <p className="text-card-title" style={{ color: "#000b49" }}>
+              No matches
+            </p>
+            <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+              No collections on this day match “{search.trim()}”.
             </p>
           </div>
         ) : (
@@ -254,13 +316,15 @@ function AssignmentBoardBody() {
                                   const payment = paymentDisplay(
                                     item.paymentStatus
                                   );
-                                  const assignValue =
-                                    item.assignedDriverId &&
-                                    drivers.some(
-                                      (driver) => driver.id === item.assignedDriverId
-                                    )
-                                      ? item.assignedDriverId
-                                      : "unassigned";
+                                  const knownDriver =
+                                    !!item.assignedDriverId &&
+                                    activeDriverIds.has(item.assignedDriverId);
+                                  const inactiveAssignee =
+                                    !isUnassignedDriver(item.assignedDriverId) &&
+                                    !knownDriver;
+                                  const assignValue = knownDriver
+                                    ? item.assignedDriverId!
+                                    : "unassigned";
                                   return (
                                     <article
                                       key={item.id}
@@ -291,7 +355,29 @@ function AssignmentBoardBody() {
                                         <Badge variant={payment.variant}>
                                           {payment.label}
                                         </Badge>
+                                        {inactiveAssignee ? (
+                                          <Badge
+                                            variant="status-overdue"
+                                            title="Assigned driver is inactive — reassign or clear"
+                                          >
+                                            <AlertTriangle
+                                              className="size-3"
+                                              strokeWidth={2.4}
+                                              aria-hidden
+                                            />
+                                            Inactive
+                                          </Badge>
+                                        ) : null}
                                       </div>
+                                      {inactiveAssignee ? (
+                                        <p
+                                          className="text-meta mt-[8px]"
+                                          style={{ color: "#b33232" }}
+                                        >
+                                          Still assigned to an inactive driver.
+                                          Pick an active driver or Unassigned.
+                                        </p>
+                                      ) : null}
                                       <label className="mt-[12px] flex flex-col gap-[6px]">
                                         <span
                                           className="text-eyebrow"
