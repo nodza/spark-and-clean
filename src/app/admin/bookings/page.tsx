@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Check, Copy } from "lucide-react";
+import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import { Badge } from "@/components/ui/badge";
 import {
   CallAction,
@@ -39,7 +40,6 @@ import {
   type ListPagination,
   type PageSize,
 } from "@/lib/listPagination";
-import { useBookingStore } from "@/store/useBookingStore";
 import type { Booking, Driver } from "@/types/booking";
 
 const TABLE_COLS =
@@ -147,7 +147,7 @@ function BookingsShellFallback() {
 function AdminBookingsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, fetchBookings, isLoading, error } = useBookingStore();
+  const { bookings, loading: isLoading, error } = useBookingsLiveList(true);
   const [drivers, setDrivers] = useState<Driver[]>([]);
 
   const filters = useMemo(
@@ -160,14 +160,13 @@ function AdminBookingsList() {
   );
 
   useEffect(() => {
-    void fetchBookings();
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setDrivers(data);
       })
       .catch(() => setDrivers([]));
-  }, [fetchBookings]);
+  }, []);
 
   const driverName = useMemo(() => {
     const map = new Map(drivers.map((d) => [d.id, d.name]));

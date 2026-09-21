@@ -25,6 +25,10 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -122,13 +126,20 @@ function AssignmentBoardBody() {
         }
         const list: AssignmentBoardDriver[] = data
           .filter(
-            (row): row is AssignmentBoardDriver =>
+            (row): row is AssignmentBoardDriver & { name: string; id: string } =>
               row &&
               typeof row.id === "string" &&
               row.id.length > 0 &&
               typeof row.name === "string"
           )
-          .map((row) => ({ id: row.id, name: row.name.trim() || row.id }));
+          .map((row) => ({
+            id: row.id,
+            name: row.name.trim() || row.id,
+            phone:
+              typeof row.phone === "string" && row.phone.trim()
+                ? row.phone.trim()
+                : undefined,
+          }));
         list.sort((a, b) =>
           a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
         );
@@ -250,28 +261,55 @@ function AssignmentBoardBody() {
                 const total =
                   column.slots.MORNING.length + column.slots.AFTERNOON.length;
                 const unassigned = column.driverId === null;
+                const columnDriver = column.driverId
+                  ? drivers.find((driver) => driver.id === column.driverId)
+                  : undefined;
+                const columnPhone = columnDriver?.phone?.trim();
                 return (
                   <section
                     key={column.key}
                     className="ds-card w-[280px] flex-none p-0"
                     aria-label={column.title}
                   >
-                    <div className="ds-card-header">
-                      <span
-                        className="text-card-title truncate"
-                        style={{ color: unassigned ? "#b3261e" : "#000b49" }}
-                      >
-                        {column.title}
-                      </span>
-                      <span
-                        className="tabular ml-[8px] rounded-full px-[8px] py-[2px] text-[10.5px] font-extrabold"
-                        style={{
-                          background: unassigned ? "#ffdc39" : "#f0f2f6",
-                          color: "#000b49",
-                        }}
-                      >
-                        {total}
-                      </span>
+                    <div className="ds-card-header flex-col items-stretch gap-[8px]">
+                      <div className="flex items-center justify-between gap-[8px]">
+                        <span
+                          className="text-card-title truncate"
+                          style={{
+                            color: unassigned ? "#b3261e" : "#000b49",
+                          }}
+                        >
+                          {column.title}
+                        </span>
+                        <span
+                          className="tabular flex-none rounded-full px-[8px] py-[2px] text-[10.5px] font-extrabold"
+                          style={{
+                            background: unassigned ? "#ffdc39" : "#f0f2f6",
+                            color: "#000b49",
+                          }}
+                        >
+                          {total}
+                        </span>
+                      </div>
+                      {!unassigned ? (
+                        <div
+                          className="flex flex-wrap items-center gap-2 text-[13px]"
+                          style={{ color: "#6b7280" }}
+                        >
+                          {columnPhone ? <span>{columnPhone}</span> : null}
+                          <CallAction
+                            appearance="inline"
+                            label="Call driver"
+                            phone={columnPhone}
+                            disabledReason="No number on profile"
+                            profileHref={
+                              column.driverId
+                                ? driverProfileHref(column.driverId)
+                                : undefined
+                            }
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-col gap-[16px] p-[16px]">
                       {ASSIGNMENT_SLOTS.map((slot) => {

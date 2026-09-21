@@ -14,6 +14,7 @@ export type AssignmentSlot = (typeof ASSIGNMENT_SLOTS)[number];
 export type AssignmentBoardDriver = {
   id: string;
   name: string;
+  phone?: string;
 };
 
 export type AssignmentBoardJob = Pick<
