@@ -40,6 +40,7 @@ describe("accessControl", () => {
 
   it("marks admin full-only paths", () => {
     expect(isAdminFullOnlyPath("/admin/analytics")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/bookings")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/bookings/x")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/technicians")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/clients")).toBe(true);
@@ -109,5 +110,17 @@ describe("accessControl", () => {
 
   it("allows technicians on tech app paths", () => {
     expect(canAccessPath(tech, "/tech/dashboard").ok).toBe(true);
+    expect(canAccessPath(tech, "/tech/map").ok).toBe(true);
+    expect(canAccessPath(tech, "/tech/job/SC-1").ok).toBe(true);
+    expect(canAccessPath(tech, "/tech/messages").ok).toBe(true);
+  });
+
+  it("sends anonymous tech deep links to tech login", () => {
+    const job = canAccessPath(null, "/tech/job/SC-1");
+    expect(job.ok).toBe(false);
+    if (!job.ok) {
+      expect(job.redirectTo).toContain("/tech/login?next=");
+      expect(job.redirectTo).toContain(encodeURIComponent("/tech/job/SC-1"));
+    }
   });
 });

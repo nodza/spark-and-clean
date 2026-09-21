@@ -3,298 +3,247 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { format } from "date-fns";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react";
-import { useBookingStore } from "@/store/useBookingStore";
+import { format, parseISO } from "date-fns";
+import { toast } from "sonner";
+import { Check, Copy } from "lucide-react";
+import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import {
+  CallAction,
+  driverProfileHref,
+} from "@/components/admin/CallAction";
+import { InactiveDriverBadge } from "@/components/admin/InactiveDriverBadge";
+import { AdminListPagination } from "@/components/admin/AdminListPagination";
+import { BookingsFilterPanel } from "@/components/admin/BookingsFilterPanel";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
-import { cn } from "@/lib/utils";
 import {
-  isBookingOnLocalDay,
-  localCalendarDate,
-} from "@/lib/localCalendarDate";
+  bookingStatusVariant,
+  paymentStatusVariant,
+} from "@/components/admin/bookingBadges";
 import {
-  isExcludedFromUnassignedQueue,
-  isUnassignedDriver,
-} from "@/lib/bookingAttention";
+  applyBookingListQuery,
+  bookingFiltersToSearchParams,
+  countBookingsByStatus,
+  EMPTY_BOOKING_FILTERS,
+  parseBookingListQuery,
+  type AdminBookingFilters,
+} from "@/lib/adminBookingQuery";
+import { isUnassignedDriver } from "@/lib/bookingAttention";
+import {
+  applyListPaginationParams,
+  DEFAULT_LIST_PAGINATION,
+  paginateList,
+  parseListPagination,
+  type ListPagination,
+  type PageSize,
+} from "@/lib/listPagination";
+import type { Booking, Driver } from "@/types/booking";
 
-/** SA-style currency: R1 640 */
+const TABLE_COLS =
+  "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(118px, 0.85fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
+
 function formatRand(amount: number) {
   const rounded = Math.round(amount);
   return `R${rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
-}
-
-function collectionLabel(booking: Booking) {
-  const date = format(new Date(booking.collectionDate), "d MMM");
-  const time = booking.collectionSlot === "MORNING" ? "09:00" : "14:00";
-  return `${date} · ${time}`;
-}
-
-function statusDisplay(status: BookingStatus): {
-  label: string;
-  variant: React.ComponentProps<typeof Badge>["variant"];
-} {
-  switch (status) {
-    case "BOOKED":
-    case "SCHEDULED":
-      return { label: "NEW", variant: "status-new" };
-    case "CLEANING":
-    case "DRYING":
-      return { label: "IN CLEANING", variant: "status-cleaning" };
-    case "COLLECTED":
-      return { label: "COLLECTED", variant: "status-collected" };
-    case "READY":
-      return { label: "DELIVERY", variant: "status-delivering" };
-    case "DELIVERED":
-      return { label: "COMPLETED", variant: "status-completed" };
-    case "CANCELLED":
-      return { label: "CANCELLED", variant: "status-overdue" };
-    default:
-      return { label: status, variant: "outline" };
-  }
-}
-
-function paymentDisplay(status: PaymentStatus): {
-  label: string;
-  variant: React.ComponentProps<typeof Badge>["variant"];
-} {
-  if (status === "UNPAID") return { label: "UNPAID", variant: "status-overdue" };
-  return { label: status, variant: "outline" };
 }
 
 function bookingValue(booking: Booking) {
   return (booking.estimatedPriceMin + booking.estimatedPriceMax) / 2;
 }
 
-/** Street + city only under the client name. */
+function collectionLabel(booking: Booking) {
+  const raw = booking.collectionDate;
+  const day = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : "";
+  const date = day
+    ? format(parseISO(day), "d MMM")
+    : format(new Date(raw), "d MMM");
+  const time = booking.collectionSlot === "MORNING" ? "09:00" : "14:00";
+  return `${date} · ${time}`;
+}
+
 function clientAddressLine(booking: Booking) {
   const street = booking.addressLine1?.trim() || "";
   const city = booking.city?.trim() || "";
   if (street && city) return `${street}, ${city}`;
-  return street || city;
+  return street || city || booking.suburb;
 }
 
-function matchesAttentionFilters(
-  b: Booking,
-  opts: { payment: string | null; date: string | null; assigned: string | null }
-) {
-  if (opts.payment) {
-    if (b.paymentStatus !== opts.payment.toUpperCase()) return false;
+function bookingShareUrl(bookingId: string) {
+  return new URL(`/admin/bookings/${bookingId}`, window.location.origin).href;
+}
+
+function CopyBookingLinkButton({ bookingId }: { bookingId: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(bookingShareUrl(bookingId));
+      setCopied(true);
+      toast.success("Booking link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
   }
 
-  if (opts.date) {
-    const day =
-      opts.date === "today" ? localCalendarDate() : opts.date.slice(0, 10);
-    if (!isBookingOnLocalDay(b.collectionDate, day)) return false;
-  }
-
-  if (opts.assigned === "0") {
-    if (!isUnassignedDriver(b.assignedDriverId)) return false;
-    if (isExcludedFromUnassignedQueue(b.status)) return false;
-  } else if (opts.assigned && opts.assigned !== "0") {
-    if (b.assignedDriverId !== opts.assigned) return false;
-  }
-
-  return true;
-}
-
-type StatusFilter =
-  | "ALL"
-  | "NEW"
-  | "COLLECTED"
-  | "IN_CLEANING"
-  | "DELIVERY"
-  | "COMPLETED"
-  | "CANCELLED";
-
-const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: "ALL", label: "All" },
-  { key: "NEW", label: "New" },
-  { key: "COLLECTED", label: "Collected" },
-  { key: "IN_CLEANING", label: "In cleaning" },
-  { key: "DELIVERY", label: "Delivery" },
-  { key: "COMPLETED", label: "Completed" },
-  { key: "CANCELLED", label: "Cancelled" },
-];
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
-
-function matchesStatus(status: BookingStatus, filter: StatusFilter) {
-  if (filter === "ALL") return true;
-  if (filter === "NEW") return status === "BOOKED" || status === "SCHEDULED";
-  if (filter === "COLLECTED") return status === "COLLECTED";
-  if (filter === "IN_CLEANING")
-    return status === "CLEANING" || status === "DRYING";
-  if (filter === "DELIVERY") return status === "READY";
-  if (filter === "COMPLETED") return status === "DELIVERED";
-  if (filter === "CANCELLED") return status === "CANCELLED";
-  return true;
-}
-
-function matchesSearch(
-  booking: Booking,
-  query: string,
-  driverLabel: string
-) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const haystack = [
-    booking.id,
-    booking.customer.name,
-    booking.customer.phone,
-    booking.customer.email,
-    booking.suburb,
-    booking.city,
-    booking.addressLine1,
-    booking.paymentStatus,
-    driverLabel,
-    statusDisplay(booking.status).label,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(q);
-}
-
-const TABLE_COLS =
-  "minmax(148px, 180px) minmax(200px, 2fr) minmax(120px, 0.85fr) minmax(88px, 0.6fr) minmax(100px, 0.7fr) minmax(110px, 0.85fr) minmax(118px, 0.8fr)";
-
-function PaginationButton({
-  ariaLabel,
-  disabled,
-  onClick,
-  children,
-}: {
-  ariaLabel: string;
-  disabled: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
   return (
     <button
       type="button"
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "inline-flex size-9 items-center justify-center rounded-[9px] transition-colors",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]",
-        disabled
-          ? "cursor-not-allowed text-[#c5cad3]"
-          : "text-[#000b49] hover:bg-[#f0f2f6] active:bg-[#e8ebf0]"
-      )}
+      aria-label={`Copy link to booking ${bookingId}`}
+      title="Copy booking link"
+      className="relative z-[2] inline-flex size-7 flex-none items-center justify-center rounded-[7px] text-[#0a7a63] transition-colors hover:bg-[#eafaf5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        void copyLink();
+      }}
     >
-      {children}
+      {copied ? (
+        <Check size={13} strokeWidth={2.4} aria-hidden />
+      ) : (
+        <Copy size={13} strokeWidth={2.2} aria-hidden />
+      )}
     </button>
   );
 }
 
-function BookingsListBody() {
+export default function AdminBookingsPage() {
+  return (
+    <Suspense fallback={<BookingsShellFallback />}>
+      <AdminBookingsList />
+    </Suspense>
+  );
+}
+
+function BookingsShellFallback() {
+  return (
+    <AdminPortalShell
+      pageTitle="Bookings"
+      active="bookings"
+      topbarActions={<AdminSearchTopbar />}
+    >
+      <div className="portal-page text-meta" style={{ color: "#9aa0a6" }}>
+        Loading bookings…
+      </div>
+    </AdminPortalShell>
+  );
+}
+
+function AdminBookingsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, fetchBookings, isLoading, error } = useBookingStore();
-  const [driverNames, setDriverNames] = useState<Record<string, string>>({});
+  const { bookings, loading: isLoading, error } = useBookingsLiveList(true);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] =
-    useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
-
-  const payment = searchParams.get("payment");
-  const date = searchParams.get("date");
-  const assigned = searchParams.get("assigned");
-  const highlightUnassigned = assigned === "0";
-  const hasAttentionFilters = Boolean(payment || date || assigned);
+  const filters = useMemo(
+    () => parseBookingListQuery(searchParams),
+    [searchParams]
+  );
+  const pagination = useMemo(
+    () => parseListPagination(searchParams),
+    [searchParams]
+  );
 
   useEffect(() => {
-    void fetchBookings();
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!Array.isArray(data)) return;
-        const map: Record<string, string> = {};
-        for (const d of data) {
-          if (d && typeof d.id === "string") {
-            map[d.id] =
-              typeof d.name === "string" && d.name.trim() ? d.name : d.id;
-          }
-        }
-        setDriverNames(map);
+        if (Array.isArray(data)) setDrivers(data);
       })
-      .catch(() => setDriverNames({}));
-  }, [fetchBookings]);
+      .catch(() => setDrivers([]));
+  }, []);
 
-  useEffect(() => {
-    setPage(1);
-  }, [statusFilter, search, pageSize, payment, date, assigned]);
+  const driverName = useMemo(() => {
+    const map = new Map(drivers.map((d) => [d.id, d.name]));
+    return (id?: string) => {
+      if (isUnassignedDriver(id)) return "Unassigned";
+      return (id && map.get(id)) || null;
+    };
+  }, [drivers]);
 
-  const driverLabelFor = (booking: Booking) => {
-    if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
-    return (
-      driverNames[booking.assignedDriverId ?? ""] ??
-      booking.assignedDriverId ??
-      "Unassigned"
+  const isKnownDriver = useMemo(() => {
+    const ids = new Set(drivers.map((d) => d.id));
+    return (id?: string) => Boolean(id && ids.has(id));
+  }, [drivers]);
+
+  const driverPhone = useMemo(() => {
+    const map = new Map(
+      drivers.map((d) => [
+        d.id,
+        typeof d.phone === "string" && d.phone.trim() ? d.phone.trim() : undefined,
+      ])
     );
-  };
+    return (id?: string) => (id ? map.get(id) : undefined);
+  }, [drivers]);
 
-  const filtered = useMemo(
-    () =>
-      bookings.filter(
-        (b) =>
-          matchesAttentionFilters(b, { payment, date, assigned }) &&
-          matchesStatus(b.status, statusFilter) &&
-          matchesSearch(b, search, driverLabelFor(b))
-      ),
-    [bookings, statusFilter, search, payment, date, assigned, driverNames]
+  const suburbs = useMemo(
+    () => [...new Set(bookings.map((b) => b.suburb))].sort((a, b) => a.localeCompare(b)),
+    [bookings]
+  );
+  const cities = useMemo(
+    () => [...new Set(bookings.map((b) => b.city))].sort((a, b) => a.localeCompare(b)),
+    [bookings]
   );
 
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
-  const safePage = Math.min(page, totalPages);
+  const rows = useMemo(
+    () => applyBookingListQuery(bookings, filters),
+    [bookings, filters]
+  );
+  const statusCounts = useMemo(
+    () => countBookingsByStatus(bookings, filters),
+    [bookings, filters]
+  );
 
-  const pageItems = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, safePage, pageSize]);
+  const paged = useMemo(
+    () => paginateList(rows, pagination),
+    [rows, pagination]
+  );
+  const pageItems = paged.items;
 
-  const showingCount = pageItems.length;
+  function writeListUrl(
+    nextFilters: AdminBookingFilters,
+    nextPagination: ListPagination
+  ) {
+    const params = bookingFiltersToSearchParams(nextFilters);
+    applyListPaginationParams(params, nextPagination);
+    const qs = params.toString();
+    router.replace(qs ? `/admin/bookings?${qs}` : "/admin/bookings", {
+      scroll: false,
+    });
+  }
 
-  const filterCounts = useMemo(() => {
-    const searched = bookings.filter(
-      (b) =>
-        matchesAttentionFilters(b, { payment, date, assigned }) &&
-        matchesSearch(b, search, driverLabelFor(b))
-    );
-    const counts: Record<StatusFilter, number> = {
-      ALL: searched.length,
-      NEW: 0,
-      COLLECTED: 0,
-      IN_CLEANING: 0,
-      DELIVERY: 0,
-      COMPLETED: 0,
-      CANCELLED: 0,
-    };
-    for (const b of searched) {
-      if (b.status === "BOOKED" || b.status === "SCHEDULED") counts.NEW += 1;
-      else if (b.status === "COLLECTED") counts.COLLECTED += 1;
-      else if (b.status === "CLEANING" || b.status === "DRYING")
-        counts.IN_CLEANING += 1;
-      else if (b.status === "READY") counts.DELIVERY += 1;
-      else if (b.status === "DELIVERED") counts.COMPLETED += 1;
-      else if (b.status === "CANCELLED") counts.CANCELLED += 1;
-    }
-    return counts;
-  }, [bookings, search, payment, date, assigned, driverNames]);
+  function replaceFilters(next: AdminBookingFilters) {
+    writeListUrl(next, { page: 1, limit: pagination.limit });
+  }
+
+  function patchFilters(patch: Partial<AdminBookingFilters>) {
+    replaceFilters({ ...filters, ...patch });
+  }
+
+  function setPage(page: number) {
+    writeListUrl(filters, { page, limit: pagination.limit });
+  }
+
+  function setLimit(limit: PageSize) {
+    writeListUrl(filters, { page: 1, limit });
+  }
+
+  const highlightUnassigned = filters.assigned === "0";
 
   return (
     <AdminPortalShell
@@ -303,90 +252,45 @@ function BookingsListBody() {
       bookingsBadge={bookings.length || undefined}
       topbarActions={
         <AdminSearchTopbar
-          searchValue={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search bookings, clients"
+          searchValue={filters.q}
+          onSearchChange={(q) => patchFilters({ q })}
+          searchPlaceholder="Search by ID, name, phone, email, or address"
         />
       }
     >
       <div className="portal-page flex flex-col gap-[18px]">
-        <div>
-          <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-            ALL JOBS
-          </div>
-          <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
-            Filter and open a booking to update status or assignment.
-            {hasAttentionFilters ? (
-              <>
-                {" "}
-                <Link href="/admin/bookings" className="ds-text-action">
-                  Clear list filters
-                </Link>
-              </>
-            ) : null}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <div
-            className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            role="tablist"
-            aria-label="Filter by status"
-          >
-            {STATUS_FILTERS.map((f) => {
-              const active = statusFilter === f.key;
-              const count = filterCounts[f.key];
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setStatusFilter(f.key)}
-                  className={cn(
-                    "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-[14px] text-[13px] font-bold transition-colors",
-                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]",
-                    active
-                      ? "bg-[#000b49] text-white"
-                      : "bg-white text-[#32373c] ring-1 ring-[#e3e7ed] hover:bg-[#f7f9fb]"
-                  )}
-                >
-                  {f.label}
-                  <span
-                    className={cn(
-                      "rounded-full px-[7px] py-[2px] text-[11px] font-extrabold tabular-nums",
-                      active
-                        ? "bg-white/15 text-white"
-                        : "bg-[#f0f2f6] text-[#6b7280]"
-                    )}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <BookingsFilterPanel
+          filters={filters}
+          matchedCount={rows.length}
+          totalCount={bookings.length}
+          statusCounts={statusCounts}
+          cities={cities}
+          suburbs={suburbs}
+          onPatch={patchFilters}
+          onClear={() =>
+            writeListUrl({ ...EMPTY_BOOKING_FILTERS }, DEFAULT_LIST_PAGINATION)
+          }
+        />
 
         <div className="ds-card overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <div className="min-w-[1080px]">
+            <div className="w-full">
               <div
-                className="hidden px-[22px] py-[13px] lg:grid lg:items-center"
+                className="hidden px-[16px] py-[11px] lg:grid lg:items-center xl:px-[18px]"
                 style={{
                   gridTemplateColumns: TABLE_COLS,
                   background: "#f7f9fb",
                   borderBottom: "1px solid #f0f2f6",
-                  columnGap: 20,
+                  columnGap: 13,
                 }}
               >
                 {[
                   "REF",
                   "CLIENT",
-                  "COLLECTION",
                   "VALUE",
-                  "PAYMENT",
+                  "COLLECTION",
                   "DRIVER",
+                  "PAYMENT",
                   "STATUS",
                 ].map((h) => (
                   <div key={h} className="text-th">
@@ -424,57 +328,61 @@ function BookingsListBody() {
                 </div>
               ) : null}
 
-              {!isLoading && bookings.length > 0 && total === 0 ? (
+              {!isLoading && bookings.length > 0 && rows.length === 0 ? (
                 <div
                   className="px-[22px] py-[48px] text-center text-meta"
                   style={{ color: "#9aa0a6" }}
                 >
-                  No bookings match your filters
-                  {search.trim() ? ` for “${search.trim()}”` : ""}.
-                  <button
-                    type="button"
-                    className="mt-3 block w-full text-[13px] font-bold text-[#0a7a63] hover:text-[#000b49]"
-                    onClick={() => {
-                      setSearch("");
-                      setStatusFilter("ALL");
-                      if (hasAttentionFilters) router.push("/admin/bookings");
-                    }}
-                  >
-                    Clear filters
-                  </button>
+                  No bookings match these filters
+                  {filters.q ? ` for “${filters.q}”` : ""}.
                 </div>
               ) : null}
 
               {pageItems.map((booking) => {
-                const status = statusDisplay(booking.status);
-                const paymentUi = paymentDisplay(booking.paymentStatus);
                 const unassigned = isUnassignedDriver(booking.assignedDriverId);
-                const driverLabel = driverLabelFor(booking);
-                const rowHighlight = highlightUnassigned && unassigned;
+                const knownDriver = isKnownDriver(booking.assignedDriverId);
+                const inactive = !unassigned && !knownDriver;
+                const driverLabel = unassigned
+                  ? "Unassigned"
+                  : driverName(booking.assignedDriverId) ?? "Assigned driver";
                 return (
-                  <button
+                  <div
                     key={booking.id}
-                    type="button"
-                    onClick={() => router.push(`/admin/bookings/${booking.id}`)}
-                    className="flex w-full cursor-pointer flex-col gap-3 border-b border-[#f0f2f6] px-[18px] py-[16px] text-left transition-colors duration-150 hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49] sm:px-[22px] lg:grid lg:items-center lg:gap-0 lg:py-[18px]"
+                    className="group relative border-b border-[#f0f2f6] transition-colors duration-150 hover:bg-[#f7f9fb]"
                     style={{
-                      gridTemplateColumns: TABLE_COLS,
-                      columnGap: 20,
-                      background: rowHighlight
-                        ? "rgba(255, 220, 57, 0.18)"
-                        : undefined,
+                      background:
+                        highlightUnassigned && unassigned
+                          ? "rgba(255, 220, 57, 0.18)"
+                          : undefined,
                     }}
                   >
+                    <Link
+                      href={`/admin/bookings/${booking.id}`}
+                      className="absolute inset-0 z-[1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#000b49]"
+                      aria-label={`Open booking ${booking.id}`}
+                    />
+                    <div
+                      className="flex w-full flex-col gap-3 px-[16px] py-[14px] sm:px-[18px] lg:grid lg:items-center lg:gap-0 lg:py-[16px]"
+                      style={{
+                        gridTemplateColumns: TABLE_COLS,
+                        columnGap: 12,
+                      }}
+                    >
                     <div className="flex items-center justify-between gap-3 lg:contents">
-                      <div
-                        className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums"
-                        style={{ color: "#0a7a63" }}
-                        title={booking.id}
-                      >
-                        {booking.id}
+                      <div className="flex min-w-0 items-center gap-[6px]">
+                        <CopyBookingLinkButton bookingId={booking.id} />
+                        <div
+                          className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums underline-offset-2 group-hover:underline"
+                          style={{ color: "#0a7a63" }}
+                          title={booking.id}
+                        >
+                          {booking.id}
+                        </div>
                       </div>
                       <div className="lg:hidden">
-                        <Badge variant={status.variant}>{status.label}</Badge>
+                        <Badge variant={bookingStatusVariant(booking.status)}>
+                          {booking.status}
+                        </Badge>
                       </div>
                     </div>
 
@@ -497,156 +405,92 @@ function BookingsListBody() {
                     </div>
 
                     <div
-                      className="text-[13px] font-medium"
-                      style={{ color: "#6b7280" }}
+                      className="text-[12px] font-semibold tabular-nums"
+                      style={{ color: "#000b49" }}
                     >
-                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                        Collection
-                      </span>
+                      {formatRand(bookingValue(booking))}
+                    </div>
+
+                    <div
+                      className="truncate text-[12px] font-medium tabular-nums"
+                      style={{ color: "#6b7280" }}
+                      title={collectionLabel(booking)}
+                    >
                       {collectionLabel(booking)}
                     </div>
 
                     <div
-                      className="text-[14px] font-extrabold tabular-nums"
-                      style={{ color: "#000b49" }}
+                      className="relative z-[2] flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] font-medium"
+                      style={{
+                        color: unassigned
+                          ? "#b3261e"
+                          : inactive
+                            ? "#b33232"
+                            : "#6b7280",
+                      }}
+                      title={
+                        inactive
+                          ? "Assigned driver is inactive"
+                          : driverLabel
+                      }
                     >
-                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                        Value
-                      </span>
-                      {formatRand(bookingValue(booking))}
+                      {inactive ? (
+                        <InactiveDriverBadge className="px-[8px] py-[3px] text-[10px]" />
+                      ) : (
+                        <>
+                          <span className="min-w-0 truncate">{driverLabel}</span>
+                          {!unassigned ? (
+                            <CallAction
+                              compact
+                              label="Call driver"
+                              phone={driverPhone(booking.assignedDriverId)}
+                              disabledReason="No number on profile"
+                              profileHref={
+                                booking.assignedDriverId
+                                  ? driverProfileHref(booking.assignedDriverId)
+                                  : undefined
+                              }
+                            />
+                          ) : null}
+                        </>
+                      )}
                     </div>
 
-                    <div>
-                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                        Payment
-                      </span>
-                      <Badge variant={paymentUi.variant}>{paymentUi.label}</Badge>
+                    <div className="min-w-0">
+                      <Badge
+                        variant={paymentStatusVariant(booking.paymentStatus)}
+                        className="px-[8px] py-[3px] text-[10px]"
+                      >
+                        {booking.paymentStatus}
+                      </Badge>
                     </div>
 
-                    <div
-                      className="truncate text-[13px] font-medium"
-                      style={{ color: unassigned ? "#b3261e" : "#6b7280" }}
-                      title={driverLabel}
-                    >
-                      <span className="mr-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9aa0a6] lg:hidden">
-                        Driver
-                      </span>
-                      {driverLabel}
+                    <div className="hidden min-w-0 lg:block">
+                      <Badge
+                        variant={bookingStatusVariant(booking.status)}
+                        className="px-[8px] py-[3px] text-[10px]"
+                      >
+                        {booking.status}
+                      </Badge>
                     </div>
-
-                    <div className="hidden lg:block">
-                      <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {total > 0 ? (
-            <div
-              className="flex flex-col gap-3 px-[16px] py-[14px] sm:px-[22px] lg:grid lg:items-center"
-              style={{
-                gridTemplateColumns: "1fr auto 1fr",
-                borderTop: "1px solid #f0f2f6",
-                background: "#fbfcfd",
-              }}
-            >
-              <p
-                className="text-[13px] font-medium tabular-nums lg:justify-self-start"
-                style={{ color: "#6b7280" }}
-                aria-live="polite"
-              >
-                Showing{" "}
-                <span className="font-bold text-[#000b49]">{showingCount}</span>{" "}
-                of <span className="font-bold text-[#000b49]">{total}</span>
-              </p>
-
-              <div
-                className="flex items-center justify-center gap-1"
-                role="navigation"
-                aria-label="Pagination"
-              >
-                <PaginationButton
-                  ariaLabel="First page"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage(1)}
-                >
-                  <ChevronsLeft size={16} strokeWidth={2.2} />
-                </PaginationButton>
-                <PaginationButton
-                  ariaLabel="Previous page"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft size={16} strokeWidth={2.2} />
-                </PaginationButton>
-                <span
-                  className="mx-2 min-w-[4.5rem] text-center text-[12px] font-bold tabular-nums"
-                  style={{ color: "#000b49" }}
-                >
-                  {safePage} / {totalPages}
-                </span>
-                <PaginationButton
-                  ariaLabel="Next page"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  <ChevronRight size={16} strokeWidth={2.2} />
-                </PaginationButton>
-                <PaginationButton
-                  ariaLabel="Last page"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage(totalPages)}
-                >
-                  <ChevronsRight size={16} strokeWidth={2.2} />
-                </PaginationButton>
-              </div>
-
-              <label className="flex items-center justify-end gap-2 lg:justify-self-end">
-                <span
-                  className="hidden text-[12px] font-semibold sm:inline"
-                  style={{ color: "#9aa0a6" }}
-                >
-                  Per page
-                </span>
-                <select
-                  value={pageSize}
-                  onChange={(e) =>
-                    setPageSize(
-                      Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]
-                    )
-                  }
-                  aria-label="Bookings per page"
-                  className="min-h-10 rounded-[9px] border border-[#e3e7ed] bg-white px-3 text-[13px] font-bold text-[#000b49] outline-none transition-shadow focus:border-[#6cf3d5] focus:shadow-[0_0_0_3px_rgba(108,243,213,0.25)]"
-                >
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : null}
+          <AdminListPagination
+            total={paged.total}
+            page={paged.page}
+            limit={paged.limit}
+            shownCount={pageItems.length}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            pageSizeLabel="Per page"
+          />
         </div>
       </div>
     </AdminPortalShell>
-  );
-}
-
-export default function AdminBookingsPage() {
-  return (
-    <Suspense
-      fallback={
-        <AdminPortalShell pageTitle="Bookings" active="bookings">
-          <div className="portal-page text-meta" style={{ color: "#9aa0a6" }}>
-            Loading…
-          </div>
-        </AdminPortalShell>
-      }
-    >
-      <BookingsListBody />
-    </Suspense>
   );
 }

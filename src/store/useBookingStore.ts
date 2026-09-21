@@ -56,8 +56,13 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const booking = await bookingService.getBookingById(id);
       if (booking) {
         set((state) => {
-          const others = state.bookings.filter((b) => b.id !== id);
-          return { bookings: [...others, booking], error: null };
+          const idx = state.bookings.findIndex((b) => b.id === id);
+          if (idx === -1) {
+            return { bookings: [booking, ...state.bookings], error: null };
+          }
+          const next = [...state.bookings];
+          next[idx] = booking;
+          return { bookings: next, error: null };
         });
       } else {
         set((state) => ({
@@ -70,7 +75,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         err && typeof err === "object" && "status" in err
           ? Number((err as { status: number }).status)
           : 0;
-      set({ error: status === 403 ? "FORBIDDEN" : "Failed to fetch booking" });
+      if (status === 403 || status === 401) {
+        set((state) => ({
+          bookings: state.bookings.filter((b) => b.id !== id),
+          error: status === 403 ? "FORBIDDEN" : "UNAUTHORIZED",
+        }));
+      } else {
+        set({ error: "Failed to fetch booking" });
+      }
       throw err;
     }
   },

@@ -271,31 +271,37 @@ export default function AdminDashboard() {
                 </Link>
               </div>
               <div className="overflow-x-auto">
-                <div className="min-w-[640px]">
+                <div className="min-w-[560px]">
                   <div
                     className="grid px-[22px] py-[14px]"
                     style={{
-                      gridTemplateColumns: "110px 1fr 120px 100px 70px",
+                      gridTemplateColumns: "110px 1fr 120px 100px",
                       background: "#f7f9fb",
                       borderBottom: "1px solid #f0f2f6",
                     }}
                   >
-                    {["ID", "Customer", "Date", "Status", ""].map((h) => (
-                      <div key={h || "actions"} className="text-th">{h}</div>
+                    {["ID", "Customer", "Date", "Status"].map((h) => (
+                      <div key={h} className="text-th">{h}</div>
                     ))}
                   </div>
                   {bookings.slice(0, 5).map((booking) => (
                     <Link
                       key={booking.id}
                       href={`/admin/bookings/${booking.id}`}
-                      className="grid px-[22px] py-[14px] no-underline transition-colors duration-150 hover:bg-[#f7f9fb]"
+                      className="group grid px-[22px] py-[14px] no-underline transition-colors duration-150 hover:bg-[#f7f9fb]"
                       style={{
-                        gridTemplateColumns: "110px 1fr 120px 100px 70px",
+                        gridTemplateColumns: "110px 1fr 120px 100px",
                         borderBottom: "1px solid #f0f2f6",
                         alignItems: "center",
                       }}
                     >
-                      <div className="text-body tabular" style={{ color: "#000b49" }}>{booking.id}</div>
+                      <div
+                        className="text-body tabular underline-offset-2 group-hover:underline"
+                        style={{ color: "#0a7a63" }}
+                        title={booking.id}
+                      >
+                        {booking.id}
+                      </div>
                       <div>
                         <div className="text-body truncate" style={{ color: "#000b49" }}>{booking.customer.name}</div>
                         <div className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>{booking.suburb}</div>
@@ -309,9 +315,6 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div><Badge variant={statusVariant(booking.status)}>{booking.status}</Badge></div>
-                      <div className="flex justify-end">
-                        <span className="ds-text-action">View →</span>
-                      </div>
                     </Link>
                   ))}
                 </div>
@@ -398,9 +401,8 @@ export default function AdminDashboard() {
                         Collections need a driver
                       </div>
                     </div>
-                    {/* F4.4 board not shipped — agreed unassigned-today list */}
                     <Link
-                      href="/admin/bookings?date=today&assigned=0"
+                      href="/admin/assignments"
                       className="ds-text-action flex-none self-center"
                     >
                       Assign

@@ -74,5 +74,4 @@ export interface Driver {
   vehicle: string;
   isActive: boolean;
   city?: string;
-  notes?: string;
 }
