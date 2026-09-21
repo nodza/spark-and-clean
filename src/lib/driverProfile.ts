@@ -13,7 +13,6 @@ export type DriverPatchUpdates = {
   notes?: string;
   phone?: string;
   email?: string;
-  vehicle?: string;
   city?: string;
 };
 
@@ -58,14 +57,6 @@ export function sanitizeDriverPatch(
       return { ok: false, error: "email must be a string" };
     }
     updates.email = raw.email.trim().toLowerCase();
-  }
-  if ("vehicle" in raw) {
-    if (typeof raw.vehicle !== "string") {
-      return { ok: false, error: "vehicle must be a string" };
-    }
-    const vehicle = raw.vehicle.trim();
-    if (!vehicle) return { ok: false, error: "Vehicle cannot be empty" };
-    updates.vehicle = vehicle;
   }
   if ("city" in raw) {
     if (typeof raw.city !== "string") {

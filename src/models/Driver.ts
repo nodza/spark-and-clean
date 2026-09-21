@@ -6,7 +6,8 @@ const DriverSchema = new Schema(
     /** Stable business id, e.g. driver_1 */
     id: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true },
-    vehicle: { type: String, required: true, trim: true },
+    /** Legacy display string; current bakkie lives on Vehicle.assignedDriverId. */
+    vehicle: { type: String, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, lowercase: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },

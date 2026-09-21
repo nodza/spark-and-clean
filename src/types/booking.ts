@@ -70,7 +70,8 @@ export interface Driver {
   name: string;
   phone: string;
   email?: string;
-  vehicle: string;
+  /** Current bakkie display from Vehicle.assignedDriverId — not stored on the job. */
+  vehicle?: string;
   isActive: boolean;
   city?: string;
   notes?: string;

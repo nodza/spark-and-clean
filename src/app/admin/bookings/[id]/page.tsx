@@ -34,6 +34,7 @@ import {
   bookingStatusVariant,
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
+import { formatAssignedDriverLine } from "@/lib/vehicle";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -140,9 +141,7 @@ function AssignedDriverSummary({
     !drivers.some((driver) => driver.id === assignedDriverId);
   const showName =
     assigned && assigned.name.trim() && assigned.name !== assigned.id
-      ? assigned.vehicle
-        ? `${assigned.name} · ${assigned.vehicle}`
-        : assigned.name
+      ? formatAssignedDriverLine(assigned.name, assigned.vehicle)
       : null;
 
   if (isInactive) {

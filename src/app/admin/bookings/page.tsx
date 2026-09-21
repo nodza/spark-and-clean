@@ -41,6 +41,7 @@ import {
 } from "@/lib/listPagination";
 import { useBookingStore } from "@/store/useBookingStore";
 import type { Booking, Driver } from "@/types/booking";
+import { formatAssignedDriverLine } from "@/lib/vehicle";
 
 const TABLE_COLS =
   "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(118px, 0.85fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
@@ -175,6 +176,11 @@ function AdminBookingsList() {
       if (isUnassignedDriver(id)) return "Unassigned";
       return (id && map.get(id)) || null;
     };
+  }, [drivers]);
+
+  const driverVehicle = useMemo(() => {
+    const map = new Map(drivers.map((d) => [d.id, d.vehicle]));
+    return (id?: string) => (id ? map.get(id) : undefined);
   }, [drivers]);
 
   const isKnownDriver = useMemo(() => {
@@ -345,7 +351,12 @@ function AdminBookingsList() {
                 const inactive = !unassigned && !knownDriver;
                 const driverLabel = unassigned
                   ? "Unassigned"
-                  : driverName(booking.assignedDriverId) ?? "Assigned driver";
+                  : formatAssignedDriverLine(
+                      driverName(booking.assignedDriverId) ?? "Assigned driver",
+                      knownDriver
+                        ? driverVehicle(booking.assignedDriverId)
+                        : undefined
+                    );
                 return (
                   <div
                     key={booking.id}

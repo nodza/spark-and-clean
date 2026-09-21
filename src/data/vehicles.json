@@ -1,0 +1,14 @@
+[
+    {
+        "id": "vehicle_1",
+        "label": "Nissan NP200",
+        "plate": "CA 123-456",
+        "assignedDriverId": "driver_1"
+    },
+    {
+        "id": "vehicle_2",
+        "label": "Toyota Hilux",
+        "plate": "CA 987-654",
+        "assignedDriverId": "driver_2"
+    }
+]

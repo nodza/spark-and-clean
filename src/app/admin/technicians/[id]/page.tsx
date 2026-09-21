@@ -272,6 +272,12 @@ export default function TechnicianProfilePage() {
                   <p className="mt-1 font-medium text-[#000b49]">
                     {driver?.vehicle || technician.vehicle || "No vehicle assigned"}
                   </p>
+                  <Link
+                    href="/admin/vehicles"
+                    className="mt-1 inline-block text-[12px] font-bold text-[#0a7a63] hover:underline"
+                  >
+                    Manage on Vehicles
+                  </Link>
                 </div>
                 {driver?.city ? (
                   <div className="sm:col-span-2">
