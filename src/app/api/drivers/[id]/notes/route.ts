@@ -38,6 +38,7 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     const message = err instanceof Error ? err.message : "Failed to fetch notes";
+    console.error("[api/drivers/[id]/notes GET]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -78,17 +79,42 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const fallback =
-      existing.updatedAt instanceof Date
-        ? existing.updatedAt.toISOString()
-        : undefined;
-    const current = normalizeDriverNotes(existing.notes, fallback);
-    const chronological = [...current].reverse();
-    const nextNotes = [...chronological, note].slice(-MAX_NOTES_KEPT);
+    // Legacy string notes: migrate + append in one write, then future adds use $push.
+    if (!Array.isArray(existing.notes)) {
+      const fallback =
+        existing.updatedAt instanceof Date
+          ? existing.updatedAt.toISOString()
+          : undefined;
+      const chronological = [
+        ...normalizeDriverNotes(existing.notes, fallback),
+      ].reverse();
+      const nextNotes = [...chronological, note].slice(-MAX_NOTES_KEPT);
+
+      const migrated = await Driver.findOneAndUpdate(
+        { id },
+        { $set: { notes: nextNotes } },
+        { new: true }
+      )
+        .select({ notes: 1, id: 1 })
+        .lean();
+
+      if (!migrated) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({ note }, { status: 201 });
+    }
 
     const doc = await Driver.findOneAndUpdate(
       { id },
-      { $set: { notes: nextNotes } },
+      {
+        $push: {
+          notes: {
+            $each: [note],
+            $slice: -MAX_NOTES_KEPT,
+          },
+        },
+      },
       { new: true }
     )
       .select({ notes: 1, id: 1 })
@@ -104,6 +130,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     const message = err instanceof Error ? err.message : "Failed to add note";
+    console.error("[api/drivers/[id]/notes POST]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -39,11 +39,6 @@ export type DriverDocument = InferSchemaType<typeof DriverSchema> & {
   updatedAt: Date;
 };
 
-if (models.Driver) {
-  delete models.Driver;
-}
-
-export const Driver: Model<DriverDocument> = model<DriverDocument>(
-  "Driver",
-  DriverSchema
-);
+export const Driver: Model<DriverDocument> =
+  (models.Driver as Model<DriverDocument>) ||
+  model<DriverDocument>("Driver", DriverSchema);

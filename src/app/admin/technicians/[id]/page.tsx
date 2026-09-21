@@ -111,7 +111,7 @@ export default function TechnicianProfilePage() {
   const [technician, setTechnician] = useState<Technician | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
   const [notes, setNotes] = useState<InternalNote[]>([]);
-  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -120,38 +120,50 @@ export default function TechnicianProfilePage() {
   const [savingStatus, setSavingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadNotes = useCallback(async (driverId: string) => {
-    setNotesLoading(true);
-    setNotesError(null);
-    try {
-      const res = await fetch(`/api/drivers/${driverId}/notes`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
+  const loadNotes = useCallback(
+    async (driverId: string, signal?: AbortSignal) => {
+      setNotesLoading(true);
+      setNotesError(null);
+      try {
+        const res = await fetch(`/api/drivers/${driverId}/notes`, {
+          credentials: "include",
+          signal,
+        });
+        if (signal?.aborted) return;
+        if (!res.ok) {
+          setNotesError("Could not load notes");
+          return;
+        }
+        const data = await res.json();
+        if (signal?.aborted) return;
+        const list: InternalNote[] = Array.isArray(data.notes) ? data.notes : [];
+        list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        setNotes(list);
+      } catch (err) {
+        if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
         setNotesError("Could not load notes");
-        return;
+      } finally {
+        if (!signal?.aborted) setNotesLoading(false);
       }
-      const data = await res.json();
-      const list: InternalNote[] = Array.isArray(data.notes) ? data.notes : [];
-      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      setNotes(list);
-    } catch {
-      setNotesError("Could not load notes");
-    } finally {
-      setNotesLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
+    const abort = new AbortController();
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
+      setNotesLoading(true);
       try {
         const [response] = await Promise.all([
           fetch(`/api/admin/technicians/${technicianId}`, {
             credentials: "include",
+            signal: abort.signal,
           }),
           fetchBookings({ silent: true }),
         ]);
@@ -159,32 +171,40 @@ export default function TechnicianProfilePage() {
         if (!response.ok) {
           throw new Error(data.error || "Could not load technician");
         }
-        if (cancelled) return;
+        if (cancelled || abort.signal.aborted) return;
         setTechnician(data.technician as Technician);
         const profile = (data.driver as Driver | null) ?? null;
         setDriver(profile);
         if (profile?.id) {
-          void loadNotes(profile.id);
+          await loadNotes(profile.id, abort.signal);
         } else {
           setNotes([]);
+          setNotesLoading(false);
         }
       } catch (err) {
-        if (!cancelled) {
-          setTechnician(null);
-          setDriver(null);
-          setNotes([]);
-          setError(
-            err instanceof Error ? err.message : "Could not load technician"
-          );
+        if (
+          cancelled ||
+          abort.signal.aborted ||
+          (err instanceof DOMException && err.name === "AbortError")
+        ) {
+          return;
         }
+        setTechnician(null);
+        setDriver(null);
+        setNotes([]);
+        setNotesLoading(false);
+        setError(
+          err instanceof Error ? err.message : "Could not load technician"
+        );
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !abort.signal.aborted) setLoading(false);
       }
     }
 
     void load();
     return () => {
       cancelled = true;
+      abort.abort();
     };
   }, [fetchBookings, loadNotes, technicianId]);
 
@@ -520,7 +540,7 @@ export default function TechnicianProfilePage() {
                       {notes.map((note) => (
                         <li
                           key={note.id}
-                          className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f8fb] px-3 py-3"
+                          className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f9fb] px-3 py-3"
                         >
                           <p className="text-sm whitespace-pre-wrap text-[#000b49]">
                             {note.body}
@@ -539,7 +559,22 @@ export default function TechnicianProfilePage() {
                   )}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="ds-card">
+                <div
+                  className="flex items-center gap-2 text-eyebrow"
+                  style={{ color: "#6b7280" }}
+                >
+                  <StickyNote size={14} strokeWidth={1.8} aria-hidden="true" />
+                  INTERNAL NOTES
+                </div>
+                <p className="text-body mt-[14px]" style={{ color: "#6b7280" }}>
+                  Internal notes are stored on the driver profile. Add a vehicle
+                  to this technician so a driver profile exists, then you can
+                  leave ops notes here.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

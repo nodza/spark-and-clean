@@ -2,7 +2,7 @@ import type { InternalNote } from "@/types/booking";
 
 function toNote(raw: Record<string, unknown>): InternalNote {
   return {
-    id: String(raw.id),
+    id: typeof raw.id === "string" && raw.id ? raw.id : `note_${String(raw.createdAt ?? "unknown")}`,
     body: String(raw.body ?? ""),
     author: String(raw.author ?? "Ops"),
     createdAt: String(raw.createdAt ?? ""),
