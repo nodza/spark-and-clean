@@ -8,7 +8,7 @@ import { accountIsDisabled, isHttpError, requireFullAdmin } from "@/lib/adminAut
 /** Treat missing isActive as active (legacy rows). */
 const ACTIVE = { $or: [{ isActive: true }, { isActive: { $exists: false } }] };
 
-type DriverOption = { id: string; name: string; vehicle?: string };
+type DriverOption = { id: string; name: string; phone?: string; vehicle?: string };
 
 /** Active, logged-in technicians only — used by the booking assign dropdown. */
 export async function GET() {
@@ -44,14 +44,23 @@ export async function GET() {
       if (!profileId) continue;
       const existing = byId.get(profileId);
       const name = String(tech.name || tech.email || profileId);
+      const techPhone =
+        typeof tech.phone === "string" && tech.phone.trim()
+          ? tech.phone.trim()
+          : undefined;
       if (!existing) {
         byId.set(profileId, {
           id: profileId,
           name,
+          phone: techPhone,
           vehicle: undefined,
         });
-      } else if (!existing.name) {
-        existing.name = name;
+      } else {
+        if (!existing.name) existing.name = name;
+        // Match technician profile UI: Driver.phone, else User.phone
+        if (!existing.phone?.trim() && techPhone) {
+          existing.phone = techPhone;
+        }
       }
     }
 

@@ -14,12 +14,13 @@ export async function GET(_request: Request, { params }: Params) {
   try {
     await requireFullAdmin();
     const { id } = await params;
-    if (!isValidObjectId(id)) {
+    await connectDB();
+    const user = isValidObjectId(id)
+      ? await User.findById(id).lean()
+      : await User.findOne({ driverProfileId: id, role: "technician" }).lean();
+    if (user && user.role !== "technician") {
       return NextResponse.json({ error: "Technician not found" }, { status: 404 });
     }
-
-    await connectDB();
-    const user = await User.findOne({ _id: id, role: "technician" }).lean();
     if (!user) {
       return NextResponse.json({ error: "Technician not found" }, { status: 404 });
     }

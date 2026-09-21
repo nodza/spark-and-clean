@@ -23,10 +23,8 @@ export default async function DriverRedirect({
   }
 
   if (isValidObjectId(id)) {
-    const byUser = await User.findOne({ _id: id, role: "technician" })
-      .select("_id")
-      .lean();
-    if (byUser) {
+    const byUser = await User.findById(id).select("_id role").lean();
+    if (byUser?.role === "technician") {
       redirect(`/admin/technicians/${String(byUser._id)}`);
     }
   }

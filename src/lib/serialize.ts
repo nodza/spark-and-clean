@@ -10,11 +10,15 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   if (userId != null) {
     booking.userId = String(userId);
   }
+  if (!booking.assignedDriverId) {
+    delete booking.assignedDriverId;
+  }
   return booking;
 }
 
 export function toClientDriver(doc: Record<string, unknown>) {
-  const { _id, __v, createdAt, updatedAt, ...rest } = doc;
+  // Always omit notes — ops notes only via /api/drivers/[id]/notes
+  const { _id, __v, createdAt, updatedAt, notes: _notes, ...rest } = doc;
   return rest;
 }
 
