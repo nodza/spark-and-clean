@@ -1,6 +1,3 @@
-/** Ops notes stored on a Driver profile (not booking Internal notes). */
-export const MAX_DRIVER_NOTE_LEN = 2000;
-
 /** Keep User.disabledAt / User.isActive in lockstep with Driver.isActive. */
 export function technicianLoginFields(isActive: boolean, at: Date = new Date()) {
   return isActive
@@ -10,7 +7,6 @@ export function technicianLoginFields(isActive: boolean, at: Date = new Date()) 
 
 export type DriverPatchUpdates = {
   isActive?: boolean;
-  notes?: string;
   phone?: string;
   email?: string;
   vehicle?: string;
@@ -34,17 +30,10 @@ export function sanitizeDriverPatch(
   }
 
   if ("notes" in raw) {
-    if (typeof raw.notes !== "string") {
-      return { ok: false, error: "notes must be a string" };
-    }
-    const notes = raw.notes.trim();
-    if (notes.length > MAX_DRIVER_NOTE_LEN) {
-      return {
-        ok: false,
-        error: `Notes must be at most ${MAX_DRIVER_NOTE_LEN} characters`,
-      };
-    }
-    updates.notes = notes;
+    return {
+      ok: false,
+      error: "Use POST /api/drivers/[id]/notes to add notes",
+    };
   }
 
   if ("phone" in raw) {
