@@ -27,6 +27,7 @@ import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
+import { telHref } from "@/lib/phone";
 
 type LoadState =
   | { kind: "idle" }
@@ -37,16 +38,19 @@ type LoadState =
   | { kind: "error"; message: string };
 
 function mapsUrl(booking: Booking): string {
+  if (
+    booking.coordinates &&
+    Number.isFinite(booking.coordinates.lat) &&
+    Number.isFinite(booking.coordinates.lng)
+  ) {
+    const query = `${booking.coordinates.lat},${booking.coordinates.lng}`;
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  }
+
   const query = encodeURIComponent(
     [booking.addressLine1, booking.suburb, booking.city].filter(Boolean).join(", ")
   );
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
-}
-
-function telHref(phone: string | undefined): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/[^\d+]/g, "");
-  return digits ? `tel:${digits}` : null;
 }
 
 export function TechJobDetailClient() {
@@ -265,7 +269,9 @@ function JobContent({
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
 }) {
-  const phoneHref = telHref(booking.customer.phone);
+  const phoneHref = booking.customer.phone?.trim()
+    ? telHref(booking.customer.phone)
+    : null;
   const busy = pendingStatus !== null;
   const kind = techStopKind(booking.status);
   const canCollect =
@@ -330,9 +336,13 @@ function JobContent({
                 Call
               </a>
             ) : (
-              <span className="flex h-11 flex-1 items-center justify-center rounded-[10px] bg-[#e3e7ed] text-[12.5px] font-bold text-[#9aa0a6]">
-                No phone
-              </span>
+              <button
+                type="button"
+                disabled
+                className="flex h-11 flex-1 items-center justify-center rounded-[10px] bg-[#e3e7ed] text-[12.5px] font-bold text-[#9aa0a6] disabled:cursor-not-allowed"
+              >
+                No number
+              </button>
             )}
           </div>
         </div>
