@@ -8,6 +8,8 @@ export interface TechTab {
   key: string;
   label: string;
   icon: React.ReactNode;
+  /** Unread count shown as a badge on the tab icon */
+  badgeCount?: number;
 }
 
 interface TechLayoutProps {
@@ -114,8 +116,13 @@ export function TechLayout({
                   isActive ? "text-navy" : "text-[#b3b9c2]"
                 )}
               >
-                <span aria-hidden className="[&_svg]:size-[21px]">
+                <span aria-hidden className="relative [&_svg]:size-[21px]">
                   {tab.icon}
+                  {typeof tab.badgeCount === "number" && tab.badgeCount > 0 ? (
+                    <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d64545] px-1 text-[9px] font-extrabold text-white">
+                      {tab.badgeCount > 9 ? "9+" : tab.badgeCount}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-[10.5px] font-bold">{tab.label}</span>
               </button>

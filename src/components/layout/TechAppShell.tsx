@@ -1,19 +1,27 @@
 "use client";
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Bell, CalendarDays, Check, LogOut, User } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  Check,
+  LogOut,
+  MessageSquare,
+  User,
+} from "lucide-react";
 import { TechLayout, type TechTab } from "@/components/layout/TechLayout";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { cn } from "@/lib/utils";
 
-export type TechAppTab = "today" | "completed" | "profile";
+export type TechAppTab = "today" | "completed" | "messages" | "profile";
 
 const TAB_HREF: Record<TechAppTab, string> = {
   today: "/tech/dashboard",
   completed: "/tech/completed",
+  messages: "/tech/messages",
   profile: "/tech/profile",
 };
 
@@ -58,6 +66,32 @@ export function TechAppShell({
   const router = useRouter();
   const { ready: authReady, logout } = useAuth();
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tech/messages", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setUnreadCount(
+        typeof data.unreadCount === "number" ? data.unreadCount : 0
+      );
+    } catch {
+      // Badge is best-effort; job APIs still enforce access.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    void refreshUnread();
+    const timer = window.setInterval(() => void refreshUnread(), 15_000);
+    const onRead = () => void refreshUnread();
+    window.addEventListener("tech-field-messages-read", onRead);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("tech-field-messages-read", onRead);
+    };
+  }, [ready, user, refreshUnread]);
 
   const tabs: TechTab[] = useMemo(
     () => [
@@ -72,12 +106,18 @@ export function TechAppShell({
         icon: <Check strokeWidth={1.8} />,
       },
       {
+        key: "messages",
+        label: "Messages",
+        icon: <MessageSquare strokeWidth={1.8} />,
+        badgeCount: unreadCount,
+      },
+      {
         key: "profile",
         label: "Profile",
         icon: <User strokeWidth={1.8} />,
       },
     ],
-    []
+    [unreadCount]
   );
 
   const handleTabChange = useCallback(
@@ -94,10 +134,14 @@ export function TechAppShell({
   }, [logout, router]);
 
   const handleNotifications = useCallback(() => {
+    if (unreadCount > 0) {
+      router.push("/tech/messages");
+      return;
+    }
     toast.message("You’re all caught up", {
-      description: "No new dispatch alerts right now.",
+      description: "No new dispatch messages right now.",
     });
-  }, []);
+  }, [router, unreadCount]);
 
   if (!authReady) return <TechBootScreen />;
   if (!ready || !user) {
@@ -123,13 +167,19 @@ export function TechAppShell({
             size="icon"
             className={headerIconBtn}
             onClick={handleNotifications}
-            aria-label="Notifications"
+            aria-label={
+              unreadCount > 0
+                ? `Messages, ${unreadCount} unread`
+                : "Notifications"
+            }
           >
             <Bell className="size-[17px]" strokeWidth={1.85} />
-            <span
-              className="absolute right-[9px] top-[9px] size-[7px] rounded-full bg-[#ffdc39]"
-              aria-hidden
-            />
+            {unreadCount > 0 ? (
+              <span
+                className="absolute right-[9px] top-[9px] size-[7px] rounded-full bg-[#ffdc39]"
+                aria-hidden
+              />
+            ) : null}
           </Button>
           <Button
             type="button"
