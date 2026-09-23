@@ -10,6 +10,24 @@ export type VehicleAssignment = Pick<VehicleFields, "id" | "assignedDriverId">;
 const MAX_LABEL = 80;
 const MAX_PLATE = 20;
 
+/** Display plate: uppercase, single spaces. */
+export function normalizePlateDisplay(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+/**
+ * Same bakkie even if typed as "ca 123-456", "CA-123-456", or "CA123456".
+ */
+export function plateUniqueKey(plate: string): string {
+  return normalizePlateDisplay(plate).replace(/[\s-]/g, "");
+}
+
+export function platesClash(a: string, b: string): boolean {
+  const left = plateUniqueKey(a);
+  const right = plateUniqueKey(b);
+  return Boolean(left) && left === right;
+}
+
 export function formatVehicleFull(label: string, plate: string): string {
   return `${label.trim()} (${plate.trim()})`;
 }
@@ -84,7 +102,7 @@ export function sanitizeVehicleCreate(
     return { ok: false, error: "Plate is required" };
   }
   const label = raw.label.trim().replace(/\s+/g, " ");
-  const plate = raw.plate.trim().replace(/\s+/g, " ").toUpperCase();
+  const plate = normalizePlateDisplay(raw.plate);
   if (!label) return { ok: false, error: "Label is required" };
   if (!plate) return { ok: false, error: "Plate is required" };
   if (label.length > MAX_LABEL) {
@@ -124,6 +142,109 @@ export function sanitizeVehicleAssign(
   }
   const id = raw.assignedDriverId.trim();
   return { ok: true, assignedDriverId: id || null };
+}
+
+export function sanitizeVehiclePatch(
+  body: unknown
+):
+  | {
+      ok: true;
+      label?: string;
+      plate?: string;
+      assignedDriverId?: string | null;
+    }
+  | { ok: false; error: string } {
+  if (!body || typeof body !== "object") {
+    return { ok: false, error: "Invalid body" };
+  }
+  const raw = body as Record<string, unknown>;
+  const updates: {
+    label?: string;
+    plate?: string;
+    assignedDriverId?: string | null;
+  } = {};
+
+  if ("label" in raw) {
+    if (typeof raw.label !== "string") {
+      return { ok: false, error: "Label must be a string" };
+    }
+    const label = raw.label.trim().replace(/\s+/g, " ");
+    if (!label) return { ok: false, error: "Label is required" };
+    if (label.length > MAX_LABEL) {
+      return { ok: false, error: `Label must be at most ${MAX_LABEL} characters` };
+    }
+    updates.label = label;
+  }
+
+  if ("plate" in raw) {
+    if (typeof raw.plate !== "string") {
+      return { ok: false, error: "Plate must be a string" };
+    }
+    const plate = normalizePlateDisplay(raw.plate);
+    if (!plate) return { ok: false, error: "Plate is required" };
+    if (plate.length > MAX_PLATE) {
+      return { ok: false, error: `Plate must be at most ${MAX_PLATE} characters` };
+    }
+    updates.plate = plate;
+  }
+
+  if ("assignedDriverId" in raw) {
+    const assigned = sanitizeVehicleAssign({ assignedDriverId: raw.assignedDriverId });
+    if (!assigned.ok) return assigned;
+    updates.assignedDriverId = assigned.assignedDriverId;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { ok: false, error: "No updates provided" };
+  }
+  return { ok: true, ...updates };
+}
+
+/** Display comes only from Vehicle.assignedDriverId — never Driver.vehicle. */
+export function overlayDriverVehicle(
+  driver: Record<string, unknown>,
+  current: { label: string; plate: string } | undefined
+): Record<string, unknown> {
+  const { vehicle: _legacy, ...rest } = driver;
+  if (!current) {
+    return { ...rest, vehicle: undefined };
+  }
+  return { ...rest, vehicle: formatVehicleFull(current.label, current.plate) };
+}
+
+export function mongoDuplicateField(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const rec = err as {
+    code?: number;
+    keyPattern?: Record<string, unknown>;
+    keyValue?: Record<string, unknown>;
+    message?: string;
+  };
+  if (rec.code !== 11000) return null;
+  if (rec.keyPattern && Object.keys(rec.keyPattern).length > 0) {
+    return Object.keys(rec.keyPattern)[0] ?? "unknown";
+  }
+  if (rec.keyValue && Object.keys(rec.keyValue).length > 0) {
+    return Object.keys(rec.keyValue)[0] ?? "unknown";
+  }
+  const message = String(rec.message || "").toLowerCase();
+  if (message.includes("plate")) return "plate";
+  if (message.includes("assigneddriverid")) return "assignedDriverId";
+  return "unknown";
+}
+
+export function vehicleConflictMessage(field: string | null): {
+  status: number;
+  error: string;
+} | null {
+  if (!field) return null;
+  if (field === "plate") {
+    return { status: 409, error: "A vehicle with this plate already exists" };
+  }
+  if (field === "assignedDriverId") {
+    return { status: 409, error: "That driver already has a vehicle" };
+  }
+  return { status: 409, error: "That record already exists" };
 }
 
 export function toClientVehicle(doc: Record<string, unknown>) {

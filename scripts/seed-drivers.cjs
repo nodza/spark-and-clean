@@ -28,7 +28,6 @@ const DriverSchema = new mongoose.Schema(
     name: String,
     phone: String,
     email: String,
-    vehicle: String,
     isActive: { type: Boolean, default: true },
     city: String,
   },
@@ -52,7 +51,12 @@ async function seed() {
 
   let upserted = 0;
   for (const driver of drivers) {
-    await Driver.updateOne({ id: driver.id }, { $set: driver }, { upsert: true });
+    const { vehicle: _legacyVehicle, ...fields } = driver;
+    await Driver.updateOne(
+      { id: driver.id },
+      { $set: fields, $unset: { vehicle: "" } },
+      { upsert: true }
+    );
     upserted += 1;
   }
 

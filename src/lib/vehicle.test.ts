@@ -4,9 +4,15 @@ import {
   formatAssignedDriverLine,
   formatVehicleCompact,
   formatVehicleFull,
+  mongoDuplicateField,
   nextVehicleAssignments,
+  overlayDriverVehicle,
+  plateUniqueKey,
+  platesClash,
   sanitizeVehicleAssign,
   sanitizeVehicleCreate,
+  sanitizeVehiclePatch,
+  vehicleConflictMessage,
 } from "@/lib/vehicle";
 
 describe("vehicle display", () => {
@@ -95,6 +101,55 @@ describe("sanitizeVehicleCreate / assign", () => {
     expect(sanitizeVehicleAssign({ assignedDriverId: "driver_2" })).toEqual({
       ok: true,
       assignedDriverId: "driver_2",
+    });
+  });
+
+  it("patches label and plate without requiring assignment", () => {
+    expect(
+      sanitizeVehiclePatch({ label: "  Ford Ranger ", plate: "ca 111-222" })
+    ).toEqual({
+      ok: true,
+      label: "Ford Ranger",
+      plate: "CA 111-222",
+    });
+  });
+});
+
+describe("overlayDriverVehicle", () => {
+  it("never falls back to a free-text Driver.vehicle string", () => {
+    const driver = {
+      id: "driver_1",
+      name: "Thabo Mbeki",
+      vehicle: "Nissan NP200 (CA 123-456)",
+    };
+    expect(overlayDriverVehicle(driver, undefined).vehicle).toBeUndefined();
+    expect(
+      overlayDriverVehicle(driver, { label: "Toyota Hilux", plate: "CA 987-654" })
+        .vehicle
+    ).toBe("Toyota Hilux (CA 987-654)");
+  });
+});
+
+describe("plate uniqueness", () => {
+  it("treats mixed caps and spacing as the same plate", () => {
+    expect(plateUniqueKey("ca 123-456")).toBe("CA123456");
+    expect(plateUniqueKey("CA-123-456")).toBe("CA123456");
+    expect(platesClash("ca 123-456", "CA 123-456")).toBe(true);
+    expect(platesClash("CA 123-456", "CA 987-654")).toBe(false);
+  });
+
+  it("returns a clear 409 for a unique plate clash", () => {
+    expect(
+      vehicleConflictMessage(
+        mongoDuplicateField({
+          code: 11000,
+          keyPattern: { plate: 1 },
+          keyValue: { plate: "CA 123-456" },
+        })
+      )
+    ).toEqual({
+      status: 409,
+      error: "A vehicle with this plate already exists",
     });
   });
 });

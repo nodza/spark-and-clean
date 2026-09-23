@@ -9,7 +9,7 @@ const VehicleSchema = new Schema(
     id: { type: String, required: true, unique: true, index: true },
     /** Make / model, e.g. Nissan NP200 */
     label: { type: String, required: true, trim: true },
-    plate: { type: String, required: true, trim: true },
+    plate: { type: String, required: true, trim: true, unique: true },
     /** At most one vehicle per driver — sparse unique. Null = unassigned. */
     assignedDriverId: {
       type: String,

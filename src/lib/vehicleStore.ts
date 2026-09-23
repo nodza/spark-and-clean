@@ -1,6 +1,10 @@
 import { Vehicle } from "@/models/Vehicle";
 import { Driver } from "@/models/Driver";
-import { formatVehicleFull, toClientVehicle } from "@/lib/vehicle";
+import { User } from "@/models/User";
+import { accountIsDisabled, HttpError } from "@/lib/adminAuth";
+import { plateUniqueKey, toClientVehicle } from "@/lib/vehicle";
+
+export { overlayDriverVehicle } from "@/lib/vehicle";
 
 export async function vehiclesByDriverId(
   driverIds: string[]
@@ -18,15 +22,33 @@ export async function vehiclesByDriverId(
   return map;
 }
 
-export function overlayDriverVehicle(
-  driver: Record<string, unknown>,
-  current: { label: string; plate: string } | undefined
-): Record<string, unknown> {
-  if (!current) {
-    const legacy = typeof driver.vehicle === "string" ? driver.vehicle.trim() : "";
-    return { ...driver, vehicle: legacy || undefined };
+export async function assertPlateAvailable(plate: string, excludeId?: string) {
+  const key = plateUniqueKey(plate);
+  if (!key) return;
+  const rows = await Vehicle.find().select("id plate").lean();
+  const taken = rows.some(
+    (row) =>
+      row.id !== excludeId && plateUniqueKey(String(row.plate ?? "")) === key
+  );
+  if (taken) {
+    throw new HttpError(409, "A vehicle with this plate already exists");
   }
-  return { ...driver, vehicle: formatVehicleFull(current.label, current.plate) };
+}
+
+export async function requireAssignableDriver(driverId: string) {
+  const driver = await Driver.findOne({ id: driverId }).lean();
+  if (!driver || driver.isActive === false) {
+    throw new HttpError(400, "Driver not found or inactive");
+  }
+  const tech = await User.findOne({
+    role: "technician",
+    driverProfileId: driverId,
+  })
+    .select("disabledAt isActive")
+    .lean();
+  if (tech && accountIsDisabled(tech)) {
+    throw new HttpError(400, "Driver not found or inactive");
+  }
 }
 
 /** Persist exclusive assignment: one vehicle per driver, no history table. */

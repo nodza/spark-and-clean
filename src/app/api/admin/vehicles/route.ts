@@ -2,18 +2,27 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { connectDB } from "@/lib/mongodb";
 import { Vehicle } from "@/models/Vehicle";
-import { Driver } from "@/models/Driver";
-import { User } from "@/models/User";
-import { accountIsDisabled, isHttpError, requireFullAdmin } from "@/lib/adminAuth";
-import { sanitizeVehicleCreate, toClientVehicle } from "@/lib/vehicle";
+import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import {
+  mongoDuplicateField,
+  sanitizeVehicleCreate,
+  toClientVehicle,
+  vehicleConflictMessage,
+} from "@/lib/vehicle";
+import {
+  assertPlateAvailable,
   driverNameById,
   persistVehicleAssignment,
+  requireAssignableDriver,
 } from "@/lib/vehicleStore";
 
 function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  const conflict = vehicleConflictMessage(mongoDuplicateField(err));
+  if (conflict) {
+    return NextResponse.json({ error: conflict.error }, { status: conflict.status });
   }
   const message = err instanceof Error ? err.message : fallback;
   console.error("[api/admin/vehicles]", message);
@@ -62,28 +71,12 @@ export async function POST(request: Request) {
 
     let assignedDriverId = parsed.assignedDriverId;
     if (assignedDriverId) {
-      const driver = await Driver.findOne({ id: assignedDriverId }).lean();
-      if (!driver || driver.isActive === false) {
-        return NextResponse.json(
-          { error: "Driver not found or inactive" },
-          { status: 400 }
-        );
-      }
-      const tech = await User.findOne({
-        role: "technician",
-        driverProfileId: assignedDriverId,
-      })
-        .select("disabledAt isActive")
-        .lean();
-      if (tech && accountIsDisabled(tech)) {
-        return NextResponse.json(
-          { error: "Driver not found or inactive" },
-          { status: 400 }
-        );
-      }
+      await requireAssignableDriver(assignedDriverId);
     } else {
       assignedDriverId = null;
     }
+
+    await assertPlateAvailable(parsed.plate);
 
     const created = await Vehicle.create({
       id: `vehicle_${randomBytes(4).toString("hex")}`,
@@ -98,17 +91,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ vehicle: row }, { status: 201 });
   } catch (err) {
-    if (
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err as { code: number }).code === 11000
-    ) {
-      return NextResponse.json(
-        { error: "That assignment is already taken" },
-        { status: 409 }
-      );
-    }
     return jsonError(err, "Failed to add vehicle");
   }
 }

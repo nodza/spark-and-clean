@@ -28,7 +28,7 @@ const VehicleSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true },
     label: { type: String, required: true, trim: true },
-    plate: { type: String, required: true, trim: true },
+    plate: { type: String, required: true, trim: true, unique: true },
     assignedDriverId: { type: String, default: null, trim: true },
   },
   { collection: "vehicles", timestamps: { createdAt: true, updatedAt: true } }
@@ -74,6 +74,14 @@ async function seed() {
       { upsert: true }
     );
     upserted += 1;
+  }
+
+  const unset = await mongoose.connection.collection("drivers").updateMany(
+    { vehicle: { $exists: true } },
+    { $unset: { vehicle: "" } }
+  );
+  if (unset.modifiedCount) {
+    console.log(`[seed] Cleared legacy Driver.vehicle on ${unset.modifiedCount} driver(s)`);
   }
 
   const total = await Vehicle.countDocuments();
