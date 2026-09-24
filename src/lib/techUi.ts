@@ -1,5 +1,9 @@
-import type { Booking, BookingStatus } from "@/types/booking";
+import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { hasRugDimensions } from "@/lib/bookingEstimate";
 import { APP_TIMEZONE, bookingCalendarDate } from "@/lib/localCalendarDate";
+
+/** Same meaning as the booking wizard when the customer skips size. */
+export const MEASURE_ON_PICKUP = "To be measured on pickup";
 
 /** Design-aligned slot labels (Technician Portal.dc.html). */
 export function slotTimeLabel(slot: Booking["collectionSlot"]): string {
@@ -93,15 +97,64 @@ export function formatBadgeDate(isoDate: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function formatMeasure(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return String(rounded);
+}
+
+export function rugDimensionLabel(
+  rug: Pick<Booking["rug"], "widthM" | "lengthM" | "areaSqM">
+): string {
+  if (!hasRugDimensions(rug.widthM, rug.lengthM)) {
+    return MEASURE_ON_PICKUP;
+  }
+
+  const width = rug.widthM as number;
+  const length = rug.lengthM as number;
+  const stored = rug.areaSqM;
+  const area =
+    typeof stored === "number" && Number.isFinite(stored) && stored > 0
+      ? stored
+      : width * length;
+
+  return `${formatMeasure(width)}m × ${formatMeasure(length)}m (${formatMeasure(area)} m²)`;
+}
+
+type BookingAddOns = Partial<{
+  odourRemoval: boolean;
+  stainProtection: boolean;
+  stainTreatment: boolean;
+  fabricProtection: boolean;
+}>;
+
+/** Wizard names, including older stainTreatment / fabricProtection keys. */
+export function bookingAddOnLabels(
+  addOns: BookingAddOns | null | undefined
+): string[] {
+  if (!addOns) return [];
+  const labels: string[] = [];
+  if (addOns.odourRemoval || addOns.stainTreatment) {
+    labels.push("Odour removal");
+  }
+  if (addOns.stainProtection || addOns.fabricProtection) {
+    labels.push("Stain protection");
+  }
+  return labels;
+}
+
+/** Read-only payment pill. Technicians cannot change this status. */
+export function paymentBadgeClass(status: PaymentStatus | string): string {
+  if (status === "PAID") {
+    return "border-[#bfe9dc] bg-[#eafaf5] text-[#0a7a63]";
+  }
+  if (status === "DEPOSIT") {
+    return "border-[#c3d3f5] bg-[#e8f0ff] text-[#2c4fa6]";
+  }
+  return "border-[#f6c9c9] bg-[#fdecec] text-[#b33232]";
+}
+
 export function rugSummary(booking: Booking): string {
-  const size =
-    typeof booking.rug.widthM === "number" &&
-    typeof booking.rug.lengthM === "number" &&
-    booking.rug.widthM > 0 &&
-    booking.rug.lengthM > 0
-      ? `${booking.rug.widthM}m × ${booking.rug.lengthM}m`
-      : "size TBD";
-  return `${booking.suburb} · ${booking.rug.type} · ${size}`;
+  return `${booking.suburb} · ${booking.rug.type} · ${rugDimensionLabel(booking.rug)}`;
 }
 
 const SLOT_ORDER = { MORNING: 0, AFTERNOON: 1 } as const;
