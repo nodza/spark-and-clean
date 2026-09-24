@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  FIELD_MESSAGE_POLL_MS,
   MAX_FIELD_MESSAGE_LEN,
   type FieldMessage,
 } from "@/lib/fieldMessages";
@@ -37,36 +38,52 @@ export function FieldMessagesPanel({
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const onThreadLoadedRef = useRef(onThreadLoaded);
+  onThreadLoadedRef.current = onThreadLoaded;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/bookings/${bookingId}/messages`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        setError("Could not load messages");
-        return;
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent === true;
+      if (!silent) {
+        setLoading(true);
+        setError(null);
       }
-      const data = await res.json();
-      const list: FieldMessage[] = Array.isArray(data.messages)
-        ? data.messages
-        : [];
-      setMessages(list);
-      if (variant === "tech") {
-        window.dispatchEvent(new Event("tech-field-messages-read"));
+      try {
+        const res = await fetch(`/api/bookings/${bookingId}/messages`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          if (!silent) setError("Could not load messages");
+          return;
+        }
+        const data = await res.json();
+        const list: FieldMessage[] = Array.isArray(data.messages)
+          ? data.messages
+          : [];
+        setMessages(list);
+        setError(null);
+        if (variant === "tech") {
+          window.dispatchEvent(new Event("tech-field-messages-read"));
+        }
+        if (!silent) {
+          onThreadLoadedRef.current?.();
+        }
+      } catch {
+        if (!silent) setError("Could not load messages");
+      } finally {
+        if (!silent) setLoading(false);
       }
-      onThreadLoaded?.();
-    } catch {
-      setError("Could not load messages");
-    } finally {
-      setLoading(false);
-    }
-  }, [bookingId, onThreadLoaded, variant]);
+    },
+    [bookingId, variant]
+  );
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(
+      () => void load({ silent: true }),
+      FIELD_MESSAGE_POLL_MS
+    );
+    return () => window.clearInterval(timer);
   }, [load]);
 
   const send = async () => {
@@ -97,9 +114,12 @@ export function FieldMessagesPanel({
       }
       const created = data.message as FieldMessage | undefined;
       if (created) {
-        setMessages((prev) => [created, ...prev]);
+        setMessages((prev) => {
+          if (prev.some((row) => row.id === created.id)) return prev;
+          return [created, ...prev];
+        });
       } else {
-        await load();
+        await load({ silent: true });
       }
       setDraft("");
     } catch {
@@ -129,7 +149,7 @@ export function FieldMessagesPanel({
           }}
           placeholder={placeholder}
           maxLength={MAX_FIELD_MESSAGE_LEN}
-          rows={isTech ? 3 : 3}
+          rows={3}
           className={
             isTech
               ? "rounded-[10px] border-[#e3e7ed] bg-white placeholder:text-xs"

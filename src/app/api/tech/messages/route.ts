@@ -4,6 +4,8 @@ import { Booking } from "@/models/Booking";
 import { isHttpError } from "@/lib/adminAuth";
 import { requireTechnicianSession } from "@/lib/fieldMessageAuth";
 import {
+  FIELD_INBOX_LIMIT,
+  FIELD_INBOX_STATUSES,
   hasUnreadOpsFieldMessage,
   latestOpsFieldMessage,
   normalizeFieldMessages,
@@ -11,7 +13,7 @@ import {
 } from "@/lib/fieldMessages";
 
 /**
- * Inbox: assigned jobs with at least one unread ops field message.
+ * Inbox: assigned open jobs with at least one unread ops field message.
  * Opening /tech/job/[id] (GET messages) clears unread for that job.
  */
 export async function GET() {
@@ -20,7 +22,10 @@ export async function GET() {
     const driverId = session.driverProfileId!;
 
     await connectDB();
-    const docs = await Booking.find({ assignedDriverId: driverId })
+    const docs = await Booking.find({
+      assignedDriverId: driverId,
+      status: { $in: [...FIELD_INBOX_STATUSES] },
+    })
       .select({
         id: 1,
         fieldMessages: 1,
@@ -31,6 +36,8 @@ export async function GET() {
         collectionSlot: 1,
         status: 1,
       })
+      .sort({ updatedAt: -1 })
+      .limit(FIELD_INBOX_LIMIT)
       .lean();
 
     const items: TechInboxItem[] = [];

@@ -20,26 +20,36 @@ export default function TechMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await fetch("/api/tech/messages", { credentials: "include" });
       if (!res.ok) {
-        setError("Could not load messages");
+        if (!opts?.silent) setError("Could not load messages");
         return;
       }
       const data = await res.json();
       setItems(Array.isArray(data.items) ? data.items : []);
+      setError(null);
     } catch {
-      setError("Could not load messages");
+      if (!opts?.silent) setError("Could not load messages");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load({ silent: true }), 15_000);
+    const onRead = () => void load({ silent: true });
+    window.addEventListener("tech-field-messages-read", onRead);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("tech-field-messages-read", onRead);
+    };
   }, [load]);
 
   return (

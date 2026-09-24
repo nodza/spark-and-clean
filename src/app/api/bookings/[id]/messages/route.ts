@@ -4,13 +4,12 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { isHttpError } from "@/lib/adminAuth";
-import {
-  canAccessFieldThread,
-  requireTechnicianSession,
-} from "@/lib/fieldMessageAuth";
+import { canAccessFieldThread } from "@/lib/fieldMessageAuth";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   MAX_FIELD_MESSAGE_LEN,
   MAX_FIELD_MESSAGES_KEPT,
+  fieldThreadReadWatermark,
   normalizeFieldMessages,
   type FieldMessage,
 } from "@/lib/fieldMessages";
@@ -25,11 +24,6 @@ async function loadOwnedBooking(id: string) {
       assignedDriverId: 1,
       fieldMessages: 1,
       fieldThreadReadAt: 1,
-      suburb: 1,
-      customer: 1,
-      collectionDate: 1,
-      collectionSlot: 1,
-      status: 1,
     })
     .lean();
   return doc;
@@ -38,6 +32,7 @@ async function loadOwnedBooking(id: string) {
 /**
  * Field thread for one job. Assigned technician or full admin only.
  * Never returned on public booking GET (stripped in toClientBooking).
+ * Tech GET marks read up to the watermark of returned messages only.
  */
 export async function GET(_request: Request, { params }: Params) {
   try {
@@ -59,22 +54,28 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     const messages = normalizeFieldMessages(doc.fieldMessages);
+    let fieldThreadReadAt =
+      typeof doc.fieldThreadReadAt === "string" ? doc.fieldThreadReadAt : null;
 
-    // Opening the thread marks ops messages read for this driver.
     if (session.role === "technician") {
-      const readAt = new Date().toISOString();
-      await Booking.updateOne(
-        { id },
-        { $set: { fieldThreadReadAt: readAt } }
-      );
-      return NextResponse.json({ messages, fieldThreadReadAt: readAt });
+      const watermark = fieldThreadReadWatermark(messages);
+      if (watermark) {
+        await Booking.updateOne(
+          {
+            id,
+            $or: [
+              { fieldThreadReadAt: { $exists: false } },
+              { fieldThreadReadAt: null },
+              { fieldThreadReadAt: { $lt: watermark } },
+            ],
+          },
+          { $set: { fieldThreadReadAt: watermark } }
+        );
+        fieldThreadReadAt = watermark;
+      }
     }
 
-    return NextResponse.json({
-      messages,
-      fieldThreadReadAt:
-        typeof doc.fieldThreadReadAt === "string" ? doc.fieldThreadReadAt : null,
-    });
+    return NextResponse.json({ messages, fieldThreadReadAt });
   } catch (err) {
     if (isHttpError(err)) {
       return NextResponse.json({ error: err.message }, { status: err.status });
@@ -85,7 +86,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
-/** Post to the field thread. Technician or full admin. */
+/** Post to the field thread. Technician or full admin. Atomic $push like notes. */
 export async function POST(request: Request, { params }: Params) {
   try {
     const session = await getSession();
@@ -104,6 +105,22 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const { id } = await params;
+
+    const rate = checkRateLimit(
+      `field-msg:${session.id}:${id}`,
+      30,
+      60 * 1000
+    );
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: "Too many messages. Try again shortly." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rate.retryAfterSeconds) },
+        }
+      );
+    }
+
     const payload = await request.json().catch(() => ({}));
     const text = typeof payload.body === "string" ? payload.body.trim() : "";
 
@@ -144,24 +161,22 @@ export async function POST(request: Request, { params }: Params) {
       createdAt: new Date().toISOString(),
     };
 
-    // Persist with $set (not only $push) so messages survive refresh even if a
-    // stale Mongoose model briefly lacked fieldMessages in the schema.
-    const current = normalizeFieldMessages(doc.fieldMessages);
-    const chronological = [...current].reverse();
-    const nextMessages = [...chronological, message].slice(
-      -MAX_FIELD_MESSAGES_KEPT
-    );
-
-    const $set: Record<string, unknown> = { fieldMessages: nextMessages };
+    const update: Record<string, unknown> = {
+      $push: {
+        fieldMessages: {
+          $each: [message],
+          $slice: -MAX_FIELD_MESSAGES_KEPT,
+        },
+      },
+    };
     if (isTech) {
-      $set.fieldThreadReadAt = message.createdAt;
+      update.$set = { fieldThreadReadAt: message.createdAt };
     }
 
-    const updated = await Booking.findOneAndUpdate(
-      { id },
-      { $set },
-      { new: true, runValidators: true }
-    )
+    const updated = await Booking.findOneAndUpdate({ id }, update, {
+      new: true,
+      runValidators: true,
+    })
       .select({ fieldMessages: 1, id: 1 })
       .lean();
 
@@ -190,35 +205,6 @@ export async function POST(request: Request, { params }: Params) {
     }
     const message =
       err instanceof Error ? err.message : "Failed to send message";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-/** Explicit mark-read (also runs on GET for technicians). */
-export async function PUT(_request: Request, { params }: Params) {
-  try {
-    const session = await requireTechnicianSession();
-    const { id } = await params;
-    const doc = await loadOwnedBooking(id);
-    if (!doc) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const assigned =
-      typeof doc.assignedDriverId === "string" ? doc.assignedDriverId : null;
-    if (assigned !== session.driverProfileId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const readAt = new Date().toISOString();
-    await Booking.updateOne({ id }, { $set: { fieldThreadReadAt: readAt } });
-    return NextResponse.json({ fieldThreadReadAt: readAt });
-  } catch (err) {
-    if (isHttpError(err)) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
-    }
-    const message =
-      err instanceof Error ? err.message : "Failed to mark messages read";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

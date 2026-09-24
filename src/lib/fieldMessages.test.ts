@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  fieldThreadReadWatermark,
   hasUnreadOpsFieldMessage,
   normalizeFieldMessages,
+  toFieldMessage,
 } from "@/lib/fieldMessages";
+
+describe("toFieldMessage", () => {
+  it("rejects unknown authorRole instead of coercing to admin", () => {
+    expect(
+      toFieldMessage({
+        id: "x",
+        authorRole: "customer",
+        authorName: "Nope",
+        body: "hi",
+        createdAt: "2026-09-02T12:00:00.000Z",
+      })
+    ).toBeNull();
+  });
+});
 
 describe("normalizeFieldMessages", () => {
   it("returns empty for non-arrays", () => {
@@ -10,7 +26,7 @@ describe("normalizeFieldMessages", () => {
     expect(normalizeFieldMessages(null)).toEqual([]);
   });
 
-  it("sorts newest first and maps roles", () => {
+  it("sorts newest first, maps roles, and drops invalid roles", () => {
     const list = normalizeFieldMessages([
       {
         id: "a",
@@ -18,6 +34,13 @@ describe("normalizeFieldMessages", () => {
         authorName: "Thabo",
         body: "No one home",
         createdAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        id: "bad",
+        authorRole: "ghost",
+        authorName: "X",
+        body: "skip",
+        createdAt: "2026-09-03T10:00:00.000Z",
       },
       {
         id: "b",
@@ -77,5 +100,33 @@ describe("hasUnreadOpsFieldMessage", () => {
       },
     ]);
     expect(hasUnreadOpsFieldMessage(techOnly, null)).toBe(false);
+  });
+});
+
+describe("fieldThreadReadWatermark", () => {
+  it("returns null for an empty thread", () => {
+    expect(fieldThreadReadWatermark([])).toBeNull();
+  });
+
+  it("uses the newest createdAt among returned messages", () => {
+    const messages = normalizeFieldMessages([
+      {
+        id: "old",
+        authorRole: "admin",
+        authorName: "Ops",
+        body: "earlier",
+        createdAt: "2026-09-02T10:00:00.000Z",
+      },
+      {
+        id: "new",
+        authorRole: "technician",
+        authorName: "Thabo",
+        body: "later",
+        createdAt: "2026-09-02T12:00:00.000Z",
+      },
+    ]);
+    expect(fieldThreadReadWatermark(messages)).toBe(
+      "2026-09-02T12:00:00.000Z"
+    );
   });
 });
