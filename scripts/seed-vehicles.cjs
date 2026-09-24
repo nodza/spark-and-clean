@@ -24,11 +24,20 @@ function loadMongoUri() {
   throw new Error("MONGODB_URI not found in .env.local or .env");
 }
 
+function plateUniqueKey(plate) {
+  return String(plate || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase()
+    .replace(/[\s-]/g, "");
+}
+
 const VehicleSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true },
     label: { type: String, required: true, trim: true },
-    plate: { type: String, required: true, trim: true, unique: true },
+    plate: { type: String, required: true, trim: true },
+    plateKey: { type: String, required: true, unique: true },
     assignedDriverId: { type: String, default: null, trim: true },
   },
   { collection: "vehicles", timestamps: { createdAt: true, updatedAt: true } }
@@ -61,19 +70,34 @@ async function seed() {
 
   let upserted = 0;
   for (const vehicle of vehicles) {
+    const plate = String(vehicle.plate || "").trim();
     await Vehicle.updateOne(
       { id: vehicle.id },
       {
         $set: {
           id: vehicle.id,
           label: vehicle.label,
-          plate: vehicle.plate,
+          plate,
+          plateKey: plateUniqueKey(plate),
           assignedDriverId: vehicle.assignedDriverId || null,
         },
       },
       { upsert: true }
     );
     upserted += 1;
+  }
+
+  // Backfill plateKey on any older rows missing it
+  const missingKey = await Vehicle.find({
+    $or: [{ plateKey: { $exists: false } }, { plateKey: null }, { plateKey: "" }],
+  }).lean();
+  for (const row of missingKey) {
+    const key = plateUniqueKey(row.plate);
+    if (!key) continue;
+    await Vehicle.updateOne({ id: row.id }, { $set: { plateKey: key } });
+  }
+  if (missingKey.length) {
+    console.log(`[seed] Backfilled plateKey on ${missingKey.length} vehicle(s)`);
   }
 
   const unset = await mongoose.connection.collection("drivers").updateMany(

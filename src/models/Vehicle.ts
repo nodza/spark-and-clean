@@ -9,7 +9,13 @@ const VehicleSchema = new Schema(
     id: { type: String, required: true, unique: true, index: true },
     /** Make / model, e.g. Nissan NP200 */
     label: { type: String, required: true, trim: true },
-    plate: { type: String, required: true, trim: true, unique: true },
+    /** Display plate, e.g. CA 123-456 */
+    plate: { type: String, required: true, trim: true },
+    /**
+     * Normalized uniqueness key (spaces/hyphens stripped, uppercased).
+     * "CA 123-456", "CA-123-456", and "ca123456" share one key.
+     */
+    plateKey: { type: String, required: true, unique: true, index: true },
     /** At most one vehicle per driver — sparse unique. Null = unassigned. */
     assignedDriverId: {
       type: String,
@@ -39,6 +45,10 @@ export type VehicleDocument = InferSchemaType<typeof VehicleSchema> & {
   updatedAt: Date;
 };
 
+// Hot reload can keep a stale schema without plateKey — strip + re-register.
+if (models.Vehicle) {
+  delete models.Vehicle;
+}
+
 export const Vehicle: Model<VehicleDocument> =
-  (models.Vehicle as Model<VehicleDocument>) ||
   model<VehicleDocument>("Vehicle", VehicleSchema);

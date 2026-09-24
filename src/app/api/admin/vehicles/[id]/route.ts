@@ -4,6 +4,7 @@ import { Vehicle } from "@/models/Vehicle";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import {
   mongoDuplicateField,
+  plateUniqueKey,
   sanitizeVehiclePatch,
   toClientVehicle,
   vehicleConflictMessage,
@@ -54,9 +55,12 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if (parsed.label || parsed.plate) {
-      const $set: { label?: string; plate?: string } = {};
+      const $set: { label?: string; plate?: string; plateKey?: string } = {};
       if (parsed.label) $set.label = parsed.label;
-      if (parsed.plate) $set.plate = parsed.plate;
+      if (parsed.plate) {
+        $set.plate = parsed.plate;
+        $set.plateKey = plateUniqueKey(parsed.plate);
+      }
       const updated = await Vehicle.findOneAndUpdate(
         { id },
         { $set },

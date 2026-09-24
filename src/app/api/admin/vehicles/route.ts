@@ -5,6 +5,7 @@ import { Vehicle } from "@/models/Vehicle";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import {
   mongoDuplicateField,
+  plateUniqueKey,
   sanitizeVehicleCreate,
   toClientVehicle,
   vehicleConflictMessage,
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
       id: `vehicle_${randomBytes(4).toString("hex")}`,
       label: parsed.label,
       plate: parsed.plate,
+      plateKey: plateUniqueKey(parsed.plate),
       assignedDriverId: null,
     });
 

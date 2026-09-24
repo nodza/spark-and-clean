@@ -143,8 +143,8 @@ describe("plate uniqueness", () => {
       vehicleConflictMessage(
         mongoDuplicateField({
           code: 11000,
-          keyPattern: { plate: 1 },
-          keyValue: { plate: "CA 123-456" },
+          keyPattern: { plateKey: 1 },
+          keyValue: { plateKey: "CA123456" },
         })
       )
     ).toEqual({

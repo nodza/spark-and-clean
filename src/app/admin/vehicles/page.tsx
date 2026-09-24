@@ -192,6 +192,7 @@ export default function AdminVehiclesPage() {
 
   const assignmentSelect = (vehicle: VehicleRow) => {
     const selectValue = vehicle.assignedDriverId || UNASSIGNED;
+    const assigned = Boolean(vehicle.assignedDriverId);
     const missingAssigned =
       vehicle.assignedDriverId &&
       !drivers.some((d) => d.id === vehicle.assignedDriverId);
@@ -204,11 +205,22 @@ export default function AdminVehiclesPage() {
           void handleAssign(vehicle.id, val === UNASSIGNED ? null : val)
         }
       >
-        <SelectTrigger className="w-full max-w-[260px]">
+        <SelectTrigger
+          className={
+            assigned
+              ? "h-9 w-full min-w-0 max-w-[260px] border-[#bfe9dc] bg-[#eafaf5] text-[#000b49] shadow-none hover:bg-[#e2f6ef] focus-visible:border-[#0a7a63] focus-visible:ring-[#0a7a63]/25"
+              : "h-9 w-full min-w-0 max-w-[260px] border-[#e8ebf0] bg-[#fafbfc] text-[#9aa0a6] shadow-none focus-visible:border-[#c5cad3] focus-visible:ring-[#9aa0a6]/20"
+          }
+        >
           <SelectValue placeholder="Unassigned" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+          <SelectItem
+            value={UNASSIGNED}
+            className={assigned ? undefined : "text-[#9aa0a6]"}
+          >
+            {assigned ? "Unassign" : "Unassigned"}
+          </SelectItem>
           {missingAssigned ? (
             <SelectItem value={vehicle.assignedDriverId!} disabled>
               {vehicle.assignedDriverName || "Assigned driver"} — inactive
@@ -224,41 +236,37 @@ export default function AdminVehiclesPage() {
     );
   };
 
-  const rowActions = (vehicle: VehicleRow) => (
-    <div className="flex flex-wrap items-center gap-2">
-      {vehicle.assignedDriverId ? (
+  const rowActions = (vehicle: VehicleRow) => {
+    const disabled = busyId === vehicle.id;
+    return (
+      <div className="flex items-center justify-end gap-1.5">
         <Button
           type="button"
-          variant="secondary"
-          size="sm"
-          disabled={busyId === vehicle.id}
-          onClick={() => void handleAssign(vehicle.id, null)}
+          variant="outline"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`Edit ${vehicle.label}`}
+          title="Edit vehicle"
+          className="rounded-[8px] border-[#e3e7ed] text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
+          onClick={() => openEdit(vehicle)}
         >
-          Unassign
+          <Pencil size={15} strokeWidth={2} aria-hidden="true" />
         </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={busyId === vehicle.id}
-        onClick={() => openEdit(vehicle)}
-      >
-        <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-        Edit
-      </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={busyId === vehicle.id}
-        onClick={() => setDeleting(vehicle)}
-      >
-        <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-        Delete
-      </Button>
-    </div>
-  );
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`Delete ${vehicle.label}`}
+          title="Delete vehicle"
+          className="rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white"
+          onClick={() => setDeleting(vehicle)}
+        >
+          <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
+        </Button>
+      </div>
+    );
+  };
 
   if (ready && user && !isFullAdmin) {
     return (
@@ -307,41 +315,53 @@ export default function AdminVehiclesPage() {
         ) : null}
 
         <div className="ds-card overflow-hidden p-0">
-          <div className="hidden min-w-[720px] lg:block">
-            <div
-              className="grid px-[22px] py-[14px]"
-              style={{
-                gridTemplateColumns: "1.2fr 0.8fr 1.2fr minmax(240px, 1.4fr)",
-                background: "#f7f9fb",
-                borderBottom: "1px solid #f0f2f6",
-              }}
-            >
-              {["Vehicle", "Plate", "Assigned driver", ""].map((h) => (
-                <div key={h || "actions"} className="text-th">
-                  {h}
+          <div className="hidden overflow-x-auto lg:block">
+            <div className="min-w-[720px]">
+              <div
+                className="grid items-center px-[22px] py-[14px]"
+                style={{
+                  gridTemplateColumns:
+                    "minmax(140px, 1.3fr) minmax(100px, 0.85fr) minmax(220px, 1.5fr) 88px",
+                  background: "#f7f9fb",
+                  borderBottom: "1px solid #f0f2f6",
+                  columnGap: 16,
+                }}
+              >
+                <div className="text-th">Vehicle</div>
+                <div className="text-th">Plate</div>
+                <div className="text-th">Assigned driver</div>
+                <div className="text-th text-right">Actions</div>
+              </div>
+              {vehicles.map((vehicle) => (
+                <div
+                  key={vehicle.id}
+                  className="grid items-center px-[22px] py-[12px] transition-colors hover:bg-[#fafbfc]"
+                  style={{
+                    gridTemplateColumns:
+                      "minmax(140px, 1.3fr) minmax(100px, 0.85fr) minmax(220px, 1.5fr) 88px",
+                    borderBottom: "1px solid #f0f2f6",
+                    columnGap: 16,
+                  }}
+                >
+                  <div
+                    className="min-w-0 truncate text-body font-bold"
+                    style={{ color: "#000b49" }}
+                    title={vehicle.label}
+                  >
+                    {vehicle.label}
+                  </div>
+                  <div
+                    className="min-w-0 truncate text-body tabular"
+                    style={{ color: "#32373c" }}
+                    title={vehicle.plate}
+                  >
+                    {vehicle.plate}
+                  </div>
+                  {assignmentSelect(vehicle)}
+                  {rowActions(vehicle)}
                 </div>
               ))}
             </div>
-            {vehicles.map((vehicle) => (
-              <div
-                key={vehicle.id}
-                className="grid items-center px-[22px] py-[14px]"
-                style={{
-                  gridTemplateColumns: "1.2fr 0.8fr 1.2fr minmax(240px, 1.4fr)",
-                  borderBottom: "1px solid #f0f2f6",
-                  columnGap: 12,
-                }}
-              >
-                <div className="text-body font-bold" style={{ color: "#000b49" }}>
-                  {vehicle.label}
-                </div>
-                <div className="text-body tabular" style={{ color: "#32373c" }}>
-                  {vehicle.plate}
-                </div>
-                {assignmentSelect(vehicle)}
-                {rowActions(vehicle)}
-              </div>
-            ))}
           </div>
 
           <div className="space-y-0 lg:hidden">
@@ -350,17 +370,27 @@ export default function AdminVehiclesPage() {
                 key={vehicle.id}
                 className="border-b border-[#f0f2f6] px-[16px] py-[14px]"
               >
-                <div className="text-[15px] font-bold" style={{ color: "#000b49" }}>
-                  {vehicle.label}
-                </div>
-                <div className="text-meta mt-[4px]" style={{ color: "#9aa0a6" }}>
-                  {vehicle.plate}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div
+                      className="truncate text-[15px] font-bold"
+                      style={{ color: "#000b49" }}
+                    >
+                      {vehicle.label}
+                    </div>
+                    <div
+                      className="text-meta mt-[4px] tabular"
+                      style={{ color: "#9aa0a6" }}
+                    >
+                      {vehicle.plate}
+                    </div>
+                  </div>
+                  {rowActions(vehicle)}
                 </div>
                 <div className="mt-[12px]">
                   <Label className="sr-only">Assigned driver</Label>
                   {assignmentSelect(vehicle)}
                 </div>
-                <div className="mt-[10px]">{rowActions(vehicle)}</div>
               </div>
             ))}
           </div>

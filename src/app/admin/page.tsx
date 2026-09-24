@@ -62,6 +62,9 @@ export default function AdminDashboard() {
   const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driversStatus, setDriversStatus] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
   const knownAlertIdsRef = useRef<Set<string> | null>(null);
 
   const loadAlerts = useCallback(async (opts?: { silent?: boolean }) => {
@@ -108,11 +111,30 @@ export default function AdminDashboard() {
     void fetchBookings();
     void loadAlerts();
     void fetch("/api/drivers", { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setDrivers(data);
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          setDrivers([]);
+          setDriversStatus("unavailable");
+          return;
+        }
+        if (!r.ok) {
+          setDrivers([]);
+          setDriversStatus("unavailable");
+          return;
+        }
+        const data = await r.json().catch(() => null);
+        if (Array.isArray(data)) {
+          setDrivers(data);
+          setDriversStatus("ready");
+          return;
+        }
+        setDrivers([]);
+        setDriversStatus("unavailable");
       })
-      .catch(() => setDrivers([]));
+      .catch(() => {
+        setDrivers([]);
+        setDriversStatus("unavailable");
+      });
   }, [fetchBookings, loadAlerts]);
 
   useEffect(() => {
@@ -152,8 +174,9 @@ export default function AdminDashboard() {
 
   const driverLine = (booking: Booking) => {
     if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
+    if (driversStatus === "unavailable") return "Driver details unavailable";
     const driver = drivers.find((d) => d.id === booking.assignedDriverId);
-    if (!driver) return "Assigned";
+    if (!driver) return "Assigned driver";
     return formatAssignedDriverLine(driver.name, driver.vehicle);
   };
 

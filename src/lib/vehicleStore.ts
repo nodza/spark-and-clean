@@ -25,12 +25,25 @@ export async function vehiclesByDriverId(
 export async function assertPlateAvailable(plate: string, excludeId?: string) {
   const key = plateUniqueKey(plate);
   if (!key) return;
-  const rows = await Vehicle.find().select("id plate").lean();
-  const taken = rows.some(
-    (row) =>
-      row.id !== excludeId && plateUniqueKey(String(row.plate ?? "")) === key
-  );
-  if (taken) {
+
+  const keyed = await Vehicle.findOne({
+    plateKey: key,
+    ...(excludeId ? { id: { $ne: excludeId } } : {}),
+  })
+    .select("id")
+    .lean();
+  if (keyed) {
+    throw new HttpError(409, "A vehicle with this plate already exists");
+  }
+
+  // Legacy rows before plateKey backfill (seed:vehicles fills these).
+  const legacy = await Vehicle.find({
+    $or: [{ plateKey: { $exists: false } }, { plateKey: null }, { plateKey: "" }],
+    ...(excludeId ? { id: { $ne: excludeId } } : {}),
+  })
+    .select("id plate")
+    .lean();
+  if (legacy.some((row) => plateUniqueKey(String(row.plate ?? "")) === key)) {
     throw new HttpError(409, "A vehicle with this plate already exists");
   }
 }

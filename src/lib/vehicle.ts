@@ -228,7 +228,7 @@ export function mongoDuplicateField(err: unknown): string | null {
     return Object.keys(rec.keyValue)[0] ?? "unknown";
   }
   const message = String(rec.message || "").toLowerCase();
-  if (message.includes("plate")) return "plate";
+  if (message.includes("platekey") || message.includes("plate")) return "plate";
   if (message.includes("assigneddriverid")) return "assignedDriverId";
   return "unknown";
 }
@@ -238,7 +238,7 @@ export function vehicleConflictMessage(field: string | null): {
   error: string;
 } | null {
   if (!field) return null;
-  if (field === "plate") {
+  if (field === "plate" || field === "plateKey") {
     return { status: 409, error: "A vehicle with this plate already exists" };
   }
   if (field === "assignedDriverId") {
