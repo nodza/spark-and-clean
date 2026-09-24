@@ -28,6 +28,7 @@ import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
+import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 
 type LoadState =
   | { kind: "idle" }
@@ -368,6 +369,21 @@ function JobContent({
             ))}
           </ul>
         ) : null}
+      </div>
+
+      <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
+        FIELD MESSAGES
+      </p>
+      <div className="rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
+        <p className="mb-3 text-xs text-[#9aa0a6]">
+          Tell dispatch what happened at the door. Ops replies show here.
+        </p>
+        <FieldMessagesPanel
+          bookingId={booking.id}
+          variant="tech"
+          placeholder="No one home, gate on the left…"
+          emptyLabel="No messages yet."
+        />
       </div>
 
       <div className="mt-[22px]">

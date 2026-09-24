@@ -4,6 +4,7 @@ import {
   PAYMENT_STATUSES,
 } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
+import { MAX_FIELD_MESSAGE_LEN } from "@/lib/fieldMessages";
 
 const CustomerSchema = new Schema(
   {
@@ -40,6 +41,30 @@ const InternalNoteSchema = new Schema(
     id: { type: String, required: true },
     body: { type: String, required: true, trim: true, maxlength: MAX_NOTE_LEN },
     author: { type: String, required: true, trim: true },
+    createdAt: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+/**
+ * Field channel (tech ↔ ops). Separate from ops-only `notes` so Internal notes
+ * stay hidden from the van without a visibleToDriver flag on every note.
+ */
+const FieldMessageSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    authorRole: {
+      type: String,
+      enum: ["admin", "technician"],
+      required: true,
+    },
+    authorName: { type: String, required: true, trim: true },
+    body: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: MAX_FIELD_MESSAGE_LEN,
+    },
     createdAt: { type: String, required: true },
   },
   { _id: false }
@@ -97,6 +122,10 @@ const BookingSchema = new Schema(
     assignedDriverId: { type: String, trim: true, index: true, sparse: true },
     /** Ops-only internal notes — never exposed on public booking APIs */
     notes: { type: [InternalNoteSchema], default: [] },
+    /** Tech ↔ ops field thread — never on customer/public booking payloads */
+    fieldMessages: { type: [FieldMessageSchema], default: [] },
+    /** When the assigned driver last opened the field thread (inbox unread). */
+    fieldThreadReadAt: { type: String, default: null },
     createdAt: { type: String, required: true },
   },
   {
@@ -111,10 +140,12 @@ export type BookingDocument = InferSchemaType<typeof BookingSchema> & {
   _id: Schema.Types.ObjectId;
 };
 
-export const Booking: Model<BookingDocument> =
-  (
-    models.Booking as Model<BookingDocument>
-  ) ||
-  model<BookingDocument>(
-    "Booking", BookingSchema
-  );
+// Hot reload can keep a stale schema without fieldMessages — strip + re-register.
+if (models.Booking) {
+  delete models.Booking;
+}
+
+export const Booking: Model<BookingDocument> = model<BookingDocument>(
+  "Booking",
+  BookingSchema
+);

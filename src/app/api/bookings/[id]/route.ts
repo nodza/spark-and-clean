@@ -171,6 +171,9 @@ export async function PATCH(request: Request, { params }: Params) {
         $set.assignedDriverId = nextDriver;
       }
 
+      // New assignee should see prior ops field notes as unread.
+      $set.fieldThreadReadAt = null;
+
       if (!wantsStatus) {
         const nextStatus = statusAfterDriverAssign(
           existing.status as BookingStatus,
