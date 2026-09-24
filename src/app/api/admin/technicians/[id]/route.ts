@@ -6,6 +6,7 @@ import { Driver } from "@/models/Driver";
 import { toClientDriver } from "@/lib/serialize";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import { toTechnicianRow } from "@/lib/technicianRow";
+import { overlayDriverVehicle, vehiclesByDriverId } from "@/lib/vehicleStore";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,15 +31,25 @@ export async function GET(_request: Request, { params }: Params) {
     const driver = profileId
       ? await Driver.findOne({ id: profileId }).lean()
       : null;
+    const current = profileId
+      ? (await vehiclesByDriverId([profileId])).get(profileId)
+      : undefined;
+    const driverRow = driver
+      ? overlayDriverVehicle(
+          toClientDriver(driver as Record<string, unknown>) as Record<
+            string,
+            unknown
+          >,
+          current
+        )
+      : null;
 
     return NextResponse.json({
       technician: toTechnicianRow(
         user as Record<string, unknown>,
-        driver as Record<string, unknown> | null
+        driverRow
       ),
-      driver: driver
-        ? toClientDriver(driver as Record<string, unknown>)
-        : null,
+      driver: driverRow,
     });
   } catch (err) {
     if (isHttpError(err)) {

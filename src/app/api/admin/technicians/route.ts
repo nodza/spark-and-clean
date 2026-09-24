@@ -11,6 +11,7 @@ import {
 } from "@/lib/createTechnician";
 import { generateTemporaryPassword } from "@/lib/temporaryPassword";
 import { toTechnicianRow } from "@/lib/technicianRow";
+import { overlayDriverVehicle, vehiclesByDriverId } from "@/lib/vehicleStore";
 
 function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
@@ -40,14 +41,18 @@ export async function GET() {
     const driverById = new Map(
       drivers.map((d) => [d.id as string, d as Record<string, unknown>])
     );
+    const currentVehicles = await vehiclesByDriverId(driverIds);
 
     return NextResponse.json({
       technicians: techs.map((t) => {
         const profileId =
           typeof t.driverProfileId === "string" ? t.driverProfileId : "";
+        const driver = profileId ? driverById.get(profileId) ?? null : null;
         return toTechnicianRow(
           t as Record<string, unknown>,
-          profileId ? driverById.get(profileId) ?? null : null
+          driver
+            ? overlayDriverVehicle(driver, currentVehicles.get(profileId))
+            : null
         );
       }),
     });
@@ -84,21 +89,15 @@ export async function POST(request: Request) {
       : String(body.password);
     const passwordHash = await bcrypt.hash(plaintext, 10);
 
-    let driverProfileId: string | undefined;
-    const vehicle = body.vehicle?.trim();
-    let createdDriver: Record<string, unknown> | null = null;
-    if (vehicle) {
-      driverProfileId = `driver_${randomBytes(4).toString("hex")}`;
-      const driver = await Driver.create({
-        id: driverProfileId,
-        name: body.name,
-        vehicle,
-        phone: body.phone,
-        email: body.email,
-        isActive: true,
-      });
-      createdDriver = driver.toObject() as Record<string, unknown>;
-    }
+    const driverProfileId = `driver_${randomBytes(4).toString("hex")}`;
+    const driver = await Driver.create({
+      id: driverProfileId,
+      name: body.name,
+      phone: body.phone,
+      email: body.email,
+      isActive: true,
+    });
+    const createdDriver = driver.toObject() as Record<string, unknown>;
 
     const user = await User.create({
       email: body.email,

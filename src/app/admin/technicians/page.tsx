@@ -151,7 +151,6 @@ export default function AdminTechniciansPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [vehicle, setVehicle] = useState("");
   const [passwordMode, setPasswordMode] = useState<"generate" | "manual">(
     "generate"
   );
@@ -212,7 +211,6 @@ export default function AdminTechniciansPage() {
     setName("");
     setPhone("");
     setEmail("");
-    setVehicle("");
     setPassword("");
     setPasswordMode("generate");
     setFormError(null);
@@ -239,7 +237,6 @@ export default function AdminTechniciansPage() {
           name: name.trim().replace(/\s+/g, " "),
           phone: phone.trim(),
           email: email.trim(),
-          vehicle: vehicle.trim() || undefined,
           generatePassword: passwordMode === "generate",
           password: passwordMode === "manual" ? password : undefined,
         }),
@@ -520,15 +517,9 @@ export default function AdminTechniciansPage() {
                 />
                 <FieldError id="tech-email-error" message={emailError} />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tech-vehicle">Vehicle (optional)</Label>
-                <Input
-                  id="tech-vehicle"
-                  placeholder="e.g. Nissan NP200 (CA 123-456)"
-                  value={vehicle}
-                  onChange={(e) => setVehicle(e.target.value)}
-                />
-              </div>
+              <p className="text-[12px] text-[#9aa0a6]">
+                Assign a bakkie on Vehicles after you create the login.
+              </p>
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Password</legend>
                 <label className="flex items-center gap-2 text-sm">

@@ -4,6 +4,7 @@ import { Driver } from "@/models/Driver";
 import { User } from "@/models/User";
 import { toClientDriver } from "@/lib/serialize";
 import { accountIsDisabled, isHttpError, requireFullAdmin } from "@/lib/adminAuth";
+import { overlayDriverVehicle, vehiclesByDriverId } from "@/lib/vehicleStore";
 
 /** Treat missing isActive as active (legacy rows). */
 const ACTIVE = { $or: [{ isActive: true }, { isActive: { $exists: false } }] };
@@ -28,9 +29,19 @@ export async function GET() {
         .filter((id): id is string => typeof id === "string" && id.length > 0)
     );
 
+    const currentVehicles = await vehiclesByDriverId([
+      ...docs.map((d) => String(d.id)),
+      ...techs
+        .map((tech) => tech.driverProfileId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ]);
+
     const byId = new Map<string, DriverOption>();
     for (const doc of docs) {
-      const row = toClientDriver(doc as Record<string, unknown>) as DriverOption;
+      const row = overlayDriverVehicle(
+        toClientDriver(doc as Record<string, unknown>) as Record<string, unknown>,
+        currentVehicles.get(String(doc.id))
+      ) as DriverOption;
       if (!row.id || disabledProfileIds.has(row.id)) continue;
       byId.set(row.id, row);
     }
@@ -49,12 +60,13 @@ export async function GET() {
           ? tech.phone.trim()
           : undefined;
       if (!existing) {
-        byId.set(profileId, {
-          id: profileId,
-          name,
-          phone: techPhone,
-          vehicle: undefined,
-        });
+        byId.set(
+          profileId,
+          overlayDriverVehicle(
+            { id: profileId, name, phone: techPhone },
+            currentVehicles.get(profileId)
+          ) as DriverOption
+        );
       } else {
         if (!existing.name) existing.name = name;
         // Match technician profile UI: Driver.phone, else User.phone

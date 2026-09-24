@@ -5,6 +5,7 @@ import { User } from "@/models/User";
 import { toClientDriver } from "@/lib/serialize";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
 import { sanitizeDriverPatch, technicianLoginFields } from "@/lib/driverProfile";
+import { overlayDriverVehicle, vehiclesByDriverId } from "@/lib/vehicleStore";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,11 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
-    const row = toClientDriver(driver as Record<string, unknown>) as {
+    const current = (await vehiclesByDriverId([id])).get(id);
+    const row = overlayDriverVehicle(
+      toClientDriver(driver as Record<string, unknown>) as Record<string, unknown>,
+      current
+    ) as {
       id?: string;
       phone?: string;
       [key: string]: unknown;
@@ -80,7 +85,13 @@ export async function PATCH(request: Request, { params }: Params) {
       );
     }
 
-    return NextResponse.json(toClientDriver(driver as Record<string, unknown>));
+    const current = (await vehiclesByDriverId([id])).get(id);
+    return NextResponse.json(
+      overlayDriverVehicle(
+        toClientDriver(driver as Record<string, unknown>) as Record<string, unknown>,
+        current
+      )
+    );
   } catch (err) {
     return jsonError(err, "Failed to update driver");
   }
