@@ -34,7 +34,6 @@ export const createTechnicianBodySchema = z
       .transform((e) => e.toLowerCase()),
     password: z.string().min(MIN_TECH_PASSWORD_LENGTH).optional(),
     generatePassword: z.boolean().optional(),
-    vehicle: z.string().trim().optional(),
   })
   .superRefine((val, ctx) => {
     const hasPassword = Boolean(val.password);

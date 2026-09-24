@@ -5,7 +5,10 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { MessageSquare } from "lucide-react";
 import { TechAppShell } from "@/components/layout/TechAppShell";
-import type { TechInboxItem } from "@/lib/fieldMessages";
+import {
+  FIELD_INBOX_POLL_MS,
+  type TechInboxItem,
+} from "@/lib/fieldMessages";
 
 function formatInboxWhen(iso: string) {
   try {
@@ -43,7 +46,10 @@ export default function TechMessagesPage() {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load({ silent: true }), 15_000);
+    const timer = window.setInterval(
+      () => void load({ silent: true }),
+      FIELD_INBOX_POLL_MS
+    );
     const onRead = () => void load({ silent: true });
     window.addEventListener("tech-field-messages-read", onRead);
     return () => {

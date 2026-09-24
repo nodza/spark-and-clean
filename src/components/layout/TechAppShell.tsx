@@ -14,6 +14,7 @@ import {
 import { TechLayout, type TechTab } from "@/components/layout/TechLayout";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
+import { FIELD_INBOX_POLL_MS } from "@/lib/fieldMessages";
 import { cn } from "@/lib/utils";
 
 export type TechAppTab = "today" | "completed" | "messages" | "profile";
@@ -84,7 +85,10 @@ export function TechAppShell({
   useEffect(() => {
     if (!ready || !user) return;
     void refreshUnread();
-    const timer = window.setInterval(() => void refreshUnread(), 15_000);
+    const timer = window.setInterval(
+      () => void refreshUnread(),
+      FIELD_INBOX_POLL_MS
+    );
     const onRead = () => void refreshUnread();
     window.addEventListener("tech-field-messages-read", onRead);
     return () => {

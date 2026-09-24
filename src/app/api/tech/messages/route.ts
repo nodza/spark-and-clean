@@ -13,7 +13,8 @@ import {
 } from "@/lib/fieldMessages";
 
 /**
- * Inbox: assigned open jobs with at least one unread ops field message.
+ * Assigned open jobs that still have unread ops field messages.
+ * Uses $expr so we don't miss unread threads outside a "newest N jobs" window.
  * Opening /tech/job/[id] (GET messages) clears unread for that job.
  */
 export async function GET() {
@@ -25,6 +26,36 @@ export async function GET() {
     const docs = await Booking.find({
       assignedDriverId: driverId,
       status: { $in: [...FIELD_INBOX_STATUSES] },
+      "fieldMessages.authorRole": "admin",
+      $expr: {
+        $gt: [
+          {
+            $size: {
+              $filter: {
+                input: { $ifNull: ["$fieldMessages", []] },
+                as: "m",
+                cond: {
+                  $and: [
+                    { $eq: ["$$m.authorRole", "admin"] },
+                    {
+                      $or: [
+                        {
+                          $eq: [
+                            { $ifNull: ["$fieldThreadReadAt", null] },
+                            null,
+                          ],
+                        },
+                        { $gt: ["$$m.createdAt", "$fieldThreadReadAt"] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
     })
       .select({
         id: 1,
@@ -36,7 +67,6 @@ export async function GET() {
         collectionSlot: 1,
         status: 1,
       })
-      .sort({ updatedAt: -1 })
       .limit(FIELD_INBOX_LIMIT)
       .lean();
 
@@ -47,6 +77,7 @@ export async function GET() {
         typeof doc.fieldThreadReadAt === "string"
           ? doc.fieldThreadReadAt
           : null;
+      // Defense in depth — $expr already filtered, but keep helper as source of truth
       if (!hasUnreadOpsFieldMessage(messages, readAt)) continue;
 
       const latest = latestOpsFieldMessage(messages);

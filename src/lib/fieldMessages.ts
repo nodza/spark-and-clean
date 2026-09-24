@@ -22,6 +22,8 @@ export const FIELD_INBOX_STATUSES = [
 ] as const;
 
 export const FIELD_INBOX_LIMIT = 100;
+/** Badge + inbox list refresh interval (van). */
+export const FIELD_INBOX_POLL_MS = 15_000;
 
 export type FieldMessageAuthorRole = "admin" | "technician";
 

@@ -169,9 +169,9 @@ export async function POST(request: Request, { params }: Params) {
         },
       },
     };
-    if (isTech) {
-      update.$set = { fieldThreadReadAt: message.createdAt };
-    }
+    // Do not bump fieldThreadReadAt on tech POST — a concurrent ops message
+    // arriving after the last GET would be marked read without being seen.
+    // GET (open/poll) sets the watermark from messages actually returned.
 
     const updated = await Booking.findOneAndUpdate({ id }, update, {
       new: true,

@@ -83,7 +83,7 @@ export interface AppUser {
     punches: number;
     rewardsRedeemed: number;
   };
-  /** Technician link to Driver profile (`drivers.id`) + optional vehicle on that profile */
+  /** Technician link to Driver profile (`drivers.id`); current bakkie is Vehicle.assignedDriverId */
   driverProfileId?: string;
   lastLoginAt?: string;
   createdAt: string;

@@ -97,7 +97,7 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     key: "vehicles",
     label: "Vehicles",
     href: "/admin/vehicles",
-    shipped: false,
+    shipped: true,
     fullAdminOnly: true,
     icon: Truck,
     match: (p) => p.startsWith("/admin/vehicles"),
