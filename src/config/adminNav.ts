@@ -18,7 +18,7 @@ import {
 export type AdminNavKey =
   | "overview"
   | "bookings"
-  | "today"
+  | "assignments"
   | "technicians"
   | "clients"
   | "pricing"
@@ -58,10 +58,10 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     match: (p) => p.startsWith("/admin/bookings"),
   },
   {
-    key: "today",
-    label: "Today",
+    key: "assignments",
+    label: "Assignments",
     href: "/admin/assignments",
-    shipped: false,
+    shipped: true,
     fullAdminOnly: true,
     icon: MapPinned,
     match: (p) => p.startsWith("/admin/assignments"),
@@ -116,7 +116,7 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
 export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin": "Overview",
   "/admin/bookings": "Bookings",
-  "/admin/assignments": "Today",
+  "/admin/assignments": "Assignments",
   "/admin/technicians": "Technicians",
   "/admin/clients": "Clients",
   "/admin/pricing": "Pricing & coupons",

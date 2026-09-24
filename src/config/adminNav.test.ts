@@ -20,6 +20,7 @@ describe("visibleAdminNavItems", () => {
     ).toEqual([
       "overview",
       "bookings",
+      "assignments",
       "technicians",
       "clients",
       "pricing",

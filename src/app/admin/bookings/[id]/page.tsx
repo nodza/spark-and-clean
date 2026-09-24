@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
+import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
@@ -175,6 +176,10 @@ export default function AdminBookingDetail() {
     assignDriver,
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
+
+  // Live status from tech Mark Collected / other ops — no hard refresh needed
+  useBookingLiveTracking(id, Boolean(id));
+
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [inactiveAssigned, setInactiveAssigned] = useState<DriverOption | null>(
     null

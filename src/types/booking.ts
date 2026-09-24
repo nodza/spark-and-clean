@@ -62,6 +62,7 @@ export interface Booking {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 
@@ -74,5 +75,4 @@ export interface Driver {
   vehicle?: string;
   isActive: boolean;
   city?: string;
-  notes?: string;
 }

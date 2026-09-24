@@ -472,9 +472,8 @@ export default function AdminDashboard() {
                         Collections need a driver
                       </div>
                     </div>
-                    {/* F4.4 board not shipped — agreed unassigned-today list */}
                     <Link
-                      href="/admin/bookings?date=today&assigned=0"
+                      href="/admin/assignments"
                       className="ds-text-action flex-none self-center"
                     >
                       Assign

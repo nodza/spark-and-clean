@@ -75,7 +75,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         err && typeof err === "object" && "status" in err
           ? Number((err as { status: number }).status)
           : 0;
-      set({ error: status === 403 ? "FORBIDDEN" : "Failed to fetch booking" });
+      if (status === 403 || status === 401) {
+        set((state) => ({
+          bookings: state.bookings.filter((b) => b.id !== id),
+          error: status === 403 ? "FORBIDDEN" : "UNAUTHORIZED",
+        }));
+      } else {
+        set({ error: "Failed to fetch booking" });
+      }
       throw err;
     }
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_DRIVER_NOTE_LEN, sanitizeDriverPatch, technicianLoginFields } from "@/lib/driverProfile";
+import { sanitizeDriverPatch, technicianLoginFields } from "@/lib/driverProfile";
 
 describe("sanitizeDriverPatch", () => {
   it("rejects a non-object body and an empty patch", () => {
@@ -15,14 +15,8 @@ describe("sanitizeDriverPatch", () => {
     });
   });
 
-  it("trims notes and enforces the max length", () => {
-    expect(sanitizeDriverPatch({ notes: "  keep  " })).toEqual({
-      ok: true,
-      updates: { notes: "keep" },
-    });
-    expect(
-      sanitizeDriverPatch({ notes: "x".repeat(MAX_DRIVER_NOTE_LEN + 1) }).ok
-    ).toBe(false);
+  it("rejects notes on PATCH (notes use dedicated API)", () => {
+    expect(sanitizeDriverPatch({ notes: "keep" }).ok).toBe(false);
   });
 
   it("ignores vehicle on the driver patch (assignment lives on Vehicle)", () => {

@@ -8,7 +8,7 @@ import { MustChangePasswordGate } from "@/components/auth/MustChangePasswordGate
  * /tech and /tech/login stay public; app routes require a technician session.
  * Temporary-password accounts are gated to /tech/change-password.
  */
-export default async function TechLayout({
+export default async function TechSegmentLayout({
   children,
 }: {
   children: React.ReactNode;

@@ -1,5 +1,15 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
-import { MAX_DRIVER_NOTE_LEN } from "@/lib/driverProfile";
+import { MAX_NOTE_LEN } from "@/lib/internalNotes";
+
+const InternalNoteSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    body: { type: String, required: true, trim: true, maxlength: MAX_NOTE_LEN },
+    author: { type: String, required: true, trim: true },
+    createdAt: { type: String, required: true },
+  },
+  { _id: false }
+);
 
 const DriverSchema = new Schema(
   {
@@ -10,7 +20,11 @@ const DriverSchema = new Schema(
     email: { type: String, lowercase: true, trim: true, index: true },
     isActive: { type: Boolean, default: true },
     city: { type: String, trim: true },
-    notes: { type: String, trim: true, maxlength: MAX_DRIVER_NOTE_LEN },
+    /**
+     * Ops-only append-only notes (same UX as booking Internal notes).
+     * Only via /api/drivers/[id]/notes — never on tech/customer payloads.
+     */
+    notes: { type: [InternalNoteSchema], default: [] },
   },
   {
     timestamps: true,
