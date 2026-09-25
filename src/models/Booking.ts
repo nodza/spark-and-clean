@@ -24,6 +24,8 @@ const RugSchema = new Schema(
     areaSqM: { type: Number, required: true },
     photos: { type: [String], default: [] },
     labelPhotos: { type: [String], default: [] },
+    tagCode: { type: String, trim: true },
+    assetId: { type: Schema.Types.ObjectId, ref: "RugAsset" },
   },
   { _id: false }
 );
