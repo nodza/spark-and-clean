@@ -38,9 +38,8 @@ export function techTagLabel(status: BookingStatus, isNext = false): string {
   if (isNext) return "NEXT";
   if (status === "DELIVERED") return "DONE";
   if (status === "READY") return "DELIVER";
-  if (status === "COLLECTED" || status === "CLEANING" || status === "DRYING") {
-    return "DEPOT";
-  }
+  if (status === "COLLECTED") return "COLLECTED";
+  if (status === "CLEANING" || status === "DRYING") return "DEPOT";
   return "COLLECT";
 }
 

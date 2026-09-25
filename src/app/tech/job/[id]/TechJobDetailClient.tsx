@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import {
   bookingAddOnLabels,
@@ -24,7 +25,6 @@ import {
   slotWindowLabel,
   techStopKind,
   techTagClass,
-  techTagLabel,
 } from "@/lib/techUi";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
@@ -32,6 +32,13 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import {
+  bothDimensionsEmpty,
+  isVanCollectStatus,
+  isVanDeliverStatus,
+  parseOptionalCollectDimensions,
+  type CollectDimensions,
+} from "@/lib/fieldStatus";
 
 type LoadState =
   | { kind: "idle" }
@@ -72,10 +79,15 @@ export function TechJobDetailClient() {
   const [pendingStatus, setPendingStatus] = useState<
     "COLLECTED" | "DELIVERED" | null
   >(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const fieldUpdateLock = useRef(false);
   const [trackedId, setTrackedId] = useState(id);
   if (id !== trackedId) {
     setTrackedId(id);
     setLoadState({ kind: id ? "loading" : "not_found" });
+    setPendingStatus(null);
+    setActionError(null);
+    fieldUpdateLock.current = false;
   }
 
   // Poll API so status stays live without a hard refresh
@@ -136,9 +148,10 @@ export function TechJobDetailClient() {
     setLoadState({ kind: "forbidden" });
   }, [tracking.forbidden]);
 
-  // Reflect live store updates (poll / optimistic PATCH) into the detail UI.
-  // Only replace a job we already confirmed is ours — never paint from cache first.
+  // Reflect live store updates (poll / saved PATCH) into the detail UI.
+  // Skip while a van update is in flight so a failed save cannot flash a new status.
   useEffect(() => {
+    if (fieldUpdateLock.current) return;
     if (!storeBooking || !user?.driverProfileId) return;
     if (storeBooking.assignedDriverId !== user.driverProfileId) {
       setLoadState((prev) =>
@@ -157,21 +170,30 @@ export function TechJobDetailClient() {
     });
   }, [storeBooking, user?.driverProfileId]);
 
-  const handleStatusUpdate = async (newStatus: "COLLECTED" | "DELIVERED") => {
-    if (loadState.kind !== "ready" || pendingStatus) return;
+  const handleStatusUpdate = async (
+    newStatus: "COLLECTED" | "DELIVERED",
+    dimensions?: CollectDimensions | null
+  ) => {
+    if (loadState.kind !== "ready" || pendingStatus || fieldUpdateLock.current) {
+      return;
+    }
     const bookingId = loadState.booking.id;
     const previous = loadState.booking;
 
+    fieldUpdateLock.current = true;
+    setActionError(null);
     setPendingStatus(newStatus);
-    setLoadState({
-      kind: "ready",
-      booking: { ...previous, status: newStatus },
-    });
 
-    const error = await updateBookingStatus(bookingId, newStatus);
-    setPendingStatus(null);
+    const error = await updateBookingStatus(
+      bookingId,
+      newStatus,
+      dimensions ?? undefined
+    );
 
     if (error) {
+      fieldUpdateLock.current = false;
+      setPendingStatus(null);
+      setActionError(error);
       toast.error(error);
       setLoadState({ kind: "ready", booking: previous });
       return;
@@ -192,7 +214,8 @@ export function TechJobDetailClient() {
       <button
         type="button"
         onClick={() => router.push("/tech/dashboard")}
-        className="mb-3.5 inline-block text-[13px] font-bold text-[#0a7a63] hover:text-navy"
+        disabled={pendingStatus !== null}
+        className="mb-3.5 inline-block text-[13px] font-bold text-[#0a7a63] hover:text-navy disabled:opacity-40"
       >
         ← Today
       </button>
@@ -237,6 +260,7 @@ export function TechJobDetailClient() {
         <JobContent
           booking={loadState.booking}
           pendingStatus={pendingStatus}
+          actionError={actionError}
           onStatusUpdate={handleStatusUpdate}
         />
       ) : null}
@@ -309,20 +333,48 @@ function PhotoRow({ label, photos }: { label: string; photos: string[] }) {
 function JobContent({
   booking,
   pendingStatus,
+  actionError,
   onStatusUpdate,
 }: {
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
-  onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
+  actionError: string | null;
+  onStatusUpdate: (
+    status: "COLLECTED" | "DELIVERED",
+    dimensions?: CollectDimensions | null
+  ) => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
   const phoneHref = phone ? telHref(phone) : null;
   const busy = pendingStatus !== null;
   const kind = techStopKind(booking.status);
   const canCollect =
-    booking.status === "SCHEDULED" || pendingStatus === "COLLECTED";
+    isVanCollectStatus(booking.status) || pendingStatus === "COLLECTED";
   const canDeliver =
-    booking.status === "READY" || pendingStatus === "DELIVERED";
+    isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
+  const showSize =
+    canCollect && bothDimensionsEmpty(booking.rug.widthM, booking.rug.lengthM);
+  const [widthRaw, setWidthRaw] = useState("");
+  const [lengthRaw, setLengthRaw] = useState("");
+  const [widthError, setWidthError] = useState<string | undefined>();
+  const [lengthError, setLengthError] = useState<string | undefined>();
+
+  function submitCollect() {
+    if (busy) return;
+    if (showSize) {
+      const parsed = parseOptionalCollectDimensions(widthRaw, lengthRaw);
+      if (!parsed.ok) {
+        setWidthError(parsed.widthError);
+        setLengthError(parsed.lengthError);
+        return;
+      }
+      setWidthError(undefined);
+      setLengthError(undefined);
+      onStatusUpdate("COLLECTED", parsed.dimensions);
+      return;
+    }
+    onStatusUpdate("COLLECTED");
+  }
   const addOns = bookingAddOnLabels(booking.addOns);
   const conditionPhotos = (booking.rug.photos ?? []).filter(Boolean);
   const labelPhotos = (booking.rug.labelPhotos ?? []).filter(Boolean);
@@ -483,11 +535,101 @@ function JobContent({
       </div>
 
       <div className="mt-[22px]">
+        {showSize ? (
+          <div className="mb-3 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
+            <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+              SIZE ON PICKUP
+            </p>
+            <p className="mt-1 text-xs text-[#6b7280]">
+              Optional. Leave both blank to measure on pickup.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div>
+                <label
+                  htmlFor="collect-width"
+                  className="mb-1 block text-[11px] font-bold text-navy"
+                >
+                  Width (m)
+                </label>
+                <Input
+                  id="collect-width"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={widthRaw}
+                  disabled={busy}
+                  aria-invalid={Boolean(widthError)}
+                  aria-describedby={
+                    widthError ? "collect-width-error" : undefined
+                  }
+                  placeholder="e.g. 2"
+                  className="py-2 text-sm"
+                  onChange={(event) => {
+                    setWidthRaw(event.target.value);
+                    setWidthError(undefined);
+                  }}
+                />
+                {widthError ? (
+                  <p
+                    id="collect-width-error"
+                    className="mt-1 text-[11px] font-semibold text-[#b33232]"
+                    role="alert"
+                  >
+                    {widthError}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label
+                  htmlFor="collect-length"
+                  className="mb-1 block text-[11px] font-bold text-navy"
+                >
+                  Length (m)
+                </label>
+                <Input
+                  id="collect-length"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={lengthRaw}
+                  disabled={busy}
+                  aria-invalid={Boolean(lengthError)}
+                  aria-describedby={
+                    lengthError ? "collect-length-error" : undefined
+                  }
+                  placeholder="e.g. 3"
+                  className="py-2 text-sm"
+                  onChange={(event) => {
+                    setLengthRaw(event.target.value);
+                    setLengthError(undefined);
+                  }}
+                />
+                {lengthError ? (
+                  <p
+                    id="collect-length-error"
+                    className="mt-1 text-[11px] font-semibold text-[#b33232]"
+                    role="alert"
+                  >
+                    {lengthError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <p
+            className="mb-3 rounded-xl border border-[#f6c9c9] bg-[#fdecec] px-3 py-2 text-sm font-semibold text-[#b33232]"
+            role="alert"
+          >
+            {actionError}
+          </p>
+        ) : null}
+
         {canCollect ? (
           <button
             type="button"
             disabled={busy}
-            onClick={() => onStatusUpdate("COLLECTED")}
+            onClick={submitCollect}
             className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
           >
             {pendingStatus === "COLLECTED" ? (
@@ -513,10 +655,16 @@ function JobContent({
           </button>
         ) : null}
 
-        {!pendingStatus &&
-        ["COLLECTED", "CLEANING", "DRYING"].includes(booking.status) ? (
+        {!pendingStatus && booking.status === "COLLECTED" ? (
           <div className="rounded-full border border-[#e3e7ed] bg-white py-3.5 text-center text-sm font-bold text-[#9aa0a6]">
-            In progress at depot · {techTagLabel(booking.status)}
+            Collected
+          </div>
+        ) : null}
+
+        {!pendingStatus &&
+        (booking.status === "CLEANING" || booking.status === "DRYING") ? (
+          <div className="rounded-full border border-[#e3e7ed] bg-white py-3.5 text-center text-sm font-bold text-[#9aa0a6]">
+            In progress at depot
           </div>
         ) : null}
 
