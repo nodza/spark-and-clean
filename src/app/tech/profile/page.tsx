@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin, MessageSquare } from "lucide-react";
+import { LogOut, MapPin } from "lucide-react";
 import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
@@ -50,13 +50,6 @@ export default function TechProfilePage() {
         >
           <MapPin className="size-4 text-[#0a7a63]" aria-hidden />
           Route map
-        </Link>
-        <Link
-          href="/tech/messages"
-          className="flex items-center gap-3 rounded-xl border border-[#e3e7ed] bg-white px-4 py-3.5 text-sm font-bold text-navy"
-        >
-          <MessageSquare className="size-4 text-[#0a7a63]" aria-hidden />
-          Messages
         </Link>
       </div>
 
