@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Booking } from "@/types/booking";
 import {
   MEASURE_ON_PICKUP,
+  OPS_ADD_ON_COPY,
   bookingAddOnLabels,
+  isDisplayablePhotoUrl,
   paymentBadgeClass,
   rugDimensionLabel,
   rugSummary,
@@ -46,6 +48,31 @@ describe("bookingAddOnLabels", () => {
     expect(
       bookingAddOnLabels({ odourRemoval: false, stainProtection: false })
     ).toEqual([]);
+  });
+
+  it("uses the longer ops names from the same selection", () => {
+    expect(
+      bookingAddOnLabels(
+        { odourRemoval: true, stainProtection: true },
+        OPS_ADD_ON_COPY
+      )
+    ).toEqual([
+      "Odour Removal & Hygiene Treatment",
+      "Stain Protection Treatment",
+    ]);
+  });
+});
+
+describe("isDisplayablePhotoUrl", () => {
+  it("keeps http(s) and app paths", () => {
+    expect(isDisplayablePhotoUrl("https://cdn.example/rug.jpg")).toBe(true);
+    expect(isDisplayablePhotoUrl("/uploads/rug.jpg")).toBe(true);
+  });
+
+  it("drops blob urls and blank values", () => {
+    expect(isDisplayablePhotoUrl("blob:http://localhost:3000/abc")).toBe(false);
+    expect(isDisplayablePhotoUrl("  ")).toBe(false);
+    expect(isDisplayablePhotoUrl("not a url")).toBe(false);
   });
 });
 

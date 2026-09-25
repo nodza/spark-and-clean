@@ -127,19 +127,53 @@ type BookingAddOns = Partial<{
   fabricProtection: boolean;
 }>;
 
+export type AddOnKind = "odour" | "stain";
+
+/** Short names on the technician job page. */
+export const TECH_ADD_ON_COPY: Record<AddOnKind, string> = {
+  odour: "Odour removal",
+  stain: "Stain protection",
+};
+
+/** Names used on the booking wizard and the admin booking page. */
+export const OPS_ADD_ON_COPY: Record<AddOnKind, string> = {
+  odour: "Odour Removal & Hygiene Treatment",
+  stain: "Stain Protection Treatment",
+};
+
+/** Which add-ons are on, including older stainTreatment / fabricProtection keys. */
+export function selectedAddOnKinds(
+  addOns: BookingAddOns | null | undefined
+): AddOnKind[] {
+  if (!addOns) return [];
+  const kinds: AddOnKind[] = [];
+  if (addOns.odourRemoval || addOns.stainTreatment) kinds.push("odour");
+  if (addOns.stainProtection || addOns.fabricProtection) kinds.push("stain");
+  return kinds;
+}
+
 /** Wizard names, including older stainTreatment / fabricProtection keys. */
 export function bookingAddOnLabels(
-  addOns: BookingAddOns | null | undefined
+  addOns: BookingAddOns | null | undefined,
+  copy: Record<AddOnKind, string> = TECH_ADD_ON_COPY
 ): string[] {
-  if (!addOns) return [];
-  const labels: string[] = [];
-  if (addOns.odourRemoval || addOns.stainTreatment) {
-    labels.push("Odour removal");
+  return selectedAddOnKinds(addOns).map((kind) => copy[kind]);
+}
+
+/**
+ * URLs the technician page can render. blob: links die with the tab that
+ * created them, so they must not show up as broken images.
+ */
+export function isDisplayablePhotoUrl(url: string): boolean {
+  const value = url.trim();
+  if (!value || value.startsWith("blob:")) return false;
+  if (value.startsWith("/") && !value.startsWith("//")) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
   }
-  if (addOns.stainProtection || addOns.fabricProtection) {
-    labels.push("Stain protection");
-  }
-  return labels;
 }
 
 /** Read-only payment pill. Technicians cannot change this status. */

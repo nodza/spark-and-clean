@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import {
   bookingAddOnLabels,
   formatBadgeDate,
+  isDisplayablePhotoUrl,
   paymentBadgeClass,
   rugDimensionLabel,
   slotTimeLabel,
@@ -73,7 +74,9 @@ export function TechJobDetailClient() {
     "COLLECTED" | "DELIVERED" | null
   >(null);
   const [trackedId, setTrackedId] = useState(id);
+  const loadSeq = useRef(0);
   if (id !== trackedId) {
+    loadSeq.current += 1;
     setTrackedId(id);
     setLoadState({ kind: id ? "loading" : "not_found" });
   }
@@ -97,9 +100,13 @@ export function TechJobDetailClient() {
       return;
     }
 
+    const seq = ++loadSeq.current;
+    const stillCurrent = () => seq === loadSeq.current;
+
     setLoadState({ kind: "loading" });
     try {
       const booking = await fetchBookingById(id);
+      if (!stillCurrent()) return;
       if (!booking) {
         setLoadState({ kind: "not_found" });
         return;
@@ -110,6 +117,7 @@ export function TechJobDetailClient() {
       }
       setLoadState({ kind: "ready", booking });
     } catch (err) {
+      if (!stillCurrent()) return;
       const status =
         err && typeof err === "object" && "status" in err
           ? Number((err as { status: number }).status)
@@ -130,11 +138,24 @@ export function TechJobDetailClient() {
     void loadJob();
   }, [loadJob]);
 
-  // A 403 from the live poll means this stop was reassigned — hide the address.
+  // A 403 for this id hides the address. A later successful fetch of the same
+  // id brings the job back (reassigned away, then assigned again).
   useEffect(() => {
-    if (!tracking.forbidden) return;
-    setLoadState({ kind: "forbidden" });
-  }, [tracking.forbidden]);
+    if (tracking.forbidden) {
+      loadSeq.current += 1;
+      setLoadState({ kind: "forbidden" });
+      return;
+    }
+
+    const confirmed = tracking.booking;
+    if (!confirmed || confirmed.id !== id || !user?.driverProfileId) return;
+    if (confirmed.assignedDriverId !== user.driverProfileId) return;
+
+    setLoadState((prev) => {
+      if (prev.kind !== "forbidden") return prev;
+      return { kind: "ready", booking: confirmed };
+    });
+  }, [tracking.forbidden, tracking.booking, id, user?.driverProfileId]);
 
   // Reflect live store updates (poll / optimistic PATCH) into the detail UI.
   // Only replace a job we already confirmed is ours — never paint from cache first.
@@ -286,22 +307,60 @@ function JobBlockedState({
   );
 }
 
-function PhotoRow({ label, photos }: { label: string; photos: string[] }) {
+function PhotoRow({
+  label,
+  photos,
+  onError,
+}: {
+  label: string;
+  photos: string[];
+  onError: (url: string) => void;
+}) {
   return (
     <div>
       <div className="mb-1.5 text-[11px] font-bold text-[#6b7280]">{label}</div>
       <ul className="flex gap-2 overflow-x-auto">
         {photos.map((photo, i) => (
-          <li key={`${label}-${photo}-${i}`} className="shrink-0">
+          <li key={`${label}-${i}`} className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photo}
               alt={`${label} photo ${i + 1}`}
               className="size-20 rounded-[9px] object-cover"
+              onError={() => onError(photo)}
             />
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function JobPhotos({
+  conditionPhotos,
+  labelPhotos,
+}: {
+  conditionPhotos: string[];
+  labelPhotos: string[];
+}) {
+  const [failed, setFailed] = useState<string[]>([]);
+  const hide = (url: string) =>
+    setFailed((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  const visibleCondition = conditionPhotos.filter((url) => !failed.includes(url));
+  const visibleLabel = labelPhotos.filter((url) => !failed.includes(url));
+
+  if (visibleCondition.length === 0 && visibleLabel.length === 0) {
+    return <p className="mt-1 text-xs text-[#9aa0a6]">No photos uploaded</p>;
+  }
+
+  return (
+    <div className="mt-2 space-y-3">
+      {visibleCondition.length > 0 ? (
+        <PhotoRow label="Condition" photos={visibleCondition} onError={hide} />
+      ) : null}
+      {visibleLabel.length > 0 ? (
+        <PhotoRow label="Label" photos={visibleLabel} onError={hide} />
+      ) : null}
     </div>
   );
 }
@@ -324,9 +383,8 @@ function JobContent({
   const canDeliver =
     booking.status === "READY" || pendingStatus === "DELIVERED";
   const addOns = bookingAddOnLabels(booking.addOns);
-  const conditionPhotos = (booking.rug.photos ?? []).filter(Boolean);
-  const labelPhotos = (booking.rug.labelPhotos ?? []).filter(Boolean);
-  const hasPhotos = conditionPhotos.length > 0 || labelPhotos.length > 0;
+  const conditionPhotos = (booking.rug.photos ?? []).filter(isDisplayablePhotoUrl);
+  const labelPhotos = (booking.rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
 
   return (
     <div className="pb-2">
@@ -452,18 +510,11 @@ function JobContent({
           <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
             PHOTOS
           </div>
-          {hasPhotos ? (
-            <div className="mt-2 space-y-3">
-              {conditionPhotos.length > 0 ? (
-                <PhotoRow label="Condition" photos={conditionPhotos} />
-              ) : null}
-              {labelPhotos.length > 0 ? (
-                <PhotoRow label="Label" photos={labelPhotos} />
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-1 text-xs text-[#9aa0a6]">No photos uploaded</p>
-          )}
+          <JobPhotos
+            key={booking.id}
+            conditionPhotos={conditionPhotos}
+            labelPhotos={labelPhotos}
+          />
         </div>
       </div>
 
