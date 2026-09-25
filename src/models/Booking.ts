@@ -72,6 +72,9 @@ const FieldMessageSchema = new Schema(
 
 const AddOnsSchema = new Schema(
   {
+    odourRemoval: { type: Boolean, default: false },
+    stainProtection: { type: Boolean, default: false },
+    /** Older bookings stored these names for the same two add-ons. */
     stainTreatment: { type: Boolean, default: false },
     fabricProtection: { type: Boolean, default: false },
   },

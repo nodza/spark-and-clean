@@ -36,6 +36,7 @@ import {
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
@@ -49,18 +50,7 @@ type DriverOption = {
 };
 
 function addOnLabels(booking: Booking): string[] {
-  const addOns = booking.addOns as Booking["addOns"] & {
-    stainTreatment?: boolean;
-    fabricProtection?: boolean;
-  };
-  const labels: string[] = [];
-  if (addOns?.odourRemoval || addOns?.stainTreatment) {
-    labels.push("Odour Removal & Hygiene Treatment");
-  }
-  if (addOns?.stainProtection || addOns?.fabricProtection) {
-    labels.push("Stain Protection Treatment");
-  }
-  return labels;
+  return bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
 }
 
 function formatCollectionLong(value: string) {

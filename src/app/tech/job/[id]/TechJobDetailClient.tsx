@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -16,9 +16,13 @@ import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import {
+  bookingAddOnLabels,
   formatBadgeDate,
-  rugSummary,
+  isDisplayablePhotoUrl,
+  paymentBadgeClass,
+  rugDimensionLabel,
   slotTimeLabel,
+  slotWindowLabel,
   techStopKind,
   techTagClass,
   techTagLabel,
@@ -57,7 +61,8 @@ function mapsUrl(booking: Booking): string {
 export function TechJobDetailClient() {
   const params = useParams();
   const router = useRouter();
-  const id = params.id as string;
+  const rawId = params.id;
+  const id = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
   const { fetchBookingById, updateBookingStatus } = useBookingStore();
   const storeBooking = useBookingStore((s) =>
@@ -68,16 +73,40 @@ export function TechJobDetailClient() {
   const [pendingStatus, setPendingStatus] = useState<
     "COLLECTED" | "DELIVERED" | null
   >(null);
+  const [trackedId, setTrackedId] = useState(id);
+  const loadSeq = useRef(0);
+  if (id !== trackedId) {
+    loadSeq.current += 1;
+    setTrackedId(id);
+    setLoadState({ kind: id ? "loading" : "not_found" });
+  }
 
   // Poll API so status stays live without a hard refresh
-  useBookingLiveTracking(id, ready && !!user?.driverProfileId);
+  const tracking = useBookingLiveTracking(
+    id,
+    ready && !!user?.driverProfileId && !!id
+  );
 
   const loadJob = useCallback(async () => {
-    if (!ready || !user?.driverProfileId || !id) return;
+    if (!ready || !user) return;
+
+    if (!id) {
+      setLoadState({ kind: "not_found" });
+      return;
+    }
+
+    if (!user.driverProfileId) {
+      setLoadState({ kind: "forbidden" });
+      return;
+    }
+
+    const seq = ++loadSeq.current;
+    const stillCurrent = () => seq === loadSeq.current;
 
     setLoadState({ kind: "loading" });
     try {
       const booking = await fetchBookingById(id);
+      if (!stillCurrent()) return;
       if (!booking) {
         setLoadState({ kind: "not_found" });
         return;
@@ -88,6 +117,7 @@ export function TechJobDetailClient() {
       }
       setLoadState({ kind: "ready", booking });
     } catch (err) {
+      if (!stillCurrent()) return;
       const status =
         err && typeof err === "object" && "status" in err
           ? Number((err as { status: number }).status)
@@ -102,30 +132,46 @@ export function TechJobDetailClient() {
           err instanceof Error ? err.message : "Could not load this job",
       });
     }
-  }, [fetchBookingById, id, ready, user?.driverProfileId]);
+  }, [fetchBookingById, id, ready, user]);
 
   useEffect(() => {
     void loadJob();
   }, [loadJob]);
 
-  // Reflect live store updates (poll / optimistic PATCH) into the detail UI
+  // A 403 for this id hides the address. A later successful fetch of the same
+  // id brings the job back (reassigned away, then assigned again).
+  useEffect(() => {
+    if (tracking.forbidden) {
+      loadSeq.current += 1;
+      setLoadState({ kind: "forbidden" });
+      return;
+    }
+
+    const confirmed = tracking.booking;
+    if (!confirmed || confirmed.id !== id || !user?.driverProfileId) return;
+    if (confirmed.assignedDriverId !== user.driverProfileId) return;
+
+    setLoadState((prev) => {
+      if (prev.kind !== "forbidden") return prev;
+      return { kind: "ready", booking: confirmed };
+    });
+  }, [tracking.forbidden, tracking.booking, id, user?.driverProfileId]);
+
+  // Reflect live store updates (poll / optimistic PATCH) into the detail UI.
+  // Only replace a job we already confirmed is ours — never paint from cache first.
   useEffect(() => {
     if (!storeBooking || !user?.driverProfileId) return;
     if (storeBooking.assignedDriverId !== user.driverProfileId) {
-      setLoadState({ kind: "forbidden" });
+      setLoadState((prev) =>
+        prev.kind === "ready" && prev.booking.id === storeBooking.id
+          ? { kind: "forbidden" }
+          : prev
+      );
       return;
     }
     setLoadState((prev) => {
       if (prev.kind === "ready" && prev.booking.id === storeBooking.id) {
-        if (
-          prev.booking.status === storeBooking.status &&
-          prev.booking === storeBooking
-        ) {
-          return prev;
-        }
-        return { kind: "ready", booking: storeBooking };
-      }
-      if (prev.kind === "loading" || prev.kind === "idle") {
+        if (prev.booking === storeBooking) return prev;
         return { kind: "ready", booking: storeBooking };
       }
       return prev;
@@ -181,7 +227,7 @@ export function TechJobDetailClient() {
 
       {loadState.kind === "forbidden" ? (
         <JobBlockedState
-          title="Not your job"
+          title="Job not assigned to you"
           description="This booking is assigned to another technician. You can only open jobs on your route."
           icon={<ShieldAlert className="size-6 text-destructive" />}
         />
@@ -261,6 +307,64 @@ function JobBlockedState({
   );
 }
 
+function PhotoRow({
+  label,
+  photos,
+  onError,
+}: {
+  label: string;
+  photos: string[];
+  onError: (url: string) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-bold text-[#6b7280]">{label}</div>
+      <ul className="flex gap-2 overflow-x-auto">
+        {photos.map((photo, i) => (
+          <li key={`${label}-${i}`} className="shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo}
+              alt={`${label} photo ${i + 1}`}
+              className="size-20 rounded-[9px] object-cover"
+              onError={() => onError(photo)}
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function JobPhotos({
+  conditionPhotos,
+  labelPhotos,
+}: {
+  conditionPhotos: string[];
+  labelPhotos: string[];
+}) {
+  const [failed, setFailed] = useState<string[]>([]);
+  const hide = (url: string) =>
+    setFailed((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  const visibleCondition = conditionPhotos.filter((url) => !failed.includes(url));
+  const visibleLabel = labelPhotos.filter((url) => !failed.includes(url));
+
+  if (visibleCondition.length === 0 && visibleLabel.length === 0) {
+    return <p className="mt-1 text-xs text-[#9aa0a6]">No photos uploaded</p>;
+  }
+
+  return (
+    <div className="mt-2 space-y-3">
+      {visibleCondition.length > 0 ? (
+        <PhotoRow label="Condition" photos={visibleCondition} onError={hide} />
+      ) : null}
+      {visibleLabel.length > 0 ? (
+        <PhotoRow label="Label" photos={visibleLabel} onError={hide} />
+      ) : null}
+    </div>
+  );
+}
+
 function JobContent({
   booking,
   pendingStatus,
@@ -270,15 +374,17 @@ function JobContent({
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
 }) {
-  const phoneHref = booking.customer.phone?.trim()
-    ? telHref(booking.customer.phone)
-    : null;
+  const phone = booking.customer.phone?.trim() ?? "";
+  const phoneHref = phone ? telHref(phone) : null;
   const busy = pendingStatus !== null;
   const kind = techStopKind(booking.status);
   const canCollect =
     booking.status === "SCHEDULED" || pendingStatus === "COLLECTED";
   const canDeliver =
     booking.status === "READY" || pendingStatus === "DELIVERED";
+  const addOns = bookingAddOnLabels(booking.addOns);
+  const conditionPhotos = (booking.rug.photos ?? []).filter(isDisplayablePhotoUrl);
+  const labelPhotos = (booking.rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
 
   return (
     <div className="pb-2">
@@ -286,16 +392,27 @@ function JobContent({
         <div className="p-[18px]">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+              <div className="break-words text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
                 {booking.id} ·{" "}
                 {booking.status === "READY" ? "DELIVERY" : "COLLECTION"}
               </div>
               <h1 className="mt-1.5 text-xl font-extrabold text-navy">
                 {booking.customer.name}
               </h1>
+              {phoneHref ? (
+                <a
+                  href={phoneHref}
+                  className="mt-1 inline-block text-sm font-semibold text-[#0a7a63] underline-offset-2 hover:underline"
+                >
+                  {phone}
+                </a>
+              ) : (
+                <p className="mt-1 text-sm text-[#9aa0a6]">No phone number</p>
+              )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               <span className="text-[11px] font-bold tabular-nums text-[#6b7280]">
+                <span className="sr-only">Collection date </span>
                 {formatBadgeDate(booking.collectionDate)}
               </span>
               <span
@@ -304,7 +421,18 @@ function JobContent({
                   techTagClass(kind)
                 )}
               >
+                <span className="sr-only">Slot </span>
+                {slotWindowLabel(booking.collectionSlot)} ·{" "}
                 {slotTimeLabel(booking.collectionSlot)}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[10px] font-extrabold",
+                  paymentBadgeClass(booking.paymentStatus)
+                )}
+              >
+                <span className="sr-only">Payment status </span>
+                {booking.paymentStatus}
               </span>
             </div>
           </div>
@@ -354,21 +482,40 @@ function JobContent({
       </p>
       <div className="rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
         <div className="text-sm font-bold text-navy">{booking.rug.type}</div>
-        <div className="mt-1 text-xs text-[#9aa0a6]">{rugSummary(booking)}</div>
-        {booking.rug.photos && booking.rug.photos.length > 0 ? (
-          <ul className="mt-3 flex gap-2 overflow-x-auto">
-            {booking.rug.photos.map((photo, i) => (
-              <li key={`${photo}-${i}`} className="shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo}
-                  alt={`Rug photo ${i + 1}`}
-                  className="size-11 rounded-[9px] object-cover"
-                />
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <div className="mt-1 text-xs text-[#6b7280]">
+          {rugDimensionLabel(booking.rug)}
+        </div>
+
+        <div className="mt-3">
+          <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+            ADD-ONS
+          </div>
+          {addOns.length > 0 ? (
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {addOns.map((label) => (
+                <li
+                  key={label}
+                  className="rounded-full border border-[#e3e7ed] bg-[#f5f7fa] px-2.5 py-1 text-[11px] font-bold text-navy"
+                >
+                  {label}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-[#9aa0a6]">None</p>
+          )}
+        </div>
+
+        <div className="mt-3">
+          <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+            PHOTOS
+          </div>
+          <JobPhotos
+            key={booking.id}
+            conditionPhotos={conditionPhotos}
+            labelPhotos={labelPhotos}
+          />
+        </div>
       </div>
 
       <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
