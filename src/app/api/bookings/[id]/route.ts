@@ -17,6 +17,7 @@ import {
 } from "@/lib/adminAuth";
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
+import { technicianFieldUpdate } from "@/lib/fieldStatus";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -70,7 +71,9 @@ export async function GET(_request: Request, { params }: Params) {
  * Persist status / paymentStatus / assignedDriverId (null / omit via $unset).
  *
  * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
- * their status. Full admin for ops writes; technicians status-only on assigned jobs.
+ * their status. Full admin for depot moves. Technicians may only
+ * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
+ * and may save width/length when collecting a rug that has no size yet.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -138,7 +141,36 @@ export async function PATCH(request: Request, { params }: Params) {
     const $set: Record<string, unknown> = {};
     const $unset: Record<string, ""> = {};
 
-    if (wantsStatus) {
+    if (session.role === "technician") {
+      const widthProvided = Object.prototype.hasOwnProperty.call(body, "widthM");
+      const lengthProvided = Object.prototype.hasOwnProperty.call(
+        body,
+        "lengthM"
+      );
+      const existingRug = existing.rug as
+        | { widthM?: unknown; lengthM?: unknown }
+        | null
+        | undefined;
+      const decision = technicianFieldUpdate({
+        driverProfileId: session.driverProfileId,
+        assignedDriverId: existing.assignedDriverId,
+        from: existing.status as BookingStatus,
+        to: body.status as BookingStatus,
+        existingWidth: existingRug?.widthM,
+        existingLength: existingRug?.lengthM,
+        widthProvided,
+        lengthProvided,
+        widthM: widthProvided ? body.widthM : undefined,
+        lengthM: lengthProvided ? body.lengthM : undefined,
+      });
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error },
+          { status: decision.status }
+        );
+      }
+      Object.assign($set, decision.set);
+    } else if (wantsStatus) {
       $set.status = body.status as BookingStatus;
     }
     if (wantsPayment) {
