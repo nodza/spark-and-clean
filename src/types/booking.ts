@@ -10,6 +10,21 @@ export type BookingStatus =
 
 export type PaymentStatus = "UNPAID" | "DEPOSIT" | "PAID";
 
+/** Snapshot of cents due/paid — paymentStatus is derived from these. */
+export interface BookingBilling {
+  currency: string;
+  amountDueCents: number;
+  amountPaidCents: number;
+}
+
+/**
+ * E8 promotion snapshot (optional). When amountDueCents is set, the ledger
+ * uses it instead of the estimate midpoint.
+ */
+export interface BookingPromotion {
+  amountDueCents?: number;
+}
+
 /** Ops-only — never sent on customer/public booking payloads */
 export interface InternalNote {
   id: string;
@@ -59,6 +74,10 @@ export interface Booking {
   estimatedPriceMax: number;
   /** Phase 1 stub — format-validated promo code; discount calc deferred to E8 */
   couponCode?: string;
+  /** Ledger snapshot — optional until first succeeded transfer is recorded */
+  billing?: BookingBilling;
+  /** E8 — when present, amountDueCents overrides estimate midpoint */
+  promotion?: BookingPromotion;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;

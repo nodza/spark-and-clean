@@ -78,6 +78,27 @@ const AddOnsSchema = new Schema(
   { _id: false }
 );
 
+/** Cents snapshot for the payment ledger (E7). No checkout UI in this story. */
+const BillingSchema = new Schema(
+  {
+    currency: { type: String, required: true, trim: true, default: "ZAR" },
+    amountDueCents: { type: Number, required: true, min: 0 },
+    amountPaidCents: { type: Number, required: true, min: 0, default: 0 },
+  },
+  { _id: false }
+);
+
+/**
+ * E8 promotion fields (optional). Ledger reads amountDueCents when present.
+ * Do not rename couponCode; do not add tagCode here.
+ */
+const PromotionSchema = new Schema(
+  {
+    amountDueCents: { type: Number, min: 0 },
+  },
+  { _id: false }
+);
+
 const BookingSchema = new Schema(
   {
     /** Business booking reference, e.g. SC-2025-0001 */
@@ -107,6 +128,8 @@ const BookingSchema = new Schema(
     estimatedPriceMin: { type: Number, required: true },
     estimatedPriceMax: { type: Number, required: true },
     couponCode: { type: String, trim: true },
+    billing: { type: BillingSchema },
+    promotion: { type: PromotionSchema },
     status: {
       type: String,
       enum: BOOKING_STATUSES,
