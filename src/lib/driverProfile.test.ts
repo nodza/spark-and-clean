@@ -19,12 +19,8 @@ describe("sanitizeDriverPatch", () => {
     expect(sanitizeDriverPatch({ notes: "keep" }).ok).toBe(false);
   });
 
-  it("rejects an empty vehicle", () => {
-    expect(sanitizeDriverPatch({ vehicle: "   " }).ok).toBe(false);
-    expect(sanitizeDriverPatch({ vehicle: " Nissan NP200 " })).toEqual({
-      ok: true,
-      updates: { vehicle: "Nissan NP200" },
-    });
+  it("ignores vehicle on the driver patch (assignment lives on Vehicle)", () => {
+    expect(sanitizeDriverPatch({ vehicle: "Nissan NP200" }).ok).toBe(false);
   });
 });
 

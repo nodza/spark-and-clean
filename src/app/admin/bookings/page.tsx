@@ -41,6 +41,7 @@ import {
   type PageSize,
 } from "@/lib/listPagination";
 import type { Booking, Driver } from "@/types/booking";
+import { compactVehicleFromDisplay } from "@/lib/vehicle";
 
 const TABLE_COLS =
   "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(118px, 0.85fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
@@ -174,6 +175,11 @@ function AdminBookingsList() {
       if (isUnassignedDriver(id)) return "Unassigned";
       return (id && map.get(id)) || null;
     };
+  }, [drivers]);
+
+  const driverVehicle = useMemo(() => {
+    const map = new Map(drivers.map((d) => [d.id, d.vehicle]));
+    return (id?: string) => (id ? map.get(id) : undefined);
   }, [drivers]);
 
   const isKnownDriver = useMemo(() => {
@@ -342,9 +348,19 @@ function AdminBookingsList() {
                 const unassigned = isUnassignedDriver(booking.assignedDriverId);
                 const knownDriver = isKnownDriver(booking.assignedDriverId);
                 const inactive = !unassigned && !knownDriver;
+                const knownName = driverName(booking.assignedDriverId);
                 const driverLabel = unassigned
                   ? "Unassigned"
-                  : driverName(booking.assignedDriverId) ?? "Assigned driver";
+                  : inactive
+                    ? "Assigned driver"
+                    : knownName || "Assigned driver";
+                const vehicleRaw = knownDriver
+                  ? driverVehicle(booking.assignedDriverId)
+                  : undefined;
+                const vehicleLabel =
+                  typeof vehicleRaw === "string" && vehicleRaw.trim()
+                    ? compactVehicleFromDisplay(vehicleRaw)
+                    : "";
                 return (
                   <div
                     key={booking.id}
@@ -419,38 +435,43 @@ function AdminBookingsList() {
                       {collectionLabel(booking)}
                     </div>
 
-                    <div
-                      className="relative z-[2] flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] font-medium"
-                      style={{
-                        color: unassigned
-                          ? "#b3261e"
-                          : inactive
-                            ? "#b33232"
-                            : "#6b7280",
-                      }}
-                      title={
-                        inactive
-                          ? "Assigned driver is inactive"
-                          : driverLabel
-                      }
-                    >
+                    <div className="relative z-[2] min-w-0">
                       {inactive ? (
                         <InactiveDriverBadge className="px-[8px] py-[3px] text-[10px]" />
                       ) : (
                         <>
-                          <span className="min-w-0 truncate">{driverLabel}</span>
-                          {!unassigned ? (
-                            <CallAction
-                              compact
-                              label="Call driver"
-                              phone={driverPhone(booking.assignedDriverId)}
-                              disabledReason="No number on profile"
-                              profileHref={
-                                booking.assignedDriverId
-                                  ? driverProfileHref(booking.assignedDriverId)
-                                  : undefined
-                              }
-                            />
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span
+                              className="min-w-0 truncate text-[12px] font-medium leading-snug"
+                              style={{
+                                color: unassigned ? "#b3261e" : "#000b49",
+                              }}
+                              title={driverLabel}
+                            >
+                              {driverLabel}
+                            </span>
+                            {!unassigned ? (
+                              <CallAction
+                                compact
+                                label="Call driver"
+                                phone={driverPhone(booking.assignedDriverId)}
+                                disabledReason="No number on profile"
+                                profileHref={
+                                  booking.assignedDriverId
+                                    ? driverProfileHref(booking.assignedDriverId)
+                                    : undefined
+                                }
+                              />
+                            ) : null}
+                          </div>
+                          {vehicleLabel ? (
+                            <div
+                              className="mt-[3px] truncate text-[12px] leading-snug"
+                              style={{ color: "#9aa0a6" }}
+                              title={vehicleLabel}
+                            >
+                              {vehicleLabel}
+                            </div>
                           ) : null}
                         </>
                       )}

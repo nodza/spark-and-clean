@@ -100,7 +100,7 @@ const UserSchema = new Schema(
      */
     sessionsInvalidatedAt: { type: Date, default: null },
     /**
-     * Technician → Driver profile (`drivers.id`) for vehicle / display name (E5).
+     * Technician → Driver profile (`drivers.id`) for display name and current bakkie (E5).
      */
     driverProfileId: { type: String, trim: true, index: true, sparse: true },
   },

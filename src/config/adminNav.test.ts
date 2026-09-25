@@ -24,6 +24,7 @@ describe("visibleAdminNavItems", () => {
       "technicians",
       "clients",
       "pricing",
+      "vehicles",
       "analytics",
     ]);
   });

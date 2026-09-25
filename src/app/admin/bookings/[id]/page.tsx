@@ -35,6 +35,8 @@ import {
   bookingStatusVariant,
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
+import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { formatAssignedDriverLine } from "@/lib/vehicle";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -141,9 +143,7 @@ function AssignedDriverSummary({
     !drivers.some((driver) => driver.id === assignedDriverId);
   const showName =
     assigned && assigned.name.trim() && assigned.name !== assigned.id
-      ? assigned.vehicle
-        ? `${assigned.name} · ${assigned.vehicle}`
-        : assigned.name
+      ? formatAssignedDriverLine(assigned.name, assigned.vehicle)
       : null;
 
   if (isInactive) {
@@ -551,6 +551,23 @@ export default function AdminBookingDetail() {
                     </div>
                   </div>
                 )}
+
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Field messages
+                  </div>
+                  <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+                    Visible to the assigned technician on the job. Ops-only notes
+                    stay in Internal notes below.
+                  </p>
+                  <div className="mt-[14px]">
+                    <FieldMessagesPanel
+                      bookingId={booking.id}
+                      variant="admin"
+                      placeholder="Gate on the left, call when you arrive…"
+                    />
+                  </div>
+                </div>
 
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>

@@ -13,7 +13,9 @@ import {
 import { format } from "date-fns";
 import type { OpsAlert } from "@/types/opsAlert";
 import { isBookingOnLocalDay, localCalendarDate } from "@/lib/localCalendarDate";
-import { isActionableUnassignedToday } from "@/lib/bookingAttention";
+import { isActionableUnassignedToday, isUnassignedDriver } from "@/lib/bookingAttention";
+import { formatAssignedDriverLine } from "@/lib/vehicle";
+import type { Booking, Driver } from "@/types/booking";
 
 const HIGH_VOLUME_THRESHOLD = 5;
 const ALERT_POLL_MS = 12_000;
@@ -59,6 +61,10 @@ export default function AdminDashboard() {
   const { bookings, fetchBookings, isLoading } = useBookingStore();
   const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driversStatus, setDriversStatus] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
   const knownAlertIdsRef = useRef<Set<string> | null>(null);
 
   const loadAlerts = useCallback(async (opts?: { silent?: boolean }) => {
@@ -104,6 +110,31 @@ export default function AdminDashboard() {
   useEffect(() => {
     void fetchBookings();
     void loadAlerts();
+    void fetch("/api/drivers", { credentials: "include" })
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          setDrivers([]);
+          setDriversStatus("unavailable");
+          return;
+        }
+        if (!r.ok) {
+          setDrivers([]);
+          setDriversStatus("unavailable");
+          return;
+        }
+        const data = await r.json().catch(() => null);
+        if (Array.isArray(data)) {
+          setDrivers(data);
+          setDriversStatus("ready");
+          return;
+        }
+        setDrivers([]);
+        setDriversStatus("unavailable");
+      })
+      .catch(() => {
+        setDrivers([]);
+        setDriversStatus("unavailable");
+      });
   }, [fetchBookings, loadAlerts]);
 
   useEffect(() => {
@@ -130,6 +161,35 @@ export default function AdminDashboard() {
     0
   );
   const lateCount = 2; // placeholder until LATE/OVERDUE statuses are added to the type
+  const todayJobs = bookings
+    .filter(
+      (b) =>
+        isBookingOnLocalDay(b.collectionDate, today) && b.status !== "CANCELLED"
+    )
+    .sort((a, b) => {
+      const slot = a.collectionSlot === b.collectionSlot ? 0 : a.collectionSlot === "MORNING" ? -1 : 1;
+      if (slot !== 0) return slot;
+      return a.id.localeCompare(b.id);
+    });
+
+  const driverLine = (booking: Booking) => {
+    if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
+    if (driversStatus === "unavailable") return "Driver details unavailable";
+    const driver = drivers.find((d) => d.id === booking.assignedDriverId);
+    if (!driver) return "Assigned driver";
+    return formatAssignedDriverLine(driver.name, driver.vehicle);
+  };
+
+  const jobTag = (status: string) => {
+    const s = status.toUpperCase();
+    if (s === "COLLECTED") return { tag: "Collected", variant: "status-collected" as const, accent: "#2c4fa6" };
+    if (s === "DELIVERED") return { tag: "Delivery", variant: "status-delivering" as const, accent: "#2c4fa6" };
+    if (s === "CLEANING" || s === "DRYING" || s === "READY") {
+      return { tag: "Cleaning", variant: "status-cleaning" as const, accent: "#0a7a63" };
+    }
+    return { tag: "Collect", variant: "status-new" as const, accent: "#ffdc39" };
+  };
+
   const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
   const hasActionable =
     unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
@@ -159,15 +219,6 @@ export default function AdminDashboard() {
       toast.error("Could not dismiss alert");
     }
   };
-
-  // ─── Static schedule (replace with real data when API ready) ─────────────
-  const schedule = [
-    { time: "08:00", client: "Nomsa Khumalo", detail: "Sandton · 3 rugs · delivery", tag: "Delivery", variant: "status-delivering" as const, tech: "T. Mokoena", accent: "#2c4fa6" },
-    { time: "09:30", client: "Ridwaan Patel", detail: "Fourways · 2 rugs · collection", tag: "Collect", variant: "status-new" as const, tech: "T. Mokoena", accent: "#ffdc39" },
-    { time: "11:00", client: "Anke van Wyk", detail: "Randburg · couch + 1 rug", tag: "Collect", variant: "status-new" as const, tech: "S. Dube", accent: "#ffdc39" },
-    { time: "13:15", client: "Sipho Ndlovu", detail: "Midrand · 4 rugs · delivery", tag: "Delivery", variant: "status-delivering" as const, tech: "S. Dube", accent: "#2c4fa6" },
-    { time: "15:00", client: "Claire Bester", detail: "Bryanston · 1 Persian rug", tag: "Late", variant: "status-overdue" as const, tech: "Unassigned", accent: "#b3261e" },
-  ];
 
   const capacityTotal = 48;
   const capacityFilled = 34;
@@ -234,31 +285,51 @@ export default function AdminDashboard() {
                 <button className="ds-text-action">Full calendar</button>
               </div>
               <div>
-                {schedule.map((stop, i) => (
-                  <div
-                    key={stop.time}
-                    className="flex items-center gap-[14px] px-[22px] py-[14px]"
-                    style={{ borderBottom: i < schedule.length - 1 ? "1px solid #f0f2f6" : undefined }}
-                  >
-                    <div className="w-[44px] flex-none">
-                      <div className="tabular text-[14px] font-extrabold" style={{ color: "#000b49" }}>
-                        {stop.time}
-                      </div>
-                    </div>
-                    <div
-                      className="w-[3px] min-h-[36px] flex-none self-stretch rounded-full"
-                      style={{ background: stop.accent }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-body truncate" style={{ color: "#000b49" }}>{stop.client}</div>
-                      <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>{stop.detail}</div>
-                    </div>
-                    <Badge variant={stop.variant} className="flex-none">{stop.tag}</Badge>
-                    <div className="w-[90px] flex-none text-right text-meta" style={{ color: "#9aa0a6" }}>
-                      {stop.tech}
-                    </div>
+                {todayJobs.length === 0 ? (
+                  <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
+                    No jobs scheduled today.
                   </div>
-                ))}
+                ) : (
+                  todayJobs.map((job, i) => {
+                    const meta = jobTag(job.status);
+                    const time = job.collectionSlot === "MORNING" ? "09:00" : "14:00";
+                    const tech = driverLine(job);
+                    return (
+                      <Link
+                        key={job.id}
+                        href={`/admin/bookings/${job.id}`}
+                        className="flex items-center gap-[14px] px-[22px] py-[14px] no-underline hover:bg-[#f7f9fb]"
+                        style={{ borderBottom: i < todayJobs.length - 1 ? "1px solid #f0f2f6" : undefined }}
+                      >
+                        <div className="w-[44px] flex-none">
+                          <div className="tabular text-[14px] font-extrabold" style={{ color: "#000b49" }}>
+                            {time}
+                          </div>
+                        </div>
+                        <div
+                          className="w-[3px] min-h-[36px] flex-none self-stretch rounded-full"
+                          style={{ background: meta.accent }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-body truncate" style={{ color: "#000b49" }}>
+                            {job.customer.name}
+                          </div>
+                          <div className="text-meta mt-[3px] truncate" style={{ color: "#9aa0a6" }}>
+                            {job.suburb} · {job.rug.type}
+                          </div>
+                        </div>
+                        <Badge variant={meta.variant} className="flex-none">{meta.tag}</Badge>
+                        <div
+                          className="w-[168px] flex-none truncate text-right text-meta"
+                          style={{ color: "#9aa0a6" }}
+                          title={tech}
+                        >
+                          {tech}
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
               </div>
             </div>
 
