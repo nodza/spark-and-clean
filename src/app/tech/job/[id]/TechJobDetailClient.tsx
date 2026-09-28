@@ -29,6 +29,7 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { RugTagIntake } from "@/components/tech/RugTagIntake";
 
 type LoadState =
   | { kind: "idle" }
@@ -213,6 +214,7 @@ export function TechJobDetailClient() {
           booking={loadState.booking}
           pendingStatus={pendingStatus}
           onStatusUpdate={handleStatusUpdate}
+          onTagged={(booking) => setLoadState({ kind: "ready", booking })}
         />
       ) : null}
     </TechAppShell>
@@ -265,10 +267,12 @@ function JobContent({
   booking,
   pendingStatus,
   onStatusUpdate,
+  onTagged,
 }: {
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
+  onTagged: (booking: Booking) => void;
 }) {
   const phoneHref = booking.customer.phone?.trim()
     ? telHref(booking.customer.phone)
@@ -387,11 +391,18 @@ function JobContent({
       </div>
 
       <div className="mt-[22px]">
+        {booking.status === "SCHEDULED" ? (
+          <div className="mb-3">
+            <RugTagIntake booking={booking} onTagged={onTagged} />
+          </div>
+        ) : null}
         {canCollect ? (
           <button
             type="button"
-            disabled={busy}
-            onClick={() => onStatusUpdate("COLLECTED")}
+            disabled={busy || !booking.rug.tagCode}
+            onClick={() => {
+              if (booking.rug.tagCode) onStatusUpdate("COLLECTED");
+            }}
             className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
           >
             {pendingStatus === "COLLECTED" ? (

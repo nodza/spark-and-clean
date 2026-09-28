@@ -32,6 +32,8 @@ export interface RugDetails {
   areaSqM: number;
   photos?: string[]; // local URLs for mock
   labelPhotos?: string[]; // back-of-label / tag photos
+  tagCode?: string;
+  assetId?: string;
 }
 
 export interface Coordinates {
