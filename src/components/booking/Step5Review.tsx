@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Booking } from "@/types/booking";
+import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
@@ -59,12 +60,7 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
         : null;
 
   const addOns =
-    [
-      data.addOns?.odourRemoval && "Odour Removal & Hygiene Treatment",
-      data.addOns?.stainProtection && "Stain Protection Treatment",
-    ]
-      .filter(Boolean)
-      .join(", ") || "None";
+    bookingAddOnLabels(data.addOns, OPS_ADD_ON_COPY).join(", ") || "None";
 
   return (
     <div className="space-y-5">
