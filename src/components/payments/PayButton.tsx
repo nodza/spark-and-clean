@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CreditCard, Loader2, ArrowRight } from "lucide-react";
+import { Building2, CreditCard, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const appearance = {
   theme: "stripe",
@@ -62,9 +63,13 @@ declare global {
   }
 }
 
+type PayKind = "DEPOSIT" | "BALANCE";
+type PayProvider = "STRIPE" | "OZOW";
+
 type PayButtonProps = {
   bookingId: string;
-  depositCents: number;
+  amountCents: number;
+  kind?: PayKind;
   onPaid?: () => void;
 };
 
@@ -77,11 +82,28 @@ function confirmErrorMessage(outcome: unknown): string | null {
     : "Check the card details and try again.";
 }
 
+function formatRand(cents: number) {
+  return new Intl.NumberFormat("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
 /**
- * Embedded Stripe Checkout form. Confirming payment does not set
- * paymentStatus — the webhook records the deposit.
+ * Card (Stripe) and/or Instant EFT (Ozow). Confirming payment does not set
+ * paymentStatus — webhooks / Ozow notify record the transfer via the ledger.
  */
-export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
+export function PayButton({
+  bookingId,
+  amountCents,
+  kind = "DEPOSIT",
+  onPaid,
+}: PayButtonProps) {
+  const [providers, setProviders] = useState<{
+    stripe: boolean;
+    ozow: boolean;
+  } | null>(null);
+  const [selected, setSelected] = useState<PayProvider | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +112,33 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   useEffect(() => {
     onPaidRef.current = onPaid;
   }, [onPaid]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/payments/providers")
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as {
+          stripe?: boolean;
+          ozow?: boolean;
+        } | null;
+        if (cancelled) return;
+        const stripe = Boolean(data?.stripe);
+        const ozow = Boolean(data?.ozow) && (kind === "DEPOSIT" || kind === "BALANCE");
+        // Stripe is deposit-only today
+        const stripeOk = stripe && kind === "DEPOSIT";
+        setProviders({ stripe: stripeOk, ozow });
+        if (stripeOk && !ozow) setSelected("STRIPE");
+        else if (ozow && !stripeOk) setSelected("OZOW");
+        else if (stripeOk) setSelected("STRIPE");
+        else if (ozow) setSelected("OZOW");
+      })
+      .catch(() => {
+        if (!cancelled) setProviders({ stripe: false, ozow: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +156,10 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
           !cancelled &&
           res.ok &&
           data?.paymentStatus &&
-          data.paymentStatus !== "UNPAID"
+          data.paymentStatus !== "UNPAID" &&
+          (kind === "DEPOSIT"
+            ? data.paymentStatus !== "UNPAID"
+            : data.paymentStatus === "PAID")
         ) {
           onPaidRef.current?.();
         }
@@ -116,7 +168,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
     return () => {
       cancelled = true;
     };
-  }, [bookingId]);
+  }, [bookingId, kind]);
 
   useEffect(() => {
     if (!clientSecret) return;
@@ -191,11 +243,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   }, [bookingId, clientSecret]);
 
   async function startCheckout() {
-    if (pending || clientSecret || depositCents < 1) return;
-    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-      setError("Card payments are not available right now.");
-      return;
-    }
+    if (pending || clientSecret || amountCents < 1 || !selected) return;
     setPending(true);
     setError(null);
     try {
@@ -205,15 +253,29 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId,
-          kind: "DEPOSIT",
-          provider: "STRIPE",
+          kind,
+          provider: selected,
         }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { client_secret?: string; error?: string }
+        | { client_secret?: string; url?: string; error?: string }
         | null;
-      if (!res.ok || !data?.client_secret) {
+      if (!res.ok) {
         setError(data?.error || "Could not start checkout. Please try again.");
+        setPending(false);
+        return;
+      }
+      if (selected === "OZOW") {
+        if (!data?.url) {
+          setError("Could not start Instant EFT. Please try again.");
+          setPending(false);
+          return;
+        }
+        window.location.assign(data.url);
+        return;
+      }
+      if (!data?.client_secret) {
+        setError("Could not start checkout. Please try again.");
         setPending(false);
         return;
       }
@@ -225,36 +287,88 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
     }
   }
 
-  if (depositCents < 1) {
+  if (amountCents < 1) {
     return (
       <p className="text-sm text-muted-foreground">
-        There is nothing to collect as a deposit on this booking yet.
+        {kind === "BALANCE"
+          ? "There is no remaining balance on this booking."
+          : "There is nothing to collect as a deposit on this booking yet."}
       </p>
     );
   }
 
+  if (providers && !providers.stripe && !providers.ozow) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Online payments are not available right now.
+      </p>
+    );
+  }
+
+  const label =
+    kind === "BALANCE"
+      ? `Pay R ${formatRand(amountCents)} balance`
+      : `Pay R ${formatRand(amountCents)} deposit`;
+
+  const showChooser =
+    Boolean(providers?.stripe && providers?.ozow) && !clientSecret;
+
   return (
     <div className="space-y-3">
+      {showChooser ? (
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Payment method">
+          <button
+            type="button"
+            onClick={() => setSelected("STRIPE")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
+              selected === "STRIPE"
+                ? "border-navy bg-navy text-white"
+                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]"
+            )}
+          >
+            <CreditCard className="size-3.5" aria-hidden />
+            Card
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected("OZOW")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
+              selected === "OZOW"
+                ? "border-navy bg-navy text-white"
+                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]"
+            )}
+          >
+            <Building2 className="size-3.5" aria-hidden />
+            Instant EFT
+          </button>
+        </div>
+      ) : null}
+
       {!clientSecret ? (
         <Button
           type="button"
           className="w-full justify-between"
           onClick={() => void startCheckout()}
-          disabled={pending}
+          disabled={pending || !selected || providers === null}
           aria-busy={pending}
         >
           <span className="flex items-center gap-2">
             {pending ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : selected === "OZOW" ? (
+              <Building2 className="size-4" aria-hidden />
             ) : (
               <CreditCard className="size-4" aria-hidden />
             )}
             {pending
-              ? "Loading secure checkout…"
-              : `Pay R ${new Intl.NumberFormat("en-ZA", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }).format(depositCents / 100)} deposit`}
+              ? selected === "OZOW"
+                ? "Opening Instant EFT…"
+                : "Loading secure checkout…"
+              : selected === "OZOW"
+                ? `${label} · Instant EFT`
+                : label}
           </span>
           <ArrowRight className="size-4" aria-hidden />
         </Button>

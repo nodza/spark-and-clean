@@ -35,6 +35,7 @@ import { PayButton } from "@/components/payments/PayButton";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import {
   amountDueCentsForBooking,
+  balanceAmountCents,
   depositAmountCents,
   DEPOSIT_FRACTION,
 } from "@/lib/payments/deposit";
@@ -457,12 +458,14 @@ export default function BookingStatusPage() {
             <CheckoutReturnNotice />
           </Suspense>
 
-          {booking.paymentStatus === "UNPAID" && clientOwnsBooking(user, booking) ? (
+          {booking.paymentStatus === "UNPAID" &&
+          clientOwnsBooking(user, booking) ? (
             <div className="rounded-lg border border-[#e8edf5] p-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
                 <PayButton
                   bookingId={booking.id}
-                  depositCents={depositCents}
+                  amountCents={depositCents}
+                  kind="DEPOSIT"
                   onPaid={() => void refresh()}
                 />
                 <dl className="space-y-2 text-xs">
@@ -495,6 +498,19 @@ export default function BookingStatusPage() {
                   </div>
                 </dl>
               </div>
+            </div>
+          ) : null}
+
+          {booking.paymentStatus === "DEPOSIT" &&
+          clientOwnsBooking(user, booking) &&
+          balanceAmountCents(booking) > 0 ? (
+            <div className="rounded-lg border border-[#e8edf5] p-3">
+              <PayButton
+                bookingId={booking.id}
+                amountCents={balanceAmountCents(booking)}
+                kind="BALANCE"
+                onPaid={() => void refresh()}
+              />
             </div>
           ) : null}
 
