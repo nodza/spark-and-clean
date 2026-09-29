@@ -21,7 +21,7 @@ import { AddressAutocomplete } from "@/components/booking/AddressAutocomplete";
 import { FieldError } from "@/components/booking/FieldError";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   sanitizePhoneInput,
@@ -235,7 +235,7 @@ export function Step3Location({
                     update({ collectionDate: date?.toISOString() })
                   }
                   initialFocus
-                  disabled={(date) => date < new Date()}
+                  disabled={(date) => date < startOfDay(new Date())}
                 />
               </PopoverContent>
             </Popover>

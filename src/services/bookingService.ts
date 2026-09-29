@@ -16,13 +16,19 @@ function httpError(message: string, status: number): Error {
 
 class BookingService {
   async getBookings(): Promise<Booking[]> {
-    const res = await fetch("/api/bookings", { credentials: "include" });
+    const res = await fetch("/api/bookings", {
+      credentials: "include",
+      cache: "no-store",
+    });
     if (!res.ok) throw new Error(await readError(res, "Failed to fetch bookings"));
     return res.json();
   }
 
   async getBookingById(id: string): Promise<Booking | undefined> {
-    const res = await fetch(`/api/bookings/${id}`, { credentials: "include" });
+    const res = await fetch(`/api/bookings/${id}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
     if (res.status === 404) return undefined;
     if (res.status === 401) {
       throw httpError("Unauthorized", 401);
@@ -45,12 +51,29 @@ class BookingService {
     return res.json();
   }
 
-  async updateStatus(id: string, status: BookingStatus): Promise<Booking> {
+  async updateStatus(
+    id: string,
+    status: BookingStatus,
+    size?: { widthM: number; lengthM: number } | null
+  ): Promise<Booking> {
+    const payload: {
+      status: BookingStatus;
+      widthM?: number;
+      lengthM?: number;
+    } = { status };
+    if (
+      size &&
+      Number.isFinite(size.widthM) &&
+      Number.isFinite(size.lengthM)
+    ) {
+      payload.widthM = size.widthM;
+      payload.lengthM = size.lengthM;
+    }
     const res = await fetch(`/api/bookings/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(payload),
     });
     if (res.status === 401) {
       throw httpError("Unauthorized", 401);

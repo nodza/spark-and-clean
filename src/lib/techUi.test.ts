@@ -8,6 +8,7 @@ import {
   paymentBadgeClass,
   rugDimensionLabel,
   rugSummary,
+  techTagLabel,
 } from "@/lib/techUi";
 
 describe("rugDimensionLabel", () => {
@@ -85,6 +86,14 @@ describe("rugSummary", () => {
     expect(rugSummary(booking)).toBe(
       `Sea Point · Persian · ${MEASURE_ON_PICKUP}`
     );
+  });
+});
+
+describe("techTagLabel", () => {
+  it("shows a collected stop as collected", () => {
+    expect(techTagLabel("COLLECTED")).toBe("COLLECTED");
+    expect(techTagLabel("CLEANING")).toBe("DEPOT");
+    expect(techTagLabel("DELIVERED")).toBe("DONE");
   });
 });
 
