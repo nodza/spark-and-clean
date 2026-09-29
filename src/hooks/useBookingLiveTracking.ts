@@ -18,39 +18,47 @@ export function useBookingLiveTracking(bookingId: string, enabled: boolean) {
   const [booking, setBooking] = useState<Booking | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [forbidden, setForbidden] = useState(false);
+  /** Booking id the latest 403 belonged to. Other ids stay unblocked. */
+  const [forbiddenFor, setForbiddenFor] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mounted = useRef(true);
+  const requestSeq = useRef(0);
 
   const sync = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!enabled || !bookingId) return;
 
+      const requestId = ++requestSeq.current;
+      const requestedId = bookingId;
+      const stillCurrent = () =>
+        mounted.current && requestId === requestSeq.current;
+
       if (!opts?.silent) setLoading(true);
       else setIsRefreshing(true);
 
       try {
-        const next = await fetchBookingById(bookingId);
-        if (!mounted.current) return;
+        const next = await fetchBookingById(requestedId);
+        if (!stillCurrent()) return;
         setBooking(next);
         setLastSyncedAt(new Date());
         setError(null);
-        setForbidden(false);
+        setForbiddenFor(null);
       } catch (err) {
-        if (!mounted.current) return;
+        if (!stillCurrent()) return;
         const status =
           err && typeof err === "object" && "status" in err
             ? Number((err as { status: number }).status)
             : 0;
         if (status === 403) {
-          setForbidden(true);
+          setForbiddenFor(requestedId);
+          setBooking(undefined);
           setError(null);
           return;
         }
         setError("Could not refresh booking status. Retrying…");
       } finally {
-        if (!mounted.current) return;
+        if (!stillCurrent()) return;
         setLoading(false);
         setIsRefreshing(false);
       }
@@ -100,7 +108,7 @@ export function useBookingLiveTracking(bookingId: string, enabled: boolean) {
     booking,
     loading,
     error,
-    forbidden,
+    forbidden: forbiddenFor === bookingId,
     lastSyncedAt,
     isRefreshing,
     refresh: () => sync({ silent: true }),

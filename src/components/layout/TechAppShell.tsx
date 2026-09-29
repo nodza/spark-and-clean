@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   Bell,
   CalendarDays,
   Check,
   LogOut,
-  MessageSquare,
   User,
 } from "lucide-react";
 import { TechLayout, type TechTab } from "@/components/layout/TechLayout";
@@ -17,12 +15,11 @@ import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { FIELD_INBOX_POLL_MS } from "@/lib/fieldMessages";
 import { cn } from "@/lib/utils";
 
-export type TechAppTab = "today" | "completed" | "messages" | "profile";
+export type TechAppTab = "today" | "completed" | "profile" | "messages";
 
-const TAB_HREF: Record<TechAppTab, string> = {
+const TAB_HREF: Record<Exclude<TechAppTab, "messages">, string> = {
   today: "/tech/dashboard",
   completed: "/tech/completed",
-  messages: "/tech/messages",
   profile: "/tech/profile",
 };
 
@@ -110,23 +107,17 @@ export function TechAppShell({
         icon: <Check strokeWidth={1.8} />,
       },
       {
-        key: "messages",
-        label: "Messages",
-        icon: <MessageSquare strokeWidth={1.8} />,
-        badgeCount: unreadCount,
-      },
-      {
         key: "profile",
         label: "Profile",
         icon: <User strokeWidth={1.8} />,
       },
     ],
-    [unreadCount]
+    []
   );
 
   const handleTabChange = useCallback(
     (key: string) => {
-      const href = TAB_HREF[key as TechAppTab];
+      const href = TAB_HREF[key as keyof typeof TAB_HREF];
       if (href) router.push(href);
     },
     [router]
@@ -138,14 +129,8 @@ export function TechAppShell({
   }, [logout, router]);
 
   const handleNotifications = useCallback(() => {
-    if (unreadCount > 0) {
-      router.push("/tech/messages");
-      return;
-    }
-    toast.message("You’re all caught up", {
-      description: "No new dispatch messages right now.",
-    });
-  }, [router, unreadCount]);
+    router.push("/tech/messages");
+  }, [router]);
 
   if (!authReady) return <TechBootScreen />;
   if (!ready || !user) {
@@ -179,10 +164,9 @@ export function TechAppShell({
           >
             <Bell className="size-[17px]" strokeWidth={1.85} />
             {unreadCount > 0 ? (
-              <span
-                className="absolute right-[9px] top-[9px] size-[7px] rounded-full bg-[#ffdc39]"
-                aria-hidden
-              />
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d64545] px-1 text-[9px] font-extrabold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             ) : null}
           </Button>
           <Button

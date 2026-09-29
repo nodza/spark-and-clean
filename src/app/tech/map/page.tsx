@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { Icon } from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -10,6 +10,9 @@ import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { localCalendarDate } from "@/lib/localCalendarDate";
+import { DEFAULT_MAP_CENTER, todayMapPins } from "@/lib/jobMapCoords";
+import { slotTimeLabel, slotWindowLabel } from "@/lib/techUi";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -27,38 +30,13 @@ const Popup = dynamic(
   () => import("react-leaflet").then((mod) => mod.Popup),
   { ssr: false }
 );
-
-const SUBURB_COORDS: Record<string, [number, number]> = {
-  Durbanville: [-33.8333, 18.65],
-  "Sea Point": [-33.9167, 18.3833],
-  "City Bowl": [-33.9249, 18.4241],
-  Claremont: [-33.98, 18.465],
-  "Camps Bay": [-33.95, 18.3833],
-  "Green Point": [-33.9067, 18.4167],
-  Rondebosch: [-33.9667, 18.4833],
-  Milnerton: [-33.8667, 18.5],
-  Woodstock: [-33.9333, 18.45],
-  Constantia: [-34.0333, 18.4333],
-  Bishopscourt: [-33.9833, 18.45],
-  Observatory: [-33.9333, 18.4667],
-  Gardens: [-33.9333, 18.4167],
-  Fresnaye: [-33.925, 18.3833],
-};
-
-function coordsForSuburb(suburb: string, seed: string): [number, number] {
-  const base = SUBURB_COORDS[suburb] || [-33.9249, 18.4241];
-  // Stable jitter from id so markers don't jump on re-render
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  const dx = ((hash % 1000) / 1000 - 0.5) * 0.01;
-  const dy = (((hash / 1000) % 1000) / 1000 - 0.5) * 0.01;
-  return [base[0] + dx, base[1] + dy];
-}
+const MapFitBounds = dynamic(
+  () =>
+    import("@/components/tech/MapFitBounds").then((mod) => mod.MapFitBounds),
+  { ssr: false }
+);
 
 export default function TechMapPage() {
-  const router = useRouter();
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
   const { bookings, loading: isLoading } = useBookingsLiveList(!!ready);
   const [mounted, setMounted] = useState(false);
@@ -76,23 +54,28 @@ export default function TechMapPage() {
             "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
           iconSize: [25, 41],
           iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
         })
       );
     });
   }, []);
 
   const driverId = user?.driverProfileId;
-  const myJobs = useMemo(
-    () =>
-      bookings.filter(
-        (b) =>
-          (!driverId || b.assignedDriverId === driverId) &&
-          b.status !== "DELIVERED"
-      ),
-    [bookings, driverId]
+  const todaySa = localCalendarDate();
+
+  const pins = useMemo(
+    () => todayMapPins(bookings, driverId, todaySa),
+    [bookings, driverId, todaySa]
+  );
+
+  const fitPositions = useMemo(
+    () => pins.map((pin) => pin.position),
+    [pins]
   );
 
   const mapReady = mounted && !!markerIcon;
+  const showEmpty = mapReady && !isLoading && pins.length === 0;
+  const showLoading = !mapReady || (isLoading && pins.length === 0);
 
   return (
     <TechAppShell
@@ -103,15 +86,15 @@ export default function TechMapPage() {
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex flex-none items-center justify-between border-b border-[#e3e7ed] bg-white px-4 py-3">
           <h1 className="text-sm font-extrabold text-navy">
-            Route map
+            Today&apos;s map
             <span className="ml-1 font-semibold text-muted-foreground">
-              ({myJobs.length})
+              ({pins.length})
             </span>
           </h1>
         </div>
 
         <div className="relative min-h-0 flex-1">
-          {!mapReady || (isLoading && myJobs.length === 0) ? (
+          {showLoading ? (
             <div
               className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground"
               role="status"
@@ -121,52 +104,55 @@ export default function TechMapPage() {
             </div>
           ) : (
             <MapContainer
-              center={[-33.9249, 18.4241]}
+              center={DEFAULT_MAP_CENTER}
               zoom={11}
               style={{ height: "100%", width: "100%" }}
-              aria-label="Map of your assigned jobs"
+              aria-label="Map of today's stops"
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              {myJobs.map((job) => {
-                const position = coordsForSuburb(job.suburb, job.id);
-                return (
-                  <Marker key={job.id} position={position} icon={markerIcon!}>
-                    <Popup>
-                      <div className="min-w-[160px] p-1">
-                        <h3 className="font-bold text-navy">
-                          {job.customer.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {job.addressLine1}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {job.collectionSlot}
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-2 w-full"
-                          onClick={() => router.push(`/tech/job/${job.id}`)}
-                        >
-                          View job
-                        </Button>
-                      </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
+              {fitPositions.length > 0 ? (
+                <MapFitBounds positions={fitPositions} />
+              ) : null}
+              {pins.map(({ job, position }) => (
+                <Marker key={job.id} position={position} icon={markerIcon!}>
+                  <Popup>
+                    <div className="min-w-[168px] max-w-[220px] p-1">
+                      <h3 className="text-[13px] font-bold leading-snug text-navy">
+                        {job.customer.name}
+                      </h3>
+                      <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
+                        {job.addressLine1}
+                      </p>
+                      <p className="mt-1.5 text-xs font-medium text-muted-foreground">
+                        {slotWindowLabel(job.collectionSlot)} ·{" "}
+                        {slotTimeLabel(job.collectionSlot)}
+                      </p>
+                      <Button
+                        asChild
+                        size="sm"
+                        className="mt-2.5 h-9 w-full touch-manipulation"
+                      >
+                        <Link href={`/tech/job/${job.id}`}>View Job</Link>
+                      </Button>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
             </MapContainer>
           )}
 
-          {mapReady && !isLoading && myJobs.length === 0 ? (
+          {showEmpty ? (
             <div className="pointer-events-none absolute inset-x-4 bottom-4 z-[500]">
-              <div className="pointer-events-auto rounded-xl border bg-white/95 px-4 py-3 text-center text-sm shadow-md backdrop-blur">
-                <p className="font-semibold text-navy">No active stops</p>
-                <p className="text-muted-foreground">
-                  Assigned collections will show on the map.
+              <div
+                className="pointer-events-auto rounded-xl border border-[#e3e7ed] bg-white/95 px-4 py-3.5 text-center shadow-md backdrop-blur"
+                role="status"
+              >
+                <p className="text-sm font-semibold text-navy">No stops today</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Today&apos;s pickups and ready returns will appear here.
                 </p>
               </div>
             </div>
