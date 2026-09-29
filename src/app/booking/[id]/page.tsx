@@ -1,18 +1,25 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import {
   AlertCircle,
   ArrowLeft,
   CalendarDays,
+  CircleAlert,
   Clock,
+  Coins,
+  CreditCard,
+  Info,
   Loader2,
   MapPin,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,8 +31,23 @@ import {
 import { SaveBookingAccountCard } from "@/components/booking/SaveBookingAccountCard";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
+import { PayButton } from "@/components/payments/PayButton";
+import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
+import {
+  amountDueCentsForBooking,
+  depositAmountCents,
+  DEPOSIT_FRACTION,
+} from "@/lib/payments/deposit";
 import { isPersistedClient } from "@/types/user";
 import { cn } from "@/lib/utils";
+
+function formatRand(cents: number) {
+  const amount = new Intl.NumberFormat("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+  return `R ${amount.replace(/\u00a0/g, " ")}`;
+}
 
 function slotLabel(slot: "MORNING" | "AFTERNOON") {
   return slot === "MORNING" ? "08:00 – 12:00" : "12:00 – 16:00";
@@ -41,6 +63,32 @@ function formatDimensions(widthM: number | null, lengthM: number | null) {
     return `${widthM}m × ${lengthM}m`;
   }
   return "To be measured on collection";
+}
+
+function CheckoutReturnNotice() {
+  const value = useSearchParams().get("checkout");
+  if (value === "success") {
+    return (
+      <p
+        className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
+        role="status"
+      >
+        You&apos;re back from checkout. This booking stays unpaid until the bank
+        confirms the deposit.
+      </p>
+    );
+  }
+  if (value === "cancel") {
+    return (
+      <p
+        className="rounded-lg border bg-muted/40 px-3 py-2 text-muted-foreground"
+        role="status"
+      >
+        Checkout was cancelled. You can pay the deposit when you&apos;re ready.
+      </p>
+    );
+  }
+  return null;
 }
 
 export default function BookingStatusPage() {
@@ -124,6 +172,16 @@ export default function BookingStatusPage() {
 
   const statusMeta = BOOKING_STATUS_STEPS.find((s) => s.id === booking.status);
   const isDelivered = booking.status === "DELIVERED";
+  const amountDueCents = amountDueCentsForBooking(booking);
+  const depositCents = depositAmountCents(amountDueCents);
+  const balanceCents = Math.max(0, amountDueCents - depositCents);
+  const depositPercent = Math.round(DEPOSIT_FRACTION * 100);
+  const paymentLabel =
+    booking.paymentStatus === "PAID"
+      ? "Paid in full"
+      : booking.paymentStatus === "DEPOSIT"
+        ? "Deposit received"
+        : "Unpaid";
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8 sm:py-10 pb-16">
@@ -304,41 +362,147 @@ export default function BookingStatusPage() {
       </div>
 
       {/* Payment */}
-      <Card className="mt-4 sm:mt-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Payment</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">Status</span>
-            <Badge
-              variant={
-                booking.paymentStatus === "PAID"
-                  ? "default"
-                  : booking.paymentStatus === "DEPOSIT"
-                    ? "secondary"
-                    : "outline"
-              }
-              className={cn(
-                booking.paymentStatus === "UNPAID" &&
-                  "border-destructive text-destructive"
-              )}
-            >
-              {booking.paymentStatus}
-            </Badge>
+      <Card className="mt-4 overflow-hidden rounded-xl border-[#e6ebf2] bg-white sm:mt-5">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#eef3ff] text-[#3154d4]">
+              <CreditCard className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8b93a7]">
+                Payment
+              </p>
+              <h2 className="text-base font-bold tracking-tight text-[#172033]">
+                {paymentLabel}
+              </h2>
+            </div>
           </div>
-          <p className="text-muted-foreground">
-            {booking.paymentStatus === "PAID"
-              ? "Paid in full"
-              : booking.paymentStatus === "DEPOSIT"
-                ? "Deposit received — balance due before or on delivery"
-                : "Payment outstanding — settle after inspection or when ready for delivery"}
-          </p>
-          {booking.paymentStatus === "UNPAID" && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold tracking-wide",
+              booking.paymentStatus === "PAID" && "bg-[#e8f8f2] text-[#0a7a63]",
+              booking.paymentStatus === "DEPOSIT" && "bg-[#eef2ff] text-[#2c4fa6]",
+              booking.paymentStatus === "UNPAID" && "bg-[#fff1f1] text-[#e11d48]"
+            )}
+          >
+            <CircleAlert className="size-3" aria-hidden />
+            {booking.paymentStatus}
+          </span>
+        </div>
+
+        <CardContent className="space-y-3 px-4 pb-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex items-center gap-2.5 rounded-lg border border-[#e8edf5] px-3 py-2.5">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#eef3ff] text-[#3154d4]">
+                <Coins className="size-3.5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-[#7b8494]">Amount due</p>
+                <p className="text-lg font-bold tabular-nums tracking-tight text-[#172033]">
+                  {formatRand(amountDueCents)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-[#d7f3e8] bg-[#f3fbf7] px-3 py-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e5f8ef] text-[#12a15a]">
+                  <ShieldCheck className="size-3.5" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-[#12a15a]">
+                    Deposit · {depositPercent}%
+                  </p>
+                  <p className="text-lg font-bold tabular-nums tracking-tight text-[#0d8a4b]">
+                    {formatRand(
+                      booking.paymentStatus === "PAID" ? 0 : depositCents
+                    )}
+                  </p>
+                </div>
+              </div>
+              {booking.paymentStatus === "UNPAID" ? (
+                <div className="hidden w-20 shrink-0 sm:block">
+                  <div className="h-1 overflow-hidden rounded-full bg-[#d7efe4]">
+                    <div
+                      className="h-full rounded-full bg-[#16a34a]"
+                      style={{ width: `${depositPercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-right text-[10px] text-[#7b8494]">
+                    {depositPercent}% of total
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex gap-2 rounded-lg border border-[#e4e9fb] bg-[#f7f8ff] px-3 py-2.5">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-[#3154d4]" aria-hidden />
+            <p className="text-xs leading-relaxed text-[#3d4660]">
+              {booking.paymentStatus === "PAID" ? (
+                "This booking is settled."
+              ) : booking.paymentStatus === "DEPOSIT" ? (
+                <>
+                  Deposit received. {formatRand(balanceCents)} remains before delivery.
+                </>
+              ) : (
+                <>
+                  A {depositPercent}% deposit holds the collection slot. The remaining{" "}
+                  {formatRand(balanceCents)} is due before delivery.
+                </>
+              )}
+            </p>
+          </div>
+
+          <Suspense fallback={null}>
+            <CheckoutReturnNotice />
+          </Suspense>
+
+          {booking.paymentStatus === "UNPAID" && clientOwnsBooking(user, booking) ? (
+            <div className="rounded-lg border border-[#e8edf5] p-3">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
+                <PayButton
+                  bookingId={booking.id}
+                  depositCents={depositCents}
+                  onPaid={() => void refresh()}
+                />
+                <dl className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Wallet className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Total
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(amountDueCents)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Coins className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Deposit
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(depositCents)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Clock className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Remaining
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(balanceCents)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          ) : null}
+
+          {booking.paymentStatus === "UNPAID" && !clientOwnsBooking(user, booking) ? (
+            <p className="rounded-lg border border-[#f3c9c9] bg-[#fff5f5] px-3 py-2 text-xs text-[#b42318]">
               Outstanding balance on this order.
             </p>
-          )}
+          ) : null}
         </CardContent>
       </Card>
     </div>
