@@ -278,7 +278,10 @@ export default function BookingWizard() {
 
     const created = await addBooking(booking);
     if (!created) {
-      setSubmitError("Could not save your booking. Please try again.");
+      setSubmitError(
+        useBookingStore.getState().error ||
+          "Could not save your booking. Please try again."
+      );
       setIsSubmitting(false);
       return;
     }
