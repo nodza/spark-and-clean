@@ -68,6 +68,29 @@ type PayButtonProps = {
   onPaid?: () => void;
 };
 
+const WEBHOOK_WAIT_MS = 15_000;
+const WEBHOOK_POLL_MS = 1_500;
+
+async function readStoredPaymentStatus(bookingId: string): Promise<string | null> {
+  const res = await fetch("/api/payments/sync-session", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bookingId }),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as
+    | { paymentStatus?: string }
+    | null;
+  return typeof data?.paymentStatus === "string" ? data.paymentStatus : null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function confirmErrorMessage(outcome: unknown): string | null {
   if (!outcome || typeof outcome !== "object" || !("type" in outcome)) return null;
   if ((outcome as { type?: string }).type !== "error") return null;
@@ -84,31 +107,22 @@ function confirmErrorMessage(outcome: unknown): string | null {
 export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const onPaidRef = useRef(onPaid);
+  const submittedRef = useRef(false);
   useEffect(() => {
     onPaidRef.current = onPaid;
   }, [onPaid]);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/payments/sync-session", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId }),
-    })
-      .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as
-          | { paymentStatus?: string }
-          | null;
-        if (
-          !cancelled &&
-          res.ok &&
-          data?.paymentStatus &&
-          data.paymentStatus !== "UNPAID"
-        ) {
+    void readStoredPaymentStatus(bookingId)
+      .then((status) => {
+        if (!cancelled && status && status !== "UNPAID") {
           onPaidRef.current?.();
         }
       })
@@ -152,34 +166,47 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
           })
           .then(async (outcome: unknown) => {
             const message = confirmErrorMessage(outcome);
+            if (!alive) return;
             if (message) {
               setError(message);
               setConfirming(false);
               return;
             }
 
-            const sync = await fetch("/api/payments/sync-session", {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bookingId, clientSecret }),
-            });
-            const synced = (await sync.json().catch(() => null)) as
-              | { paymentStatus?: string; error?: string }
-              | null;
             setConfirming(false);
-            if (!sync.ok) {
-              setError(
-                synced?.error ||
-                  "Payment went through, but the booking status did not update. Refresh in a moment."
+            submittedRef.current = true;
+            setSubmitted(true);
+            setWaiting(true);
+            setNotice(null);
+            const started = Date.now();
+            let status: string | null = null;
+            while (alive && Date.now() - started < WEBHOOK_WAIT_MS) {
+              status = await readStoredPaymentStatus(bookingId);
+              if (!alive) return;
+              if (status && status !== "UNPAID") break;
+              await delay(WEBHOOK_POLL_MS);
+            }
+            if (!alive) return;
+            setWaiting(false);
+            if (status && status !== "UNPAID") {
+              onPaidRef.current?.();
+              return;
+            }
+            setNotice(
+              "Payment submitted. This page updates as soon as Stripe confirms the deposit."
+            );
+          })
+          .catch(() => {
+            if (!alive) return;
+            setConfirming(false);
+            setWaiting(false);
+            if (submittedRef.current) {
+              setNotice(
+                "Payment submitted. This page updates as soon as Stripe confirms the deposit."
               );
               return;
             }
-            onPaidRef.current?.();
-          })
-          .catch(() => {
             setError("Payment could not be confirmed. Please try again.");
-            setConfirming(false);
           });
       });
     });
@@ -234,7 +261,10 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div
+      className={`space-y-3 ${waiting || submitted ? "pointer-events-none" : ""}`}
+      aria-busy={pending || confirming || waiting}
+    >
       {!clientSecret ? (
         <Button
           type="button"
@@ -261,7 +291,22 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
       ) : null}
       <div id="checkout-form" className="min-w-0" />
       {confirming ? (
-        <p className="text-sm text-[#5c6570]">Checking your details…</p>
+        <p className="text-sm text-[#5c6570]" role="status">
+          Checking your details…
+        </p>
+      ) : null}
+      {waiting ? (
+        <p className="text-sm text-[#5c6570]" role="status" aria-live="polite">
+          Waiting for Stripe to confirm the deposit…
+        </p>
+      ) : null}
+      {notice ? (
+        <p
+          className="rounded-lg border border-[#d7efe4] bg-[#f3fbf7] px-3 py-2 text-sm text-[#0a7a63]"
+          role="status"
+        >
+          {notice}
+        </p>
       ) : null}
       {error ? (
         <p

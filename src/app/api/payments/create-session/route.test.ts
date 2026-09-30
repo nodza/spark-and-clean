@@ -75,6 +75,8 @@ describe("POST /api/payments/create-session", () => {
     expect(await res.json()).toEqual({
       client_secret: "cs_test_secret",
     });
+    expect(sarahBooking.paymentStatus).toBe("UNPAID");
+    expect(sarahBooking.billing.amountPaidCents).toBe(0);
     expect(createDepositCheckoutSession).toHaveBeenCalledWith({
       bookingId: "SC-1",
       customerEmail: "sarah@example.com",
