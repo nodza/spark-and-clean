@@ -216,6 +216,9 @@ export default function ClientDashboard() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/portal/payments">Payment history</Link>
+          </Button>
           <Button
             type="button"
             variant="outline"

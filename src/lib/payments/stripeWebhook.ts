@@ -1,4 +1,6 @@
 import type Stripe from "stripe";
+import { connectDB } from "@/lib/mongodb";
+import { Booking } from "@/models/Booking";
 import { recordSuccess } from "@/lib/payments/ledger";
 
 /**
@@ -34,10 +36,20 @@ export async function fulfillPaidCheckoutSession(session: {
       ? paymentIntent
       : paymentIntent?.id || session.id || "";
 
+  await connectDB();
+  const booking = await Booking.findOne({ id: bookingId })
+    .select({ userId: 1 })
+    .lean();
+  const userId =
+    booking && typeof booking.userId === "string" && booking.userId.trim()
+      ? booking.userId.trim()
+      : undefined;
+
   return recordSuccess({
     provider: "stripe",
     providerRef,
     bookingId,
+    ...(userId ? { userId } : {}),
     kind,
     amountCents: Number(session.amount_total),
     currency: session.currency || "ZAR",
