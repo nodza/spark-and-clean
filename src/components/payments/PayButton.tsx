@@ -70,6 +70,8 @@ type PayButtonProps = {
 
 const WEBHOOK_WAIT_MS = 15_000;
 const WEBHOOK_POLL_MS = 1_500;
+const DEPOSIT_PENDING_NOTICE =
+  "Your payment went through. The deposit will show on this booking shortly.";
 
 async function readStoredPaymentStatus(bookingId: string): Promise<string | null> {
   const res = await fetch("/api/payments/sync-session", {
@@ -101,8 +103,8 @@ function confirmErrorMessage(outcome: unknown): string | null {
 }
 
 /**
- * Embedded Stripe Checkout form. Confirming payment does not set
- * paymentStatus — the webhook records the deposit.
+ * Embedded card form. Confirming payment does not set paymentStatus.
+ * The signed webhook is the only automatic writer of the deposit.
  */
 export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   const [pending, setPending] = useState(false);
@@ -117,6 +119,22 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
   useEffect(() => {
     onPaidRef.current = onPaid;
   }, [onPaid]);
+
+  useEffect(() => {
+    if (!notice) return;
+    let cancelled = false;
+    const id = window.setInterval(() => {
+      void readStoredPaymentStatus(bookingId).then((status) => {
+        if (!cancelled && status && status !== "UNPAID") {
+          onPaidRef.current?.();
+        }
+      });
+    }, WEBHOOK_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [notice, bookingId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,18 +210,14 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
               onPaidRef.current?.();
               return;
             }
-            setNotice(
-              "Payment submitted. This page updates as soon as Stripe confirms the deposit."
-            );
+            setNotice(DEPOSIT_PENDING_NOTICE);
           })
           .catch(() => {
             if (!alive) return;
             setConfirming(false);
             setWaiting(false);
             if (submittedRef.current) {
-              setNotice(
-                "Payment submitted. This page updates as soon as Stripe confirms the deposit."
-              );
+              setNotice(DEPOSIT_PENDING_NOTICE);
               return;
             }
             setError("Payment could not be confirmed. Please try again.");
@@ -297,7 +311,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
       ) : null}
       {waiting ? (
         <p className="text-sm text-[#5c6570]" role="status" aria-live="polite">
-          Waiting for Stripe to confirm the deposit…
+          Your payment went through. Adding the deposit to your booking…
         </p>
       ) : null}
       {notice ? (

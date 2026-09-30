@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSession = vi.fn();
 const findOne = vi.fn();
-const recordSuccess = vi.fn();
+const retrieveCheckoutSession = vi.fn();
 const fulfillPaidCheckoutSession = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
@@ -22,13 +22,22 @@ vi.mock("@/models/Booking", () => ({
   },
 }));
 
-vi.mock("@/lib/payments/ledger", () => ({
-  recordSuccess: (...args: unknown[]) => recordSuccess(...args),
+vi.mock("@/lib/payments/stripe", () => ({
+  retrieveCheckoutSession: (...args: unknown[]) => retrieveCheckoutSession(...args),
+  getStripe: () => {
+    throw new Error("sync-session must not call Stripe");
+  },
 }));
 
 vi.mock("@/lib/payments/stripeWebhook", () => ({
   fulfillPaidCheckoutSession: (...args: unknown[]) =>
     fulfillPaidCheckoutSession(...args),
+}));
+
+vi.mock("@/lib/payments/ledger", () => ({
+  recordSuccess: () => {
+    throw new Error("sync-session must not record a payment");
+  },
 }));
 
 vi.mock("@/lib/serialize", () => ({
@@ -58,7 +67,7 @@ describe("POST /api/payments/sync-session", () => {
   beforeEach(() => {
     getSession.mockReset();
     findOne.mockReset();
-    recordSuccess.mockReset();
+    retrieveCheckoutSession.mockReset();
     fulfillPaidCheckoutSession.mockReset();
     findOne.mockReturnValue({ lean: async () => sarahBooking });
     getSession.mockResolvedValue({
@@ -68,12 +77,12 @@ describe("POST /api/payments/sync-session", () => {
     });
   });
 
-  it("returns the stored status and does not record a payment", async () => {
+  it("returns the stored status and does not record a payment from the browser", async () => {
     const { POST } = await import("./route");
     const res = await POST(
       post({
         bookingId: "SC-1",
-        clientSecret: "cs_test_secret",
+        clientSecret: "cs_test_paid_secret_abc",
         paymentStatus: "PAID",
       })
     );
@@ -85,7 +94,7 @@ describe("POST /api/payments/sync-session", () => {
     });
     expect(sarahBooking.paymentStatus).toBe("UNPAID");
     expect(sarahBooking.billing.amountPaidCents).toBe(0);
-    expect(recordSuccess).not.toHaveBeenCalled();
+    expect(retrieveCheckoutSession).not.toHaveBeenCalled();
     expect(fulfillPaidCheckoutSession).not.toHaveBeenCalled();
   });
 });
