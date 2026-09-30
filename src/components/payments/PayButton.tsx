@@ -102,6 +102,7 @@ export function PayButton({
   const [providers, setProviders] = useState<{
     stripe: boolean;
     ozow: boolean;
+    ozowConfigured: boolean;
   } | null>(null);
   const [selected, setSelected] = useState<PayProvider | null>(null);
   const [pending, setPending] = useState(false);
@@ -122,18 +123,32 @@ export function PayButton({
           ozow?: boolean;
         } | null;
         if (cancelled) return;
-        const stripe = Boolean(data?.stripe);
-        const ozow = Boolean(data?.ozow) && (kind === "DEPOSIT" || kind === "BALANCE");
-        // Stripe is deposit-only today
-        const stripeOk = stripe && kind === "DEPOSIT";
-        setProviders({ stripe: stripeOk, ozow });
-        if (stripeOk && !ozow) setSelected("STRIPE");
-        else if (ozow && !stripeOk) setSelected("OZOW");
-        else if (stripeOk) setSelected("STRIPE");
+        const stripeFromApi = Boolean(data?.stripe);
+        const stripeFallback = Boolean(
+          process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()
+        );
+        const stripeConfigured = stripeFromApi || stripeFallback;
+        const ozowConfigured = Boolean(data?.ozow);
+        const stripe = stripeConfigured && kind === "DEPOSIT";
+        const ozow =
+          ozowConfigured && (kind === "DEPOSIT" || kind === "BALANCE");
+        setProviders({ stripe, ozow, ozowConfigured });
+        if (stripe) setSelected("STRIPE");
         else if (ozow) setSelected("OZOW");
+        else if (kind === "DEPOSIT") setSelected("OZOW"); // show EFT + not-configured msg
+        else setSelected("OZOW");
       })
       .catch(() => {
-        if (!cancelled) setProviders({ stripe: false, ozow: false });
+        if (cancelled) return;
+        const stripeFallback =
+          Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()) &&
+          kind === "DEPOSIT";
+        setProviders({
+          stripe: stripeFallback,
+          ozow: false,
+          ozowConfigured: false,
+        });
+        setSelected(stripeFallback ? "STRIPE" : "OZOW");
       });
     return () => {
       cancelled = true;
@@ -244,6 +259,10 @@ export function PayButton({
 
   async function startCheckout() {
     if (pending || clientSecret || amountCents < 1 || !selected) return;
+    if (selected === "OZOW" && !providers?.ozowConfigured) {
+      setError("Instant EFT is not available right now.");
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -287,6 +306,18 @@ export function PayButton({
     }
   }
 
+  const ozowNotConfiguredMessage =
+    "Instant EFT is not available right now.";
+
+  if (providers === null) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        Checking payment options…
+      </div>
+    );
+  }
+
   if (amountCents < 1) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -297,11 +328,38 @@ export function PayButton({
     );
   }
 
-  if (providers && !providers.stripe && !providers.ozow) {
+  // Balance is Ozow-only today — still show the not-configured message, don't hide quietly.
+  if (kind === "BALANCE" && !providers.ozowConfigured) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Online payments are not available right now.
-      </p>
+      <p className="text-sm text-muted-foreground">{ozowNotConfiguredMessage}</p>
+    );
+  }
+
+  if (!providers.stripe && !providers.ozowConfigured && kind === "DEPOSIT") {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Payment method">
+          <button
+            type="button"
+            disabled
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#e3e7ed] bg-[#f5f7fa] px-3 py-2 text-xs font-bold text-[#9aa0a6]"
+          >
+            <CreditCard className="size-3.5" aria-hidden />
+            Card
+          </button>
+          <button
+            type="button"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-navy bg-navy px-3 py-2 text-xs font-bold text-white"
+          >
+            <Building2 className="size-3.5" aria-hidden />
+            Instant EFT
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground">{ozowNotConfiguredMessage}</p>
+        <p className="text-sm text-muted-foreground">
+          Card payments are also unavailable right now.
+        </p>
+      </div>
     );
   }
 
@@ -310,34 +368,50 @@ export function PayButton({
       ? `Pay R ${formatRand(amountCents)} balance`
       : `Pay R ${formatRand(amountCents)} deposit`;
 
-  const showChooser =
-    Boolean(providers?.stripe && providers?.ozow) && !clientSecret;
+  // Always show Card vs Instant EFT on deposit; never hide EFT when Ozow env is missing.
+  const showChooser = kind === "DEPOSIT" && !clientSecret;
+  const ozowReady = providers.ozowConfigured && providers.ozow;
+  const canPaySelected =
+    selected === "STRIPE"
+      ? providers.stripe
+      : selected === "OZOW"
+        ? ozowReady
+        : false;
 
   return (
     <div className="space-y-3">
       {showChooser ? (
         <div className="grid grid-cols-2 gap-2" role="group" aria-label="Payment method">
+          {providers.stripe ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelected("STRIPE");
+                setError(null);
+              }}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
+                selected === "STRIPE"
+                  ? "border-navy bg-navy text-white"
+                  : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]"
+              )}
+            >
+              <CreditCard className="size-3.5" aria-hidden />
+              Card
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={() => setSelected("STRIPE")}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
-              selected === "STRIPE"
-                ? "border-navy bg-navy text-white"
-                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]"
-            )}
-          >
-            <CreditCard className="size-3.5" aria-hidden />
-            Card
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelected("OZOW")}
+            onClick={() => {
+              setSelected("OZOW");
+              setError(null);
+            }}
             className={cn(
               "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
               selected === "OZOW"
                 ? "border-navy bg-navy text-white"
-                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]"
+                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]",
+              !providers.stripe && "col-span-2"
             )}
           >
             <Building2 className="size-3.5" aria-hidden />
@@ -346,12 +420,18 @@ export function PayButton({
         </div>
       ) : null}
 
-      {!clientSecret ? (
+      {kind === "DEPOSIT" &&
+      selected === "OZOW" &&
+      !providers.ozowConfigured ? (
+        <p className="text-sm text-muted-foreground">{ozowNotConfiguredMessage}</p>
+      ) : null}
+
+      {!clientSecret && canPaySelected ? (
         <Button
           type="button"
           className="w-full justify-between"
           onClick={() => void startCheckout()}
-          disabled={pending || !selected || providers === null}
+          disabled={pending || !selected}
           aria-busy={pending}
         >
           <span className="flex items-center gap-2">

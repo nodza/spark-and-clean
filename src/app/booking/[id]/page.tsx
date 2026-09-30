@@ -458,7 +458,14 @@ export default function BookingStatusPage() {
             <CheckoutReturnNotice />
           </Suspense>
 
+          {booking.paymentStatus === "UNPAID" && !authReady ? (
+            <p className="rounded-lg border border-[#e8edf5] bg-[#f8fafc] px-3 py-2 text-xs text-[#5c6578]">
+              Checking your account before showing pay options…
+            </p>
+          ) : null}
+
           {booking.paymentStatus === "UNPAID" &&
+          authReady &&
           clientOwnsBooking(user, booking) ? (
             <div className="rounded-lg border border-[#e8edf5] p-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
@@ -514,9 +521,13 @@ export default function BookingStatusPage() {
             </div>
           ) : null}
 
-          {booking.paymentStatus === "UNPAID" && !clientOwnsBooking(user, booking) ? (
+          {booking.paymentStatus === "UNPAID" &&
+          authReady &&
+          !clientOwnsBooking(user, booking) ? (
             <p className="rounded-lg border border-[#f3c9c9] bg-[#fff5f5] px-3 py-2 text-xs text-[#b42318]">
-              Outstanding balance on this order.
+              {user
+                ? "This unpaid booking is not linked to your account, so pay is hidden. Open a booking you own (same email / My Bookings), or ask ops to link it."
+                : "Sign in with the client account that owns this booking to pay the deposit."}
             </p>
           ) : null}
         </CardContent>
