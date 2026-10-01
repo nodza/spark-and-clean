@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkoutSessionIdFromClientSecret,
+  createBalanceCheckoutSession,
   createDepositCheckoutSession,
 } from "@/lib/payments/stripe";
 
@@ -60,5 +61,37 @@ describe("createDepositCheckoutSession", () => {
     expect(payload.return_url).toBe(
       "http://localhost:3000/booking/SC-1?checkout=success"
     );
+  });
+});
+
+describe("createBalanceCheckoutSession", () => {
+  beforeEach(() => {
+    createSession.mockReset();
+    process.env.STRIPE_SECRET_KEY = "sk_test_example";
+    process.env.APP_URL = "http://localhost:3000/";
+    createSession.mockResolvedValue({
+      client_secret: "cs_test_balance",
+      id: "cs_test_balance",
+    });
+  });
+
+  it("charges the remaining cents with kind BALANCE", async () => {
+    const result = await createBalanceCheckoutSession({
+      bookingId: "SC-1",
+      customerEmail: "sarah@example.com",
+      amountCents: 7500,
+    });
+
+    expect(result).toEqual({
+      clientSecret: "cs_test_balance",
+      amountCents: 7500,
+    });
+    const payload = createSession.mock.calls[0][0];
+    expect(payload.line_items[0].price_data.unit_amount).toBe(7500);
+    expect(payload.metadata).toEqual({ bookingId: "SC-1", kind: "BALANCE" });
+    expect(payload.payment_intent_data.metadata).toEqual({
+      bookingId: "SC-1",
+      kind: "BALANCE",
+    });
   });
 });

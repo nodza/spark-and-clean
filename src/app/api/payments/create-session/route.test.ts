@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSession = vi.fn();
 const findOne = vi.fn();
 const createDepositCheckoutSession = vi.fn();
+const createBalanceCheckoutSession = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
@@ -24,6 +25,8 @@ vi.mock("@/models/Booking", () => ({
 vi.mock("@/lib/payments/stripe", () => ({
   createDepositCheckoutSession: (...args: unknown[]) =>
     createDepositCheckoutSession(...args),
+  createBalanceCheckoutSession: (...args: unknown[]) =>
+    createBalanceCheckoutSession(...args),
 }));
 
 vi.mock("@/lib/serialize", () => ({
@@ -41,6 +44,12 @@ const sarahBooking = {
   billing: { currency: "ZAR", amountDueCents: 15000, amountPaidCents: 0 },
 };
 
+const sarahDepositBooking = {
+  ...sarahBooking,
+  paymentStatus: "DEPOSIT",
+  billing: { currency: "ZAR", amountDueCents: 15000, amountPaidCents: 7500 },
+};
+
 function post(body: unknown) {
   return new Request("http://localhost/api/payments/create-session", {
     method: "POST",
@@ -54,9 +63,14 @@ describe("POST /api/payments/create-session", () => {
     getSession.mockReset();
     findOne.mockReset();
     createDepositCheckoutSession.mockReset();
+    createBalanceCheckoutSession.mockReset();
     findOne.mockReturnValue({ lean: async () => sarahBooking });
     createDepositCheckoutSession.mockResolvedValue({
       clientSecret: "cs_test_secret",
+      amountCents: 7500,
+    });
+    createBalanceCheckoutSession.mockResolvedValue({
+      clientSecret: "cs_test_balance",
       amountCents: 7500,
     });
   });
@@ -80,6 +94,67 @@ describe("POST /api/payments/create-session", () => {
       customerEmail: "sarah@example.com",
       amountDueCents: 15000,
     });
+  });
+
+  it("starts a balance Checkout for remaining cents when status is DEPOSIT", async () => {
+    getSession.mockResolvedValue({
+      id: "user-sarah",
+      email: "sarah@example.com",
+      role: "client",
+    });
+    findOne.mockReturnValue({ lean: async () => sarahDepositBooking });
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({ bookingId: "SC-1", kind: "BALANCE", provider: "STRIPE" })
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      client_secret: "cs_test_balance",
+    });
+    expect(createBalanceCheckoutSession).toHaveBeenCalledWith({
+      bookingId: "SC-1",
+      customerEmail: "sarah@example.com",
+      amountCents: 7500,
+    });
+    expect(createDepositCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects BALANCE unless paymentStatus is DEPOSIT", async () => {
+    getSession.mockResolvedValue({
+      id: "user-sarah",
+      email: "sarah@example.com",
+      role: "client",
+    });
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({ bookingId: "SC-1", kind: "BALANCE", provider: "STRIPE" })
+    );
+    expect(res.status).toBe(409);
+    expect(createBalanceCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects BALANCE when remaining cents are zero", async () => {
+    getSession.mockResolvedValue({
+      id: "user-sarah",
+      email: "sarah@example.com",
+      role: "client",
+    });
+    findOne.mockReturnValue({
+      lean: async () => ({
+        ...sarahDepositBooking,
+        billing: {
+          currency: "ZAR",
+          amountDueCents: 15000,
+          amountPaidCents: 15000,
+        },
+      }),
+    });
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({ bookingId: "SC-1", kind: "BALANCE", provider: "STRIPE" })
+    );
+    expect(res.status).toBe(409);
+    expect(createBalanceCheckoutSession).not.toHaveBeenCalled();
   });
 
   it("returns 403 when the client does not own the booking", async () => {

@@ -21,6 +21,9 @@ const appearance = {
   },
 } as const;
 
+const WEBHOOK_WAIT_MS = 15_000;
+const WEBHOOK_POLL_MS = 1_000;
+
 type CheckoutForm = {
   mount: (selector: string) => void;
   unmount?: () => void;
@@ -62,9 +65,13 @@ declare global {
   }
 }
 
+export type PayKind = "DEPOSIT" | "BALANCE";
+
 type PayButtonProps = {
   bookingId: string;
-  depositCents: number;
+  /** Amount charged for this checkout (deposit or remaining balance). */
+  amountCents: number;
+  kind?: PayKind;
   onPaid?: () => void;
 };
 
@@ -77,15 +84,61 @@ function confirmErrorMessage(outcome: unknown): string | null {
     : "Check the card details and try again.";
 }
 
+function formatZar(cents: number): string {
+  return new Intl.NumberFormat("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+function paymentComplete(kind: PayKind, paymentStatus: string | null): boolean {
+  if (!paymentStatus) return false;
+  if (kind === "BALANCE") return paymentStatus === "PAID";
+  return paymentStatus !== "UNPAID";
+}
+
+async function readStoredStatus(bookingId: string): Promise<string | null> {
+  const res = await fetch("/api/payments/sync-session", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bookingId }),
+  });
+  const data = (await res.json().catch(() => null)) as
+    | { paymentStatus?: string }
+    | null;
+  if (!res.ok || typeof data?.paymentStatus !== "string") return null;
+  return data.paymentStatus;
+}
+
+async function waitForStoredStatus(
+  bookingId: string,
+  kind: PayKind
+): Promise<string | null> {
+  const deadline = Date.now() + WEBHOOK_WAIT_MS;
+  while (Date.now() < deadline) {
+    const status = await readStoredStatus(bookingId);
+    if (paymentComplete(kind, status)) return status;
+    await new Promise((resolve) => setTimeout(resolve, WEBHOOK_POLL_MS));
+  }
+  return readStoredStatus(bookingId);
+}
+
 /**
  * Embedded Stripe Checkout form. Confirming payment does not set
- * paymentStatus — the webhook records the deposit.
+ * paymentStatus — the webhook records the transfer.
  */
-export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
+export function PayButton({
+  bookingId,
+  amountCents,
+  kind = "DEPOSIT",
+  onPaid,
+}: PayButtonProps) {
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const formHostId = `checkout-form-${kind.toLowerCase()}`;
   const onPaidRef = useRef(onPaid);
   useEffect(() => {
     onPaidRef.current = onPaid;
@@ -93,22 +146,9 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/payments/sync-session", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId }),
-    })
-      .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as
-          | { paymentStatus?: string }
-          | null;
-        if (
-          !cancelled &&
-          res.ok &&
-          data?.paymentStatus &&
-          data.paymentStatus !== "UNPAID"
-        ) {
+    void readStoredStatus(bookingId)
+      .then((paymentStatus) => {
+        if (!cancelled && paymentComplete(kind, paymentStatus)) {
           onPaidRef.current?.();
         }
       })
@@ -116,7 +156,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
     return () => {
       cancelled = true;
     };
-  }, [bookingId]);
+  }, [bookingId, kind]);
 
   useEffect(() => {
     if (!clientSecret) return;
@@ -134,7 +174,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
       appearance,
     });
     const form = checkout.createForm({ layout: "expanded" });
-    form.mount("#checkout-form");
+    form.mount(`#${formHostId}`);
 
     void checkout.loadActions().then((loadActionsResult) => {
       if (!alive) return;
@@ -158,24 +198,17 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
               return;
             }
 
-            const sync = await fetch("/api/payments/sync-session", {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bookingId, clientSecret }),
-            });
-            const synced = (await sync.json().catch(() => null)) as
-              | { paymentStatus?: string; error?: string }
-              | null;
+            const paymentStatus = await waitForStoredStatus(bookingId, kind);
             setConfirming(false);
-            if (!sync.ok) {
-              setError(
-                synced?.error ||
-                  "Payment went through, but the booking status did not update. Refresh in a moment."
-              );
+            if (paymentComplete(kind, paymentStatus)) {
+              onPaidRef.current?.();
               return;
             }
-            onPaidRef.current?.();
+            setError(
+              kind === "BALANCE"
+                ? "Payment went through. This page will update when Stripe confirms the balance."
+                : "Payment went through. This page will update when Stripe confirms the deposit."
+            );
           })
           .catch(() => {
             setError("Payment could not be confirmed. Please try again.");
@@ -188,10 +221,10 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
       alive = false;
       form.unmount?.();
     };
-  }, [bookingId, clientSecret]);
+  }, [bookingId, clientSecret, formHostId, kind]);
 
   async function startCheckout() {
-    if (pending || clientSecret || depositCents < 1) return;
+    if (pending || clientSecret || amountCents < 1) return;
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
       setError("Card payments are not available right now.");
       return;
@@ -205,7 +238,7 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId,
-          kind: "DEPOSIT",
+          kind,
           provider: "STRIPE",
         }),
       });
@@ -225,13 +258,20 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
     }
   }
 
-  if (depositCents < 1) {
+  if (amountCents < 1) {
     return (
       <p className="text-sm text-muted-foreground">
-        There is nothing to collect as a deposit on this booking yet.
+        {kind === "BALANCE"
+          ? "There is no remaining balance on this booking."
+          : "There is nothing to collect as a deposit on this booking yet."}
       </p>
     );
   }
+
+  const payLabel =
+    kind === "BALANCE"
+      ? `Pay R ${formatZar(amountCents)} balance`
+      : `Pay R ${formatZar(amountCents)} deposit`;
 
   return (
     <div className="space-y-3">
@@ -249,17 +289,12 @@ export function PayButton({ bookingId, depositCents, onPaid }: PayButtonProps) {
             ) : (
               <CreditCard className="size-4" aria-hidden />
             )}
-            {pending
-              ? "Loading secure checkout…"
-              : `Pay R ${new Intl.NumberFormat("en-ZA", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }).format(depositCents / 100)} deposit`}
+            {pending ? "Loading secure checkout…" : payLabel}
           </span>
           <ArrowRight className="size-4" aria-hidden />
         </Button>
       ) : null}
-      <div id="checkout-form" className="min-w-0" />
+      <div id={formHostId} className="min-w-0" />
       {confirming ? (
         <p className="text-sm text-[#5c6570]">Checking your details…</p>
       ) : null}
