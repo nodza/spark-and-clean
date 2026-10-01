@@ -1,6 +1,6 @@
-# Stripe deposit checkout
+# Stripe deposit and balance checkout
 
-A logged-in client can start a card deposit from their booking status page. Checkout does not change `paymentStatus`. A later webhook records the transfer and the ledger derives `DEPOSIT` or `PAID`.
+A logged-in client can start a card **deposit** while the booking is `UNPAID`, or pay the **remaining balance** while it is `DEPOSIT`, from the booking status page. Checkout does not change `paymentStatus`. A later webhook records the transfer and the ledger derives `DEPOSIT` or `PAID`.
 
 ## Environment variables
 
@@ -13,4 +13,4 @@ Set these in the host secret store or local `.env`. Do not commit values.
 | `APP_URL` | Server. Absolute origin for the success and cancel return URLs, with no trailing path. Example shape: `https://example.com` |
 | `STRIPE_WEBHOOK_SECRET` | Server. Verifies `checkout.session.completed` and `checkout.session.async_payment_succeeded` before the ledger marks a booking paid. |
 
-Deposit percent is `DEPOSIT_FRACTION` in `src/lib/payments/deposit.ts` (default `0.5`).
+Deposit percent is `DEPOSIT_FRACTION` in `src/lib/payments/deposit.ts` (default `0.5`). Balance Checkout charges `amountDueCents - amountPaidCents` with metadata `kind=BALANCE`.

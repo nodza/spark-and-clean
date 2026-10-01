@@ -45,6 +45,22 @@ export function depositAmountCents(amountDueCents: number): number {
   return Math.max(0, Math.round(DEPOSIT_FRACTION * amountDueCents));
 }
 
+/** Remaining cents after what has already been paid (balance Checkout amount). */
+export function remainingBalanceCents(
+  amountDueCents: number,
+  amountPaidCents: number
+): number {
+  const due =
+    Number.isFinite(amountDueCents) && amountDueCents > 0
+      ? Math.round(amountDueCents)
+      : 0;
+  const paid =
+    Number.isFinite(amountPaidCents) && amountPaidCents > 0
+      ? Math.round(amountPaidCents)
+      : 0;
+  return Math.max(0, due - paid);
+}
+
 export function formatZarFromCents(cents: number): string {
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",

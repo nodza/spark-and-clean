@@ -3,15 +3,24 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
-import { authorizeDepositCheckout } from "@/lib/payments/checkoutAccess";
+import {
+  authorizeBalanceCheckout,
+  authorizeDepositCheckout,
+} from "@/lib/payments/checkoutAccess";
 import { isClientRole, isFullAccount } from "@/types/user";
-import { amountDueCentsForBooking } from "@/lib/payments/deposit";
-import { createDepositCheckoutSession } from "@/lib/payments/stripe";
+import {
+  amountDueCentsForBooking,
+  remainingBalanceCents,
+} from "@/lib/payments/deposit";
+import {
+  createBalanceCheckoutSession,
+  createDepositCheckoutSession,
+} from "@/lib/payments/stripe";
 import { toPublicApiError } from "@/lib/publicApiError";
 
 /**
- * Start Stripe Checkout for a deposit. Does not write paymentStatus.
- * The webhook story records the transfer and derives DEPOSIT / PAID.
+ * Start Stripe Checkout for a deposit or remaining balance.
+ * Does not write paymentStatus — the webhook records the transfer.
  */
 export async function POST(request: Request) {
   try {
@@ -29,9 +38,13 @@ export async function POST(request: Request) {
       provider?: unknown;
     };
 
-    if (payload.kind !== "DEPOSIT" || payload.provider !== "STRIPE") {
+    const kind = payload.kind;
+    if (
+      (kind !== "DEPOSIT" && kind !== "BALANCE") ||
+      payload.provider !== "STRIPE"
+    ) {
       return NextResponse.json(
-        { error: "Only a Stripe deposit can be started here." },
+        { error: "Only a Stripe deposit or balance payment can be started here." },
         { status: 400 }
       );
     }
@@ -56,21 +69,59 @@ export async function POST(request: Request) {
     }
 
     const booking = toClientBooking(doc as Record<string, unknown>);
-    const access = authorizeDepositCheckout(session, {
-      userId: booking.userId,
-      status: booking.status,
-      paymentStatus: booking.paymentStatus,
-      customer: { email: booking.customer.email },
-    });
-    if (!access.ok) {
-      return NextResponse.json({ error: access.error }, { status: access.status });
+    const amountDueCents = amountDueCentsForBooking(booking);
+    const amountPaidCents = booking.billing?.amountPaidCents ?? 0;
+
+    if (kind === "DEPOSIT") {
+      const access = authorizeDepositCheckout(session, {
+        userId: booking.userId,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+        customer: { email: booking.customer.email },
+      });
+      if (!access.ok) {
+        return NextResponse.json(
+          { error: access.error },
+          { status: access.status }
+        );
+      }
+
+      const checkout = await createDepositCheckoutSession({
+        bookingId: booking.id,
+        customerEmail: booking.customer.email,
+        amountDueCents,
+      });
+
+      return NextResponse.json({
+        client_secret: checkout.clientSecret,
+      });
     }
 
-    const amountDueCents = amountDueCentsForBooking(booking);
-    const checkout = await createDepositCheckoutSession({
+    const remainingCents = remainingBalanceCents(
+      amountDueCents,
+      amountPaidCents
+    );
+    const access = authorizeBalanceCheckout(
+      session,
+      {
+        userId: booking.userId,
+        status: booking.status,
+        paymentStatus: booking.paymentStatus,
+        customer: { email: booking.customer.email },
+      },
+      remainingCents
+    );
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
+    }
+
+    const checkout = await createBalanceCheckoutSession({
       bookingId: booking.id,
       customerEmail: booking.customer.email,
-      amountDueCents,
+      amountCents: remainingCents,
     });
 
     return NextResponse.json({
@@ -81,6 +132,12 @@ export async function POST(request: Request) {
     if (raw === "DEPOSIT_AMOUNT_TOO_SMALL") {
       return NextResponse.json(
         { error: "There is nothing to collect as a deposit on this booking." },
+        { status: 400 }
+      );
+    }
+    if (raw === "BALANCE_AMOUNT_TOO_SMALL") {
+      return NextResponse.json(
+        { error: "There is no remaining balance on this booking." },
         { status: 400 }
       );
     }
