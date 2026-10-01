@@ -3,6 +3,7 @@ import {
   derivePaymentStatus,
   estimateMidpointCents,
   isMongoDuplicateKeyError,
+  ledgerUserId,
   recomputeBookingPaymentStatus,
   resolveAmountDueCents,
   resolveAmountPaidCents,
@@ -151,6 +152,15 @@ describe("isMongoDuplicateKeyError", () => {
     expect(isMongoDuplicateKeyError({ cause: { code: 11000 } })).toBe(true);
     expect(isMongoDuplicateKeyError({ code: 1 })).toBe(false);
     expect(isMongoDuplicateKeyError(null)).toBe(false);
+  });
+});
+
+describe("ledgerUserId", () => {
+  it("stringifies ObjectId-like values and ignores empty", () => {
+    expect(ledgerUserId({ toString: () => "user-sarah" })).toBe("user-sarah");
+    expect(ledgerUserId("user-sarah")).toBe("user-sarah");
+    expect(ledgerUserId(null)).toBeUndefined();
+    expect(ledgerUserId("")).toBeUndefined();
   });
 });
 
@@ -394,5 +404,40 @@ describe("recordSuccess", () => {
     expect(result.billing.amountPaidCents).toBe(15000);
     expect(result.paymentStatus).toBe("PAID");
     expect(bookingUpdateOne).toHaveBeenCalledTimes(2);
+  });
+
+  it("stamps booking.userId onto the ledger even when it is an ObjectId", async () => {
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        userId: { toString: () => "user-sarah" },
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+      }),
+    });
+    paymentCreate.mockResolvedValue({});
+    paymentFind.mockReturnValue({
+      select: () => ({
+        lean: async () => [{ amountCents: 7500, kind: "DEPOSIT" }],
+      }),
+    });
+
+    const result = await recordSuccess({
+      provider: "stripe",
+      providerRef: "pi_1",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+    });
+
+    expect(paymentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-sarah",
+        bookingId: "SC-1",
+      })
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payment.userId).toBe("user-sarah");
   });
 });

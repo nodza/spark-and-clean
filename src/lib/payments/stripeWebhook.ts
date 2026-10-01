@@ -4,6 +4,7 @@ import { recordSuccess } from "@/lib/payments/ledger";
 /**
  * A paid Checkout Session is the only event that may update the ledger.
  * The browser return URL does not call this.
+ * Booking userId is stamped inside recordSuccess from the booking it loads.
  */
 export async function fulfillPaidCheckoutSession(session: {
   id?: string | null;
