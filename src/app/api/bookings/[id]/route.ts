@@ -73,7 +73,8 @@ export async function GET(_request: Request, { params }: Params) {
  * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
  * their status. Full admin for depot moves. Technicians may only
  * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
- * and may save width/length when collecting a rug that has no size yet.
+ * may save width/length when collecting a rug that has no size yet, and
+ * cannot collect until a rug tag is attached.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -148,7 +149,7 @@ export async function PATCH(request: Request, { params }: Params) {
         "lengthM"
       );
       const existingRug = existing.rug as
-        | { widthM?: unknown; lengthM?: unknown }
+        | { widthM?: unknown; lengthM?: unknown; tagCode?: unknown }
         | null
         | undefined;
       const decision = technicianFieldUpdate({
@@ -162,6 +163,7 @@ export async function PATCH(request: Request, { params }: Params) {
         lengthProvided,
         widthM: widthProvided ? body.widthM : undefined,
         lengthM: lengthProvided ? body.lengthM : undefined,
+        tagCode: existingRug?.tagCode,
       });
       if (!decision.ok) {
         return NextResponse.json(

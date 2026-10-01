@@ -14,3 +14,5 @@ Set these in the host secret store or local `.env`. Do not commit values.
 | `STRIPE_WEBHOOK_SECRET` | Server. Verifies `checkout.session.completed` and `checkout.session.async_payment_succeeded` before the ledger marks a booking paid. |
 
 Deposit percent is `DEPOSIT_FRACTION` in `src/lib/payments/deposit.ts` (default `0.5`).
+
+Instant EFT (Ozow) uses the same ledger — see `docs/payments-ozow.md`.

@@ -25,6 +25,7 @@ function vanUpdate(
     lengthProvided: false,
     widthM: undefined,
     lengthM: undefined,
+    tagCode: "SC-ABC1234567",
     ...partial,
   });
 }
@@ -70,6 +71,17 @@ describe("van status transitions", () => {
   it("lets Thabo mark his SCHEDULED job collected", () => {
     const result = vanUpdate({});
     expect(result).toEqual({ ok: true, set: { status: "COLLECTED" } });
+  });
+
+  it("rejects collect when the rug has no tag", () => {
+    for (const tagCode of [undefined, null, "", "   "]) {
+      const result = vanUpdate({ tagCode });
+      expect(result).toEqual({
+        ok: false,
+        status: 409,
+        error: "Attach a rug tag before marking this job collected.",
+      });
+    }
   });
 
   it("lets a READY job be marked delivered", () => {

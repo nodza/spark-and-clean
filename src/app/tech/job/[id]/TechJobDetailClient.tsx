@@ -33,6 +33,7 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
   bothDimensionsEmpty,
   isVanCollectStatus,
@@ -283,6 +284,7 @@ export function TechJobDetailClient() {
           pendingStatus={pendingStatus}
           actionError={actionError}
           onStatusUpdate={handleStatusUpdate}
+          onTagged={(booking) => setLoadState({ kind: "ready", booking })}
         />
       ) : null}
     </TechAppShell>
@@ -394,6 +396,7 @@ function JobContent({
   pendingStatus,
   actionError,
   onStatusUpdate,
+  onTagged,
 }: {
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
@@ -402,6 +405,7 @@ function JobContent({
     status: "COLLECTED" | "DELIVERED",
     dimensions?: CollectDimensions | null
   ) => void;
+  onTagged: (booking: Booking) => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
   const phoneHref = phone ? telHref(phone) : null;
@@ -586,6 +590,12 @@ function JobContent({
       </div>
 
       <div className="mt-[22px]">
+        {canCollect ? (
+          <div className="mb-3">
+            <RugTagIntake booking={booking} onTagged={onTagged} />
+          </div>
+        ) : null}
+
         {showSize ? (
           <div className="mb-3 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
             <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
@@ -677,17 +687,31 @@ function JobContent({
         ) : null}
 
         {canCollect ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={submitCollect}
-            className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
+          <span
+            className={cn(
+              "block w-full",
+              !booking.rug.tagCode && !busy && "cursor-not-allowed"
+            )}
+            title={
+              !booking.rug.tagCode && !busy
+                ? "Attach a tag code first."
+                : undefined
+            }
           >
-            {pendingStatus === "COLLECTED" ? (
-              <Loader2 className="size-5 animate-spin" aria-hidden />
-            ) : null}
-            {pendingStatus === "COLLECTED" ? "Saving…" : "Mark as collected"}
-          </button>
+            <button
+              type="button"
+              disabled={busy || !booking.rug.tagCode}
+              onClick={() => {
+                if (booking.rug.tagCode) submitCollect();
+              }}
+              className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
+            >
+              {pendingStatus === "COLLECTED" ? (
+                <Loader2 className="size-5 animate-spin" aria-hidden />
+              ) : null}
+              {pendingStatus === "COLLECTED" ? "Saving…" : "Mark as collected"}
+            </button>
+          </span>
         ) : null}
 
         {canDeliver ? (
