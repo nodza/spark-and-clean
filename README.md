@@ -14,6 +14,15 @@ pnpm dev
 bun dev
 ```
 
+Copy `.env.example` to `.env.local` and fill in values for MongoDB, Stripe, and Ozow as needed.
+
+| Payments | Variables |
+| --- | --- |
+| Stripe (card) | `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_URL` |
+| Ozow (Instant EFT) | `OZOW_SITE_CODE`, `OZOW_PRIVATE_KEY`, `OZOW_API_KEY`, `APP_URL` |
+
+See `docs/payments-stripe.md` and `docs/payments-ozow.md`.
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
