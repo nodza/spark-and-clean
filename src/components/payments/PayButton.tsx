@@ -73,6 +73,36 @@ type PayButtonProps = {
   onPaid?: () => void;
 };
 
+const WEBHOOK_WAIT_MS = 15_000;
+const WEBHOOK_POLL_MS = 1_500;
+const DEPOSIT_PENDING_NOTICE =
+  "Your payment went through. The deposit will show on this booking shortly.";
+
+function storedStatusMeansPaid(kind: PayKind, status: string): boolean {
+  if (kind === "BALANCE") return status === "PAID";
+  return status !== "UNPAID";
+}
+
+async function readStoredPaymentStatus(bookingId: string): Promise<string | null> {
+  const res = await fetch("/api/payments/sync-session", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bookingId }),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as
+    | { paymentStatus?: string }
+    | null;
+  return typeof data?.paymentStatus === "string" ? data.paymentStatus : null;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function confirmErrorMessage(outcome: unknown): string | null {
   if (!outcome || typeof outcome !== "object" || !("type" in outcome)) return null;
   if ((outcome as { type?: string }).type !== "error") return null;
@@ -91,7 +121,8 @@ function formatRand(cents: number) {
 
 /**
  * Card (Stripe) and/or Instant EFT (Ozow). Confirming payment does not set
- * paymentStatus — webhooks / Ozow notify record the transfer via the ledger.
+ * paymentStatus. The signed Stripe webhook (or Ozow notify) is the only
+ * automatic writer of the deposit.
  */
 export function PayButton({
   bookingId,
@@ -107,9 +138,13 @@ export function PayButton({
   const [selected, setSelected] = useState<PayProvider | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const onPaidRef = useRef(onPaid);
+  const submittedRef = useRef(false);
   useEffect(() => {
     onPaidRef.current = onPaid;
   }, [onPaid]);
@@ -156,26 +191,26 @@ export function PayButton({
   }, [kind]);
 
   useEffect(() => {
+    if (!notice) return;
     let cancelled = false;
-    void fetch("/api/payments/sync-session", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId }),
-    })
-      .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as
-          | { paymentStatus?: string }
-          | null;
-        if (
-          !cancelled &&
-          res.ok &&
-          data?.paymentStatus &&
-          data.paymentStatus !== "UNPAID" &&
-          (kind === "DEPOSIT"
-            ? data.paymentStatus !== "UNPAID"
-            : data.paymentStatus === "PAID")
-        ) {
+    const id = window.setInterval(() => {
+      void readStoredPaymentStatus(bookingId).then((status) => {
+        if (!cancelled && status && storedStatusMeansPaid(kind, status)) {
+          onPaidRef.current?.();
+        }
+      });
+    }, WEBHOOK_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [notice, bookingId, kind]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readStoredPaymentStatus(bookingId)
+      .then((status) => {
+        if (!cancelled && status && storedStatusMeansPaid(kind, status)) {
           onPaidRef.current?.();
         }
       })
@@ -219,34 +254,43 @@ export function PayButton({
           })
           .then(async (outcome: unknown) => {
             const message = confirmErrorMessage(outcome);
+            if (!alive) return;
             if (message) {
               setError(message);
               setConfirming(false);
               return;
             }
 
-            const sync = await fetch("/api/payments/sync-session", {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bookingId, clientSecret }),
-            });
-            const synced = (await sync.json().catch(() => null)) as
-              | { paymentStatus?: string; error?: string }
-              | null;
             setConfirming(false);
-            if (!sync.ok) {
-              setError(
-                synced?.error ||
-                  "Payment went through, but the booking status did not update. Refresh in a moment."
-              );
+            submittedRef.current = true;
+            setSubmitted(true);
+            setWaiting(true);
+            setNotice(null);
+            const started = Date.now();
+            let status: string | null = null;
+            while (alive && Date.now() - started < WEBHOOK_WAIT_MS) {
+              status = await readStoredPaymentStatus(bookingId);
+              if (!alive) return;
+              if (status && storedStatusMeansPaid(kind, status)) break;
+              await delay(WEBHOOK_POLL_MS);
+            }
+            if (!alive) return;
+            setWaiting(false);
+            if (status && storedStatusMeansPaid(kind, status)) {
+              onPaidRef.current?.();
               return;
             }
-            onPaidRef.current?.();
+            setNotice(DEPOSIT_PENDING_NOTICE);
           })
           .catch(() => {
-            setError("Payment could not be confirmed. Please try again.");
+            if (!alive) return;
             setConfirming(false);
+            setWaiting(false);
+            if (submittedRef.current) {
+              setNotice(DEPOSIT_PENDING_NOTICE);
+              return;
+            }
+            setError("Payment could not be confirmed. Please try again.");
           });
       });
     });
@@ -255,7 +299,7 @@ export function PayButton({
       alive = false;
       form.unmount?.();
     };
-  }, [bookingId, clientSecret]);
+  }, [bookingId, clientSecret, kind]);
 
   async function startCheckout() {
     if (pending || clientSecret || amountCents < 1 || !selected) return;
@@ -379,7 +423,10 @@ export function PayButton({
         : false;
 
   return (
-    <div className="space-y-3">
+    <div
+      className={cn("space-y-3", (waiting || submitted) && "pointer-events-none")}
+      aria-busy={pending || confirming || waiting}
+    >
       {showChooser ? (
         <div className="grid grid-cols-2 gap-2" role="group" aria-label="Payment method">
           {providers.stripe ? (
@@ -455,7 +502,22 @@ export function PayButton({
       ) : null}
       <div id="checkout-form" className="min-w-0" />
       {confirming ? (
-        <p className="text-sm text-[#5c6570]">Checking your details…</p>
+        <p className="text-sm text-[#5c6570]" role="status">
+          Checking your details…
+        </p>
+      ) : null}
+      {waiting ? (
+        <p className="text-sm text-[#5c6570]" role="status" aria-live="polite">
+          Your payment went through. Adding the deposit to your booking…
+        </p>
+      ) : null}
+      {notice ? (
+        <p
+          className="rounded-lg border border-[#d7efe4] bg-[#f3fbf7] px-3 py-2 text-sm text-[#0a7a63]"
+          role="status"
+        >
+          {notice}
+        </p>
       ) : null}
       {error ? (
         <p

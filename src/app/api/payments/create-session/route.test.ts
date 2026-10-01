@@ -98,6 +98,13 @@ describe("POST /api/payments/create-session", () => {
       provider: "STRIPE",
       kind: "DEPOSIT",
     });
+    expect(sarahBooking.paymentStatus).toBe("UNPAID");
+    expect(sarahBooking.billing.amountPaidCents).toBe(0);
+    expect(createDepositCheckoutSession).toHaveBeenCalledWith({
+      bookingId: "SC-1",
+      customerEmail: "sarah@example.com",
+      amountDueCents: 15000,
+    });
     expect(createOzowHostedPayment).not.toHaveBeenCalled();
   });
 
