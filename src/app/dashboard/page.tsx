@@ -67,12 +67,6 @@ function BookingCard({
   past?: boolean;
 }) {
   const unpaidActive = !past && booking.paymentStatus === "UNPAID";
-  const depositActive = !past && booking.paymentStatus === "DEPOSIT";
-  const ctaLabel = past
-    ? "View Details"
-    : depositActive
-      ? "Pay balance"
-      : "Track Status";
 
   return (
     <Link href={`/booking/${booking.id}`} className="block group">
@@ -80,8 +74,7 @@ function BookingCard({
         className={cn(
           "transition-colors group-hover:border-primary/40",
           past && "opacity-75 group-hover:opacity-100",
-          unpaidActive && "border-destructive/40 bg-destructive/5",
-          depositActive && "border-primary/30 bg-primary/[0.03]"
+          unpaidActive && "border-destructive/40 bg-destructive/5"
         )}
       >
         <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
@@ -122,13 +115,13 @@ function BookingCard({
             )}
           </div>
           <Button
-            variant={past ? "ghost" : depositActive ? "default" : "outline"}
+            variant={past ? "ghost" : "outline"}
             size={past ? "sm" : "default"}
             asChild
             className="shrink-0"
           >
             <span>
-              {ctaLabel}{" "}
+              {past ? "View Details" : "Track Status"}{" "}
               {!past && <ArrowRight className="ml-2 h-4 w-4" />}
             </span>
           </Button>
