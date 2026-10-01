@@ -4,6 +4,12 @@ import { create } from "zustand";
 import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import { bookingService } from "@/services/bookingService";
 import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
+import { rugAreaSqM } from "@/lib/fieldStatus";
+
+export type FieldSizeUpdate = {
+  widthM: number;
+  lengthM: number;
+};
 
 interface BookingState {
   bookings: Booking[];
@@ -16,7 +22,8 @@ interface BookingState {
   /** null = success; string = error message for toast */
   updateBookingStatus: (
     id: string,
-    status: BookingStatus
+    status: BookingStatus,
+    size?: FieldSizeUpdate | null
   ) => Promise<string | null>;
   updatePaymentStatus: (
     id: string,
@@ -60,6 +67,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           if (idx === -1) {
             return { bookings: [booking, ...state.bookings], error: null };
           }
+          const current = state.bookings[idx];
+          if (
+            current.updatedAt &&
+            booking.updatedAt &&
+            booking.updatedAt < current.updatedAt
+          ) {
+            return state;
+          }
           const next = [...state.bookings];
           next[idx] = booking;
           return { bookings: next, error: null };
@@ -102,14 +117,27 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
 
-  updateBookingStatus: async (id, status) => {
+  updateBookingStatus: async (id, status, size) => {
     const prev = get().bookings;
     set({
       error: null,
-      bookings: prev.map((b) => (b.id === id ? { ...b, status } : b)),
+      bookings: prev.map((b) => {
+        if (b.id !== id) return b;
+        if (!size) return { ...b, status };
+        return {
+          ...b,
+          status,
+          rug: {
+            ...b.rug,
+            widthM: size.widthM,
+            lengthM: size.lengthM,
+            areaSqM: rugAreaSqM(size.widthM, size.lengthM),
+          },
+        };
+      }),
     });
     try {
-      const updated = await bookingService.updateStatus(id, status);
+      const updated = await bookingService.updateStatus(id, status, size);
       set((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
       }));

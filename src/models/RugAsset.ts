@@ -20,7 +20,6 @@ const RugAssetSchema = new Schema(
     photoUrls: { type: [String], default: [] },
     currentBookingId: {
       type: String,
-      ref: "Booking",
       default: null,
       index: true,
       sparse: true,

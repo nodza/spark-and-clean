@@ -76,25 +76,27 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
             className="h-11 w-full rounded-lg border border-[#d9e1e5] bg-white px-3 text-sm text-navy outline-none placeholder:text-[#9aa0a6] focus:border-[#0a7a63] focus:ring-2 focus:ring-[#0a7a63]/15 disabled:opacity-60"
           />
           <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void attachTag()}
-              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-              {busy ? "Attaching…" : "Generate tag"}
-            </button>
             {tagCode.trim() ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void attachTag(tagCode.trim())}
-                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-[#0a7a63] bg-white px-3 text-xs font-bold text-[#0a7a63] hover:bg-[#edf8f4] disabled:pointer-events-none disabled:opacity-60"
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
               >
-                Use this code
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                {busy ? "Attaching…" : "Use this code"}
               </button>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void attachTag()}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                {busy ? "Attaching…" : "Generate tag"}
+              </button>
+            )}
           </div>
           {error ? (
             <p className="mt-2 text-xs font-medium text-destructive" role="alert">

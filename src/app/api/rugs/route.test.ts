@@ -97,7 +97,7 @@ describe("POST /api/rugs", () => {
       expect.objectContaining({
         id: "SC-DEMO-1",
         assignedDriverId: "driver_thabo",
-        status: "SCHEDULED",
+        status: { $in: ["BOOKED", "SCHEDULED"] },
       }),
       {
         $set: {

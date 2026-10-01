@@ -6,6 +6,8 @@ import { requireTechnicianSession } from "@/lib/fieldMessageAuth";
 import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
+import { isVanCollectStatus } from "@/lib/fieldStatus";
+import type { BookingStatus } from "@/types/booking";
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
     if (booking.assignedDriverId !== session.driverProfileId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (booking.status !== "SCHEDULED") {
+    if (!isVanCollectStatus(booking.status as BookingStatus)) {
       return NextResponse.json(
         { error: "Tags can only be attached before collection" },
         { status: 409 }
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
       {
         id: bookingId,
         assignedDriverId: session.driverProfileId,
-        status: "SCHEDULED",
+        status: { $in: ["BOOKED", "SCHEDULED"] },
         $or: [
           { "rug.tagCode": { $exists: false } },
           { "rug.tagCode": null },
