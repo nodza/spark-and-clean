@@ -20,3 +20,5 @@ Deposit percent is `DEPOSIT_FRACTION` in `src/lib/payments/deposit.ts` (default 
 `npm run dev` and `npm run stripe:listen` need to run together. The listen script uses `STRIPE_SECRET_KEY` from `.env`, so events are for the same account that creates Checkout Sessions. Copy the `whsec_...` value it prints into `STRIPE_WEBHOOK_SECRET`, then restart `npm run dev` so the server loads it.
 
 In PowerShell, an unquoted `--events a,b,c` is split into separate arguments and Stripe CLI does not subscribe to those events. `npm run stripe:listen` keeps the event list as one argument.
+
+Instant EFT (Ozow) uses the same ledger — see `docs/payments-ozow.md`.

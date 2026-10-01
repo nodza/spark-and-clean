@@ -9,10 +9,21 @@ const RugAssetSchema = new Schema(
       index: true,
       sparse: true,
     },
-    ownerEmail: { type: String, required: true, lowercase: true, trim: true, index: true },
+    ownerEmail: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
     type: { type: String, required: true, trim: true },
     photoUrls: { type: [String], default: [] },
-    currentBookingId: { type: String, ref: "Booking", default: null, index: true, sparse: true },
+    currentBookingId: {
+      type: String,
+      default: null,
+      index: true,
+      sparse: true,
+    },
     status: {
       type: String,
       enum: ["IN_CARE", "RETURNED", "RETIRED"],

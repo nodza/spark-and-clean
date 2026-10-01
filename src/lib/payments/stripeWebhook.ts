@@ -17,6 +17,7 @@ function isPayableKind(
  * A paid Checkout Session may update the ledger.
  * The browser return URL does not call this. Unpaid sessions (including
  * checkout.session.completed for a delayed payment method) are ignored.
+ * Booking userId is stamped inside recordSuccess from the booking it loads.
  */
 export async function fulfillPaidCheckoutSession(session: {
   id?: string | null;

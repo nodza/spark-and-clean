@@ -10,10 +10,13 @@ describe("fulfillPaidCheckoutSession", () => {
   beforeEach(() => {
     recordSuccess.mockReset();
     recordSuccess.mockResolvedValue({ ok: true });
+    vi.resetModules();
   });
 
   it("does not record an unpaid return", async () => {
-    const { fulfillPaidCheckoutSession } = await import("@/lib/payments/stripeWebhook");
+    const { fulfillPaidCheckoutSession } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
     const result = await fulfillPaidCheckoutSession({
       id: "cs_test",
       payment_status: "unpaid",
@@ -26,8 +29,10 @@ describe("fulfillPaidCheckoutSession", () => {
     expect(recordSuccess).not.toHaveBeenCalled();
   });
 
-  it("records a paid deposit against the payment intent", async () => {
-    const { fulfillPaidCheckoutSession } = await import("@/lib/payments/stripeWebhook");
+  it("records a paid deposit; userId is stamped inside recordSuccess", async () => {
+    const { fulfillPaidCheckoutSession } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
     await fulfillPaidCheckoutSession({
       id: "cs_test",
       payment_status: "paid",
