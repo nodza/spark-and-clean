@@ -33,6 +33,7 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
   bothDimensionsEmpty,
   isVanCollectStatus,
@@ -283,6 +284,7 @@ export function TechJobDetailClient() {
           pendingStatus={pendingStatus}
           actionError={actionError}
           onStatusUpdate={handleStatusUpdate}
+          onTagged={(booking) => setLoadState({ kind: "ready", booking })}
         />
       ) : null}
     </TechAppShell>
@@ -394,10 +396,12 @@ function JobContent({
   pendingStatus,
   actionError,
   onStatusUpdate,
+  onTagged,
 }: {
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   actionError: string | null;
+  onTagged: (booking: Booking) => void;
   onStatusUpdate: (
     status: "COLLECTED" | "DELIVERED",
     dimensions?: CollectDimensions | null
@@ -569,7 +573,6 @@ function JobContent({
           />
         </div>
       </div>
-
       <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
         FIELD MESSAGES
       </p>
@@ -586,6 +589,11 @@ function JobContent({
       </div>
 
       <div className="mt-[22px]">
+        {booking.status === "SCHEDULED" || booking.rug.tagCode ? (
+          <div className="mb-3">
+            <RugTagIntake booking={booking} onTagged={onTagged} />
+          </div>
+        ) : null}
         {showSize ? (
           <div className="mb-3 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
             <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
