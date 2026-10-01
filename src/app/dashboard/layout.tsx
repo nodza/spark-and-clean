@@ -1,4 +1,5 @@
 import { requirePageSession } from "@/lib/requirePageSession";
+import { ClientPortalShell } from "@/components/portal/ClientPortalShell";
 
 /**
  * Client portal UI lives under /dashboard and is rewritten from /portal.
@@ -16,5 +17,5 @@ export default async function DashboardLayout({
     allowGuest: false,
   });
 
-  return <>{children}</>;
+  return <ClientPortalShell>{children}</ClientPortalShell>;
 }

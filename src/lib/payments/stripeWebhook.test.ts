@@ -1,32 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordSuccess = vi.fn();
-const bookingFindOne = vi.fn();
 
 vi.mock("@/lib/payments/ledger", () => ({
   recordSuccess: (...args: unknown[]) => recordSuccess(...args),
 }));
 
-vi.mock("@/lib/mongodb", () => ({
-  connectDB: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/models/Booking", () => ({
-  Booking: {
-    findOne: (...args: unknown[]) => bookingFindOne(...args),
-  },
-}));
-
 describe("fulfillPaidCheckoutSession", () => {
   beforeEach(() => {
     recordSuccess.mockReset();
-    bookingFindOne.mockReset();
     recordSuccess.mockResolvedValue({ ok: true });
-    bookingFindOne.mockReturnValue({
-      select: () => ({
-        lean: async () => ({ userId: "user-sarah" }),
-      }),
-    });
     vi.resetModules();
   });
 
@@ -46,7 +29,7 @@ describe("fulfillPaidCheckoutSession", () => {
     expect(recordSuccess).not.toHaveBeenCalled();
   });
 
-  it("records a paid deposit with booking userId", async () => {
+  it("records a paid deposit; userId is stamped inside recordSuccess", async () => {
     const { fulfillPaidCheckoutSession } = await import(
       "@/lib/payments/stripeWebhook"
     );
@@ -62,7 +45,6 @@ describe("fulfillPaidCheckoutSession", () => {
       provider: "stripe",
       providerRef: "pi_1",
       bookingId: "SC-1",
-      userId: "user-sarah",
       kind: "DEPOSIT",
       amountCents: 7500,
       currency: "zar",

@@ -25,6 +25,8 @@ export async function GET() {
 
     return NextResponse.json({ payments });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load payments";
+    console.error("[api/payments GET]", message);
     return NextResponse.json(
       {
         error: toPublicApiError(err, "Could not load payment history."),

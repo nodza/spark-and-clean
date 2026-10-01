@@ -85,4 +85,22 @@ describe("GET /api/payments", () => {
     expect(res.status).toBe(403);
     expect(listPaymentsForClient).not.toHaveBeenCalled();
   });
+
+  it("logs and returns 500 when listing fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    getSession.mockResolvedValue({
+      id: "user-sarah",
+      email: "sarah@example.com",
+      role: "client",
+    });
+    listPaymentsForClient.mockRejectedValue(new Error("buffering timed out"));
+    const { GET } = await import("./route");
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[api/payments GET]",
+      "buffering timed out"
+    );
+    consoleError.mockRestore();
+  });
 });
