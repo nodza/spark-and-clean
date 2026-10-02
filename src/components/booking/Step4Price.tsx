@@ -11,15 +11,16 @@ import {
 } from "@/lib/bookingEstimate";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
+import { COUPON_CODE_PATTERN } from "@/lib/coupon";
 
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
 }
 
-/** Phase 1: alphanumeric only (e.g. SPARK10, CLEANNEW). No discount calc yet. */
+/** Letters and numbers only, 2–32 characters. Must also be an active catalogue coupon. */
 export function isValidCouponFormat(code: string): boolean {
-  return /^[A-Za-z0-9]+$/.test(code.trim());
+  return COUPON_CODE_PATTERN.test(code.trim());
 }
 
 const EMPTY_ADD_ONS = {
@@ -75,9 +76,10 @@ export function Step4Price({ data, update }: StepProps) {
   const { area, dimensionsSkipped, odourPrice, stainProtectPrice } = estimate;
 
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
-  const [couponStatus, setCouponStatus] = useState<"idle" | "success" | "error">(
-    data.couponCode ? "success" : "idle"
-  );
+  const [couponStatus, setCouponStatus] = useState<
+    "idle" | "checking" | "success" | "error"
+  >(data.couponCode ? "success" : "idle");
+  const [couponError, setCouponError] = useState("Invalid coupon format");
 
   const odourDisplay = dimensionsSkipped
     ? `+R${ODOUR_RATE}/m²`
@@ -86,17 +88,47 @@ export function Step4Price({ data, update }: StepProps) {
     ? `+R${STAIN_PROTECTION_RATE}/m²`
     : `+R${stainProtectPrice || Math.round(area * STAIN_PROTECTION_RATE)}`;
 
-  const applyCoupon = () => {
+  const applyCoupon = async () => {
     const code = couponInput.trim();
 
     if (!isValidCouponFormat(code)) {
+      setCouponError("Invalid coupon format");
       setCouponStatus("error");
+      update({ couponCode: "" });
       return;
     }
 
-    update({ couponCode: code.toUpperCase() });
-    setCouponInput(code.toUpperCase());
-    setCouponStatus("success");
+    setCouponStatus("checking");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          ...(data.city ? { city: data.city } : {}),
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload.valid !== true) {
+        setCouponError(
+          typeof payload.error === "string"
+            ? payload.error
+            : "That coupon code isn't valid"
+        );
+        setCouponStatus("error");
+        update({ couponCode: "" });
+        return;
+      }
+      const accepted =
+        typeof payload.code === "string" ? payload.code : code.trim();
+      update({ couponCode: accepted });
+      setCouponInput(accepted);
+      setCouponStatus("success");
+    } catch {
+      setCouponError("Could not check that coupon. Please try again.");
+      setCouponStatus("error");
+      update({ couponCode: "" });
+    }
   };
 
   return (
@@ -160,32 +192,34 @@ export function Step4Price({ data, update }: StepProps) {
               ? "coupon-error"
               : couponStatus === "success"
                 ? "coupon-success"
-                : "coupon-hint"
+                : undefined
           }
           className="min-w-0 flex-1"
           onChange={(e) => {
             setCouponInput(e.target.value);
             if (couponStatus !== "idle") setCouponStatus("idle");
+            if (data.couponCode) update({ couponCode: "" });
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              applyCoupon();
+              void applyCoupon();
             }
           }}
         />
         <Button
           type="button"
           variant="outline"
-          onClick={applyCoupon}
+          onClick={() => void applyCoupon()}
+          disabled={couponStatus === "checking"}
           className="h-auto min-h-11 shrink-0 self-stretch rounded-full border-[1.5px] border-navy px-4 text-[14px] font-bold"
         >
-          Apply
+          {couponStatus === "checking" ? "Checking…" : "Apply"}
         </Button>
       </div>
       {couponStatus === "error" && (
         <p id="coupon-error" className="text-[12px] font-semibold text-[#b3261e]" role="alert">
-          Invalid coupon format
+          {couponError}
         </p>
       )}
       {couponStatus === "success" && (
@@ -197,9 +231,6 @@ export function Step4Price({ data, update }: StepProps) {
           ✓ Coupon saved
         </p>
       )}
-      <p id="coupon-hint" className="sr-only">
-        Format check only — discounts apply in a later release.
-      </p>
     </div>
   );
 }

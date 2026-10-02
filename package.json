@@ -11,9 +11,10 @@
     "seed:drivers": "node scripts/seed-drivers.cjs",
     "seed:vehicles": "node scripts/seed-vehicles.cjs",
     "seed:users": "node scripts/seed-users.cjs",
+    "seed:coupons": "node scripts/seed-coupons.cjs",
     "cleanup:demo-technicians": "node scripts/cleanup-demo-technicians.cjs",
     "bootstrap:admin": "node scripts/bootstrap-admin.cjs",
-    "seed": "node scripts/seed-bookings.cjs && node scripts/seed-drivers.cjs && node scripts/seed-vehicles.cjs && node scripts/seed-users.cjs",
+    "seed": "node scripts/seed-bookings.cjs && node scripts/seed-drivers.cjs && node scripts/seed-vehicles.cjs && node scripts/seed-users.cjs && node scripts/seed-coupons.cjs",
     "stripe:listen": "node scripts/stripe-listen.cjs",
     "test": "vitest run",
     "test:watch": "vitest"

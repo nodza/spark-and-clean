@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { accountIsDisabled, HttpError, requireFullAdminSession } from "@/lib/adminAuth";
+import {
+  accountIsDisabled,
+  HttpError,
+  requireAdminSession,
+  requireFullAdminSession,
+} from "@/lib/adminAuth";
 import {
   createTechnicianBodySchema,
   shouldGenerateTechnicianPassword,
@@ -57,6 +62,46 @@ describe("requireFullAdminSession", () => {
     expect(result).toEqual(frozen);
     expect(result.role).toBe("admin");
     expect(result.adminTier).toBe("full");
+  });
+});
+
+describe("requireAdminSession", () => {
+  it("returns 401 when anonymous", () => {
+    try {
+      requireAdminSession(null);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(401);
+    }
+  });
+
+  it("returns 403 for clients, technicians, and admins without a tier", () => {
+    const forbidden = [
+      session({ role: "client" }),
+      session({ role: "technician" }),
+      session({ role: "admin", adminTier: null }),
+    ];
+    for (const s of forbidden) {
+      try {
+        requireAdminSession(s);
+        throw new Error(`expected throw for ${s.role}`);
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpError);
+        expect((err as HttpError).status).toBe(403);
+      }
+    }
+  });
+
+  it("allows full and marketing-only admins", () => {
+    expect(
+      requireAdminSession(session({ role: "admin", adminTier: "full" })).adminTier
+    ).toBe("full");
+    expect(
+      requireAdminSession(
+        session({ role: "admin", adminTier: "marketing-only" })
+      ).adminTier
+    ).toBe("marketing-only");
   });
 });
 
