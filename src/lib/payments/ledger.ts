@@ -146,8 +146,16 @@ export async function sumSucceededPaidCents(
 
 type LedgerBooking = BookingPaymentInput & {
   id?: string;
+  userId?: unknown;
   billing?: BookingBilling | null;
 };
+
+/** ObjectId, string, or anything String()-able from a lean booking. */
+export function ledgerUserId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const id = String(value).trim();
+  return id.length > 0 && id !== "undefined" ? id : undefined;
+}
 
 function toPaymentInput(booking: LedgerBooking): BookingPaymentInput {
   return {
@@ -262,9 +270,7 @@ export async function recordSuccess(
 
   const createdAt = new Date().toISOString();
   const userId =
-    typeof input.userId === "string" && input.userId.trim()
-      ? input.userId.trim()
-      : undefined;
+    ledgerUserId(input.userId) ?? ledgerUserId(booking.userId);
   const provider = String(input.provider).trim();
 
   try {

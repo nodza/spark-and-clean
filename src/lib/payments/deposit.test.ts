@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   DEPOSIT_FRACTION,
   amountDueCentsForBooking,
+  balanceAmountCents,
   depositAmountCents,
 } from "@/lib/payments/deposit";
-import { authorizeDepositCheckout } from "@/lib/payments/checkoutAccess";
+import {
+  authorizeCheckout,
+  authorizeDepositCheckout,
+} from "@/lib/payments/checkoutAccess";
 
 describe("depositAmountCents", () => {
   it("charges half of the amount due, rounded", () => {
@@ -16,6 +20,18 @@ describe("depositAmountCents", () => {
   it("is zero when nothing is owed", () => {
     expect(depositAmountCents(0)).toBe(0);
     expect(depositAmountCents(-10)).toBe(0);
+  });
+});
+
+describe("balanceAmountCents", () => {
+  it("returns the unpaid remainder after a deposit", () => {
+    expect(
+      balanceAmountCents({
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+        billing: { amountDueCents: 15000, amountPaidCents: 7500 },
+      })
+    ).toBe(7500);
   });
 });
 
@@ -102,5 +118,24 @@ describe("authorizeDepositCheckout", () => {
       booking
     );
     expect(result).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("allows BALANCE only after a deposit", () => {
+    const session = {
+      id: "user-sarah",
+      email: "sarah@example.com",
+      role: "client" as const,
+    };
+    expect(
+      authorizeCheckout(
+        session,
+        { ...booking, paymentStatus: "DEPOSIT" },
+        "BALANCE"
+      ).ok
+    ).toBe(true);
+    expect(authorizeCheckout(session, booking, "BALANCE")).toMatchObject({
+      ok: false,
+      status: 409,
+    });
   });
 });
