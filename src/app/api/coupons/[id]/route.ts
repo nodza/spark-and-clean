@@ -3,6 +3,7 @@ import { isValidObjectId } from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models/Coupon";
 import { isHttpError, requireAdmin } from "@/lib/adminAuth";
+import { toPublicApiError } from "@/lib/publicApiError";
 import { sanitizeCouponActivePatch, toClientCoupon } from "@/lib/coupon";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,9 +12,11 @@ function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  const message = err instanceof Error ? err.message : fallback;
-  console.error("[api/coupons/[id]]", message);
-  return NextResponse.json({ error: message }, { status: 500 });
+  console.error("[api/coupons/[id]]", err);
+  return NextResponse.json(
+    { error: toPublicApiError(err, fallback) },
+    { status: 500 }
+  );
 }
 
 /** Turn a coupon on or off. Full and marketing-only admins. */

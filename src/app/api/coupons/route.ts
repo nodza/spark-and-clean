@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models/Coupon";
 import { isHttpError, requireAdmin } from "@/lib/adminAuth";
+import { toPublicApiError } from "@/lib/publicApiError";
 import {
   DUPLICATE_COUPON_MESSAGE,
   isDuplicateCouponCode,
@@ -19,17 +20,18 @@ function jsonError(err: unknown, fallback: string) {
       { status: 409 }
     );
   }
+  console.error("[api/coupons]", err);
   if (
     err &&
     typeof err === "object" &&
     (err as { name?: string }).name === "ValidationError"
   ) {
-    const message = err instanceof Error ? err.message : fallback;
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: "Could not save coupon" }, { status: 400 });
   }
-  const message = err instanceof Error ? err.message : fallback;
-  console.error("[api/coupons]", message);
-  return NextResponse.json({ error: message }, { status: 500 });
+  return NextResponse.json(
+    { error: toPublicApiError(err, fallback) },
+    { status: 500 }
+  );
 }
 
 /** Full and marketing-only admins. Clients and technicians receive 403. */

@@ -4,6 +4,7 @@ import { Booking } from "@/models/Booking";
 import { Coupon } from "@/models/Coupon";
 import { getSession } from "@/lib/session";
 import {
+  COUPON_APPLY_FIELDS,
   COUPON_CODE_PATTERN,
   UNKNOWN_COUPON_MESSAGE,
   couponApplyError,
@@ -83,9 +84,11 @@ export async function POST(request: Request) {
         );
       }
       const coupon = await Coupon.findOne({ code: couponCode })
-        .select("active")
+        .select(COUPON_APPLY_FIELDS)
         .lean();
-      const applyError = couponApplyError(coupon);
+      const city =
+        typeof body.city === "string" ? body.city : null;
+      const applyError = couponApplyError(coupon, { city });
       if (applyError) {
         return NextResponse.json({ error: applyError }, { status: 400 });
       }

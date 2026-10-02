@@ -11,15 +11,16 @@ import {
 } from "@/lib/bookingEstimate";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
+import { COUPON_CODE_PATTERN } from "@/lib/coupon";
 
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
 }
 
-/** Letters and numbers only. The code must also be an active catalogue coupon. */
+/** Letters and numbers only, 2–32 characters. Must also be an active catalogue coupon. */
 export function isValidCouponFormat(code: string): boolean {
-  return /^[A-Za-z0-9]+$/.test(code.trim());
+  return COUPON_CODE_PATTERN.test(code.trim());
 }
 
 const EMPTY_ADD_ONS = {
@@ -93,6 +94,7 @@ export function Step4Price({ data, update }: StepProps) {
     if (!isValidCouponFormat(code)) {
       setCouponError("Invalid coupon format");
       setCouponStatus("error");
+      update({ couponCode: "" });
       return;
     }
 
@@ -101,7 +103,10 @@ export function Step4Price({ data, update }: StepProps) {
       const res = await fetch("/api/coupons/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code,
+          ...(data.city ? { city: data.city } : {}),
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok || payload.valid !== true) {
@@ -122,6 +127,7 @@ export function Step4Price({ data, update }: StepProps) {
     } catch {
       setCouponError("Could not check that coupon. Please try again.");
       setCouponStatus("error");
+      update({ couponCode: "" });
     }
   };
 
@@ -192,6 +198,7 @@ export function Step4Price({ data, update }: StepProps) {
           onChange={(e) => {
             setCouponInput(e.target.value);
             if (couponStatus !== "idle") setCouponStatus("idle");
+            if (data.couponCode) update({ couponCode: "" });
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

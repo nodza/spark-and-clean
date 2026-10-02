@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models/Coupon";
 import {
+  COUPON_APPLY_FIELDS,
   COUPON_CODE_PATTERN,
   couponApplyError,
   normalizeCouponCode,
 } from "@/lib/coupon";
+import { toPublicApiError } from "@/lib/publicApiError";
 
 /**
  * Checkout apply check. Public so a guest can try a code.
@@ -32,9 +34,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const cityRaw =
+      body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>).city
+        : null;
+    const city = typeof cityRaw === "string" ? cityRaw : null;
+
     await connectDB();
-    const doc = await Coupon.findOne({ code }).select("active").lean();
-    const applyError = couponApplyError(doc);
+    const doc = await Coupon.findOne({ code }).select(COUPON_APPLY_FIELDS).lean();
+    const applyError = couponApplyError(doc, { city });
     if (applyError) {
       return NextResponse.json(
         { valid: false, error: applyError },
@@ -47,8 +55,10 @@ export async function POST(request: Request) {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to check coupon";
-    console.error("[api/coupons/validate]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[api/coupons/validate]", err);
+    return NextResponse.json(
+      { error: toPublicApiError(err, "Failed to check coupon") },
+      { status: 500 }
+    );
   }
 }

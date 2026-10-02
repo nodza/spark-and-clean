@@ -72,4 +72,22 @@ describe("POST /api/coupons/validate", () => {
       error: "That coupon code isn't valid",
     });
   });
+
+  it("rejects an expired catalogue coupon", async () => {
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          active: true,
+          validTo: "2000-01-01T12:00:00.000Z",
+        }),
+      }),
+    });
+    const { POST } = await import("./route");
+    const res = await POST(post("OLD10"));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      valid: false,
+      error: "This coupon has expired",
+    });
+  });
 });

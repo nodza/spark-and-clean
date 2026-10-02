@@ -7,6 +7,7 @@ import {
   formatCouponDiscount,
   formatCouponWindow,
   couponApplyError,
+  couponFormFieldErrors,
   inactiveCouponMessage,
   isDuplicateCouponCode,
   sanitizeCouponActivePatch,
@@ -123,12 +124,76 @@ describe("inactive coupons", () => {
     expect(couponApplyError({ active: true })).toBeNull();
   });
 
+  it("rejects a code outside its dates, city, or redemption cap", () => {
+    const now = new Date("2026-10-15T12:00:00.000Z");
+    expect(
+      couponApplyError(
+        { active: true, validFrom: "2026-11-01T12:00:00.000Z" },
+        { now }
+      )
+    ).toBe("This coupon isn't valid yet");
+    expect(
+      couponApplyError(
+        { active: true, validTo: "2026-09-30T12:00:00.000Z" },
+        { now }
+      )
+    ).toBe("This coupon has expired");
+    expect(
+      couponApplyError(
+        { active: true, city: "Cape Town" },
+        { now, city: "Johannesburg" }
+      )
+    ).toBe("This coupon isn't valid in your city");
+    expect(
+      couponApplyError(
+        { active: true, city: "Cape Town" },
+        { now, city: "Cape Town" }
+      )
+    ).toBeNull();
+    expect(
+      couponApplyError(
+        { active: true, maxRedemptions: 10, redeemedCount: 10 },
+        { now }
+      )
+    ).toBe("This coupon has been fully used");
+  });
+
   it("accepts an active flag on update", () => {
     expect(sanitizeCouponActivePatch({ active: false })).toEqual({
       ok: true,
       active: false,
     });
     expect(sanitizeCouponActivePatch({ active: "no" }).ok).toBe(false);
+  });
+});
+
+describe("coupon form validation", () => {
+  it("surfaces field errors for the admin create modal", () => {
+    expect(
+      couponFormFieldErrors({
+        code: "A",
+        type: "PERCENT",
+        value: "",
+        maxRedemptions: "0",
+        validFrom: "2026-11-01",
+        validTo: "2026-10-01",
+      })
+    ).toEqual({
+      code: "Code must be 2–32 letters or numbers",
+      value: "Value is required",
+      maxRedemptions: "Max redemptions must be a positive whole number",
+      validTo: "Valid to must be on or after valid from",
+    });
+    expect(
+      couponFormFieldErrors({
+        code: "SPARK10",
+        type: "PERCENT",
+        value: "10",
+        maxRedemptions: "",
+        validFrom: "",
+        validTo: "",
+      })
+    ).toEqual({});
   });
 });
 

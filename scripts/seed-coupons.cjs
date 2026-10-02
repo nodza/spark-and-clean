@@ -74,8 +74,19 @@ async function seed() {
   await Coupon.updateOne(
     { code: SPARK10.code },
     {
-      $set: SPARK10,
-      $setOnInsert: { redeemedCount: 0 },
+      $set: {
+        type: SPARK10.type,
+        value: SPARK10.value,
+        maxRedemptions: SPARK10.maxRedemptions,
+        validFrom: SPARK10.validFrom,
+        validTo: SPARK10.validTo,
+        city: SPARK10.city,
+      },
+      $setOnInsert: {
+        code: SPARK10.code,
+        active: SPARK10.active,
+        redeemedCount: 0,
+      },
     },
     { upsert: true, setDefaultsOnInsert: true }
   );

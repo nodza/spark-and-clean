@@ -9,9 +9,17 @@ export const COUPON_CODE_PATTERN = /^[A-Za-z0-9]{2,32}$/;
 export const DUPLICATE_COUPON_MESSAGE = "A coupon with that code already exists";
 export const INACTIVE_COUPON_MESSAGE = "This coupon is no longer active";
 export const UNKNOWN_COUPON_MESSAGE = "That coupon code isn't valid";
+export const COUPON_NOT_YET_VALID_MESSAGE = "This coupon isn't valid yet";
+export const COUPON_EXPIRED_MESSAGE = "This coupon has expired";
+export const COUPON_CITY_MESSAGE = "This coupon isn't valid in your city";
+export const COUPON_FULLY_USED_MESSAGE = "This coupon has been fully used";
 
 const MAX_FIXED_CENTS = 10_000_000;
 const MAX_REDEMPTIONS = 1_000_000;
+
+/** Fields needed to decide whether checkout may apply a coupon. */
+export const COUPON_APPLY_FIELDS =
+  "active validFrom validTo city maxRedemptions redeemedCount";
 
 /** A stored coupon with active: false cannot be applied. */
 export function inactiveCouponMessage(active: unknown): string | null {
@@ -19,10 +27,66 @@ export function inactiveCouponMessage(active: unknown): string | null {
   return null;
 }
 
-/** Checkout may apply a code only when it is on the list and active. */
-export function couponApplyError(doc: { active?: unknown } | null): string | null {
+export type CouponApplyDoc = {
+  active?: unknown;
+  validFrom?: Date | string | null;
+  validTo?: Date | string | null;
+  city?: string | null;
+  maxRedemptions?: number | null;
+  redeemedCount?: number | null;
+};
+
+function asApplyDate(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function utcDay(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+/**
+ * Checkout may apply a code only when it is on the list, active, in date,
+ * under its redemption cap, and allowed in the booking city.
+ */
+export function couponApplyError(
+  doc: CouponApplyDoc | null,
+  opts?: { city?: string | null; now?: Date }
+): string | null {
   if (!doc) return UNKNOWN_COUPON_MESSAGE;
-  return inactiveCouponMessage(doc.active);
+  const inactive = inactiveCouponMessage(doc.active);
+  if (inactive) return inactive;
+
+  const now = opts?.now ?? new Date();
+  const today = utcDay(now);
+  const validFrom = asApplyDate(doc.validFrom);
+  const validTo = asApplyDate(doc.validTo);
+  if (validFrom && today < utcDay(validFrom)) return COUPON_NOT_YET_VALID_MESSAGE;
+  if (validTo && today > utcDay(validTo)) return COUPON_EXPIRED_MESSAGE;
+
+  if (typeof doc.city === "string" && doc.city) {
+    const bookingCity = typeof opts?.city === "string" ? opts.city.trim() : "";
+    if (bookingCity !== doc.city) return COUPON_CITY_MESSAGE;
+  }
+
+  const max =
+    typeof doc.maxRedemptions === "number" && Number.isInteger(doc.maxRedemptions)
+      ? doc.maxRedemptions
+      : null;
+  const used =
+    typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
+      ? doc.redeemedCount
+      : 0;
+  if (max != null && used >= max) return COUPON_FULLY_USED_MESSAGE;
+
+  return null;
 }
 
 export function sanitizeCouponActivePatch(
@@ -68,6 +132,83 @@ export function couponValueError(type: CouponType, value: number): string | null
     return "Fixed discount is too large";
   }
   return null;
+}
+
+export function couponCodeFieldError(raw: string): string | null {
+  const code = normalizeCouponCode(raw);
+  if (!code) return "Code is required";
+  if (!COUPON_CODE_PATTERN.test(code)) {
+    return "Code must be 2–32 letters or numbers";
+  }
+  return null;
+}
+
+export function couponValueFieldError(
+  type: CouponType,
+  raw: string
+): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return "Value is required";
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric)) {
+    return type === "PERCENT"
+      ? "Percent must be a whole number from 1 to 100"
+      : "Enter a positive rand amount, e.g. 50.00";
+  }
+  if (type === "PERCENT") return couponValueError("PERCENT", numeric);
+  const cents = Math.round(numeric * 100);
+  if (cents < 1) return "Enter a positive rand amount, e.g. 50.00";
+  return couponValueError("FIXED_CENTS", cents);
+}
+
+export function couponMaxRedemptionsFieldError(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return "Max redemptions must be a positive whole number";
+  }
+  if (parsed > MAX_REDEMPTIONS) return "Max redemptions is too large";
+  return null;
+}
+
+export function couponWindowFieldError(
+  validFrom: string,
+  validTo: string
+): string | null {
+  if (validFrom && validTo && validTo < validFrom) {
+    return "Valid to must be on or after valid from";
+  }
+  return null;
+}
+
+export type CouponFormValues = {
+  code: string;
+  type: CouponType;
+  value: string;
+  maxRedemptions: string;
+  validFrom: string;
+  validTo: string;
+};
+
+export function couponFormFieldErrors(
+  form: CouponFormValues
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const codeErr = couponCodeFieldError(form.code);
+  if (codeErr) errors.code = codeErr;
+  const valueErr = couponValueFieldError(form.type, form.value);
+  if (valueErr) errors.value = valueErr;
+  const maxErr = couponMaxRedemptionsFieldError(form.maxRedemptions);
+  if (maxErr) errors.maxRedemptions = maxErr;
+  const windowErr = couponWindowFieldError(form.validFrom, form.validTo);
+  if (windowErr) errors.validTo = windowErr;
+  return errors;
+}
+
+export function couponApiValue(type: CouponType, valueRaw: string): number {
+  const numeric = Number(valueRaw.trim());
+  return type === "PERCENT" ? numeric : Math.round(numeric * 100);
 }
 
 export function isDuplicateCouponCode(err: unknown): boolean {
@@ -119,16 +260,22 @@ function parseMaxRedemptions(
   raw: unknown
 ): { ok: true; value: number | null } | { ok: false; error: string } {
   if (raw == null || raw === "") return { ok: true, value: null };
-  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1) {
+  const numeric =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw.trim())
+        : NaN;
+  if (!Number.isInteger(numeric) || numeric < 1) {
     return {
       ok: false,
       error: "Max redemptions must be a positive whole number",
     };
   }
-  if (raw > MAX_REDEMPTIONS) {
+  if (numeric > MAX_REDEMPTIONS) {
     return { ok: false, error: "Max redemptions is too large" };
   }
-  return { ok: true, value: raw };
+  return { ok: true, value: numeric };
 }
 
 export function sanitizeCouponCreate(
