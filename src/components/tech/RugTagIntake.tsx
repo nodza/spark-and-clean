@@ -11,12 +11,30 @@ type RugTagIntakeProps = {
 
 const printStyles = `
   @page { size: A4; margin: 12mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; color: #111; font-family: Arial, sans-serif; }
-  .sticker { width: 50mm; min-height: 56mm; padding: 3mm; border: 0.3mm solid #bbb; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; }
-  img { display: block; width: 42mm; height: 42mm; }
-  p { margin: 0; font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
-  @media screen { body { padding: 16px; } }
+  @media print {
+    body * { visibility: hidden !important; }
+    #rug-tag-print-sheet,
+    #rug-tag-print-sheet * { visibility: visible !important; }
+    #rug-tag-print-sheet {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      display: flex !important;
+      width: 50mm !important;
+      min-height: 56mm !important;
+      padding: 3mm !important;
+      border: 0.3mm solid #bbb !important;
+      background: #fff !important;
+      color: #111 !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2mm !important;
+      font-family: Arial, sans-serif !important;
+    }
+    #rug-tag-print-sheet img { display: block !important; width: 42mm !important; height: 42mm !important; }
+    #rug-tag-print-sheet p { margin: 0 !important; font-size: 11pt !important; font-weight: 700 !important; overflow-wrap: anywhere !important; text-align: center !important; }
+  }
 `;
 
 export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
@@ -58,36 +76,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
   function printSticker() {
     if (!tagCode) return;
     setPrintError(null);
-    const printWindow = window.open("", "_blank", "popup,width=480,height=640");
-    if (!printWindow) {
-      setPrintError("Allow pop-ups to print this sticker.");
-      return;
-    }
-
-    const document = printWindow.document;
-    document.title = `Rug tag ${tagCode}`;
-    const style = document.createElement("style");
-    style.textContent = printStyles;
-    const sticker = document.createElement("main");
-    sticker.className = "sticker";
-    const image = document.createElement("img");
-    image.alt = `QR code for rug tag ${tagCode}`;
-    const code = document.createElement("p");
-    code.textContent = tagCode;
-    sticker.append(image, code);
-    document.head.append(style);
-    document.body.replaceChildren(sticker);
-
-    image.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-    };
-    image.onerror = () => {
-      printWindow.close();
-      setPrintError("Could not load the QR sticker. Try again.");
-    };
-    printWindow.onafterprint = () => printWindow.close();
-    image.src = qrUrl;
+    window.print();
   }
 
   return (
@@ -103,6 +92,12 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
       </div>
       {tagCode ? (
         <>
+          <style>{printStyles}</style>
+          <div id="rug-tag-print-sheet" style={{ display: "none" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrUrl} alt={`QR code for rug tag ${tagCode}`} />
+            <p>{tagCode}</p>
+          </div>
           <div className="mt-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

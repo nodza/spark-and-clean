@@ -1,11 +1,63 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { isHttpError } from "@/lib/adminAuth";
+import { isHttpError, requireFullAdminSession } from "@/lib/adminAuth";
 import { requireTechnicianSession } from "@/lib/fieldMessageAuth";
 import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
 import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
+import { getSession } from "@/lib/session";
+
+export async function GET(request: Request) {
+  try {
+    requireFullAdminSession(await getSession());
+
+    const params = new URL(request.url).searchParams;
+    const tagCode = (params.get("tagCode") || params.get("q") || "")
+      .trim()
+      .toUpperCase();
+    if (!tagCode || !/^[A-Z0-9][A-Z0-9-]{2,63}$/.test(tagCode)) {
+      return NextResponse.json({ results: [] });
+    }
+
+    await connectDB();
+    const asset = await RugAsset.findOne({ tagCode }).lean();
+    let booking = asset?.currentBookingId
+      ? await Booking.findOne({ id: asset.currentBookingId })
+          .select({ id: 1, customer: 1, rug: 1, status: 1 })
+          .lean()
+      : null;
+
+    if (!booking) {
+      booking = await Booking.findOne({ "rug.tagCode": tagCode })
+        .select({ id: 1, customer: 1, rug: 1, status: 1 })
+        .lean();
+    }
+    if (!booking) return NextResponse.json({ results: [] });
+
+    const thumbnails = [
+      ...(asset?.photoUrls ?? []),
+      ...(booking.rug?.photos ?? []),
+    ].filter((photo, index, photos) => Boolean(photo) && photos.indexOf(photo) === index);
+
+    return NextResponse.json({
+      results: [
+        {
+          tagCode,
+          customer: booking.customer?.name ?? "",
+          bookingId: booking.id,
+          status: booking.status,
+          thumbnails,
+        },
+      ],
+    });
+  } catch (err) {
+    if (isHttpError(err)) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json({ error: "Failed to search rug tags" }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
