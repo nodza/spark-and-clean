@@ -18,7 +18,7 @@ export type CollectDimensions = {
 
 export type TechnicianFieldUpdate =
   | { ok: true; set: Record<string, unknown> }
-  | { ok: false; status: 400 | 403; error: string };
+  | { ok: false; status: 400 | 403 | 409; error: string };
 
 export function isVanCollectStatus(status: BookingStatus): boolean {
   return VAN_COLLECT_FROM.includes(status);
@@ -182,6 +182,7 @@ export function technicianFieldUpdate(input: {
   lengthProvided: boolean;
   widthM: unknown;
   lengthM: unknown;
+  tagCode: unknown;
 }): TechnicianFieldUpdate {
   if (
     typeof input.driverProfileId !== "string" ||
@@ -197,6 +198,18 @@ export function technicianFieldUpdate(input: {
       status: 400,
       error: "That status change is not allowed from the van.",
     };
+  }
+
+  if (input.to === "COLLECTED") {
+    const tagCode =
+      typeof input.tagCode === "string" ? input.tagCode.trim() : "";
+    if (!tagCode) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Attach a rug tag before marking this job collected.",
+      };
+    }
   }
 
   const set: Record<string, unknown> = { status: input.to };

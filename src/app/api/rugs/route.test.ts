@@ -78,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/rugs", () => {
-  it("creates a generated tag asset and links it to the scheduled booking", async () => {
+  it("creates a generated tag asset and links it to the assigned booking", async () => {
     const response = await post({ bookingId: "SC-DEMO-1" });
     const result = await response.json();
 
@@ -94,7 +94,11 @@ describe("POST /api/rugs", () => {
       })
     );
     expect(mocks.bookingFindOneAndUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ assignedDriverId: "driver_thabo", status: "SCHEDULED" }),
+      expect.objectContaining({
+        id: "SC-DEMO-1",
+        assignedDriverId: "driver_thabo",
+        status: { $in: ["BOOKED", "SCHEDULED"] },
+      }),
       {
         $set: {
           "rug.tagCode": result.rug.tagCode,
@@ -105,7 +109,7 @@ describe("POST /api/rugs", () => {
     );
   });
 
-  it("binds an available pre-printed tag asset", async () => {
+  it("claims a pre-printed code asset and links it to the booking", async () => {
     mocks.rugAssetFindOne.mockResolvedValue({
       _id: "asset-roll-1",
       currentBookingId: null,
@@ -113,16 +117,24 @@ describe("POST /api/rugs", () => {
     });
     mocks.rugAssetFindOneAndUpdate.mockResolvedValue({ _id: "asset-roll-1" });
 
-    const response = await post({ bookingId: "SC-DEMO-1", tagCode: "roll-001234" });
+    const response = await post({
+      bookingId: "SC-DEMO-1",
+      tagCode: "roll-001234",
+    });
     const result = await response.json();
 
     expect(response.status).toBe(200);
     expect(result.rug.tagCode).toBe("ROLL-001234");
     expect(result.rug.assetId).toBe("asset-roll-1");
+    expect(mocks.rugAssetFindOneAndUpdate).toHaveBeenCalledWith(
+      { _id: "asset-roll-1", currentBookingId: null },
+      { $set: { currentBookingId: "SC-DEMO-1", status: "IN_CARE" } },
+      { new: true }
+    );
     expect(mocks.rugAssetCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 403 before writing when another technician tries to tag the job", async () => {
+  it("returns 403 when a different technician tries to tag the booking", async () => {
     mocks.requireTechnicianSession.mockResolvedValue({
       role: "technician",
       driverProfileId: "driver_sipho",
