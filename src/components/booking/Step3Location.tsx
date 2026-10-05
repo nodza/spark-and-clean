@@ -22,6 +22,10 @@ import { FieldError } from "@/components/booking/FieldError";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
 import { format, startOfDay } from "date-fns";
+import {
+  bookingCalendarDateLocal,
+  toCalendarDateString,
+} from "@/lib/localCalendarDate";
 import { cn } from "@/lib/utils";
 import {
   sanitizePhoneInput,
@@ -217,7 +221,10 @@ export function Step3Location({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {data.collectionDate ? (
-                    format(new Date(data.collectionDate), "PPP")
+                    (() => {
+                      const local = bookingCalendarDateLocal(data.collectionDate);
+                      return local ? format(local, "PPP") : "Pick a date";
+                    })()
                   ) : (
                     <span>Pick a date</span>
                   )}
@@ -228,11 +235,15 @@ export function Step3Location({
                   mode="single"
                   selected={
                     data.collectionDate
-                      ? new Date(data.collectionDate)
+                      ? bookingCalendarDateLocal(data.collectionDate) ?? undefined
                       : undefined
                   }
                   onSelect={(date) =>
-                    update({ collectionDate: date?.toISOString() })
+                    update({
+                      collectionDate: date
+                        ? toCalendarDateString(date)
+                        : undefined,
+                    })
                   }
                   initialFocus
                   disabled={(date) => date < startOfDay(new Date())}

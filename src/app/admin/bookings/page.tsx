@@ -3,10 +3,11 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { Check, Copy } from "lucide-react";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { bookingCalendarDateLocal } from "@/lib/localCalendarDate";
 import { Badge } from "@/components/ui/badge";
 import {
   CallAction,
@@ -56,11 +57,10 @@ function bookingValue(booking: Booking) {
 }
 
 function collectionLabel(booking: Booking) {
-  const raw = booking.collectionDate;
-  const day = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : "";
-  const date = day
-    ? format(parseISO(day), "d MMM")
-    : format(new Date(raw), "d MMM");
+  const local = bookingCalendarDateLocal(booking.collectionDate);
+  const date = local
+    ? format(local, "d MMM")
+    : format(new Date(booking.collectionDate), "d MMM");
   const time = booking.collectionSlot === "MORNING" ? "09:00" : "14:00";
   return `${date} · ${time}`;
 }

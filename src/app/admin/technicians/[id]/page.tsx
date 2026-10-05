@@ -25,7 +25,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
-import { localCalendarDate } from "@/lib/localCalendarDate";
+import {
+  bookingCalendarDateLocal,
+  localCalendarDate,
+} from "@/lib/localCalendarDate";
 import {
   technicianJobsOnDay,
   technicianUpcomingJobs,
@@ -95,7 +98,13 @@ function JobList({ jobs }: { jobs: Booking[] }) {
           <div className="shrink-0 text-right">
             <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
             <p className="mt-2 text-xs text-[#9aa0a6]">
-              {format(new Date(job.collectionDate), "d MMM")} · {job.collectionSlot}
+              {(() => {
+                const local = bookingCalendarDateLocal(job.collectionDate);
+                return local
+                  ? format(local, "d MMM")
+                  : format(new Date(job.collectionDate), "d MMM");
+              })()}{" "}
+              · {job.collectionSlot}
             </p>
           </div>
         </Link>
