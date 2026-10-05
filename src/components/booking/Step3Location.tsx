@@ -21,9 +21,10 @@ import { AddressAutocomplete } from "@/components/booking/AddressAutocomplete";
 import { FieldError } from "@/components/booking/FieldError";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfDay } from "date-fns";
 import {
   bookingCalendarDateLocal,
+  formatBookingCollection,
+  localCalendarDate,
   toCalendarDateString,
 } from "@/lib/localCalendarDate";
 import { cn } from "@/lib/utils";
@@ -221,10 +222,7 @@ export function Step3Location({
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {data.collectionDate ? (
-                    (() => {
-                      const local = bookingCalendarDateLocal(data.collectionDate);
-                      return local ? format(local, "PPP") : "Pick a date";
-                    })()
+                    formatBookingCollection(data.collectionDate, "PPP", "Pick a date")
                   ) : (
                     <span>Pick a date</span>
                   )}
@@ -246,7 +244,9 @@ export function Step3Location({
                     })
                   }
                   initialFocus
-                  disabled={(date) => date < startOfDay(new Date())}
+                  disabled={(date) =>
+                    toCalendarDateString(date) < localCalendarDate()
+                  }
                 />
               </PopoverContent>
             </Popover>

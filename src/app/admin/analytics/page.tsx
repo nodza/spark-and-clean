@@ -22,6 +22,25 @@ import {
   AdminBackLink,
   AdminPortalShell,
 } from "@/components/admin/AdminPortalShell";
+import {
+  bookingCalendarDateLocal,
+  formatBookingCollection,
+  isBookingOnLocalDay,
+  localCalendarDate,
+  toCalendarDateString,
+} from "@/lib/localCalendarDate";
+
+function last30SaCalendarDays(): string[] {
+  const today = bookingCalendarDateLocal(localCalendarDate());
+  if (!today) return [];
+  const days: string[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - i);
+    days.push(toCalendarDateString(day));
+  }
+  return days;
+}
 
 export default function AdminAnalytics() {
   const { bookings, fetchBookings } = useBookingStore();
@@ -57,24 +76,19 @@ export default function AdminAnalytics() {
 
   const typeData = Object.entries(bookingsByType).map(([name, value]) => ({ name, value }));
 
-  // Revenue Trends (Last 30 Days)
-  const getLast30Days = () => {
-    const days = [];
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      days.push(date.toISOString().split('T')[0]);
-    }
-    return days;
-  };
-
-  const last30Days = getLast30Days();
-  const revenueByDay = last30Days.map(day => {
-    const dayBookings = bookings.filter(b => b.collectionDate === day);
-    const revenue = dayBookings.reduce((sum, b) => sum + ((b.estimatedPriceMin + b.estimatedPriceMax) / 2), 0);
+  // Revenue Trends (Last 30 Days) — SA calendar days, not UTC prefixes
+  const last30Days = last30SaCalendarDays();
+  const revenueByDay = last30Days.map((day) => {
+    const dayBookings = bookings.filter((b) =>
+      isBookingOnLocalDay(b.collectionDate, day)
+    );
+    const revenue = dayBookings.reduce(
+      (sum, b) => sum + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
+      0
+    );
     return {
-      date: new Date(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      revenue: Math.round(revenue)
+      date: formatBookingCollection(day, "MMM d"),
+      revenue: Math.round(revenue),
     };
   });
 

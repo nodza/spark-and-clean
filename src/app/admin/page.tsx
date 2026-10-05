@@ -10,10 +10,9 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
-import { format } from "date-fns";
 import type { OpsAlert } from "@/types/opsAlert";
 import {
-  bookingCalendarDateLocal,
+  formatBookingCollection,
   isBookingOnLocalDay,
   localCalendarDate,
 } from "@/lib/localCalendarDate";
@@ -383,17 +382,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <div className="text-body" style={{ color: "#32373c" }}>
-                          {(() => {
-                            const local = bookingCalendarDateLocal(
-                              booking.collectionDate
-                            );
-                            return local
-                              ? format(local, "MMM d")
-                              : format(
-                                  new Date(booking.collectionDate),
-                                  "MMM d"
-                                );
-                          })()}
+                          {formatBookingCollection(booking.collectionDate, "MMM d")}
                         </div>
                         <div className="text-meta" style={{ color: "#9aa0a6" }}>
                           {booking.collectionSlot === "MORNING" ? "AM" : "PM"}

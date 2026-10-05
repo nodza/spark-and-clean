@@ -4,6 +4,7 @@ import {
   bookingCalendarDate,
   bookingCalendarDateLocal,
   calendarDateInTimeZone,
+  formatBookingCollection,
   isBookingOnLocalDay,
   localCalendarDate,
   toCalendarDateString,
@@ -75,6 +76,18 @@ describe("bookingCalendarDateLocal", () => {
     expect(local!.getFullYear()).toBe(2026);
     expect(local!.getMonth()).toBe(9);
     expect(local!.getDate()).toBe(2);
+  });
+});
+
+describe("formatBookingCollection", () => {
+  it("formats the SA calendar day, not the UTC prefix", () => {
+    expect(formatBookingCollection("2026-10-01T22:00:00.000Z", "d MMM yyyy")).toBe(
+      "2 Oct 2026"
+    );
+  });
+
+  it("returns the fallback when the value is not a date", () => {
+    expect(formatBookingCollection("not-a-date", "PPP", "n/a")).toBe("n/a");
   });
 });
 

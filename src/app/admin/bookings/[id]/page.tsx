@@ -10,7 +10,7 @@ import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
-import { bookingCalendarDateLocal } from "@/lib/localCalendarDate";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -56,9 +56,7 @@ function addOnLabels(booking: Booking): string[] {
 }
 
 function formatCollectionLong(value: string) {
-  const local = bookingCalendarDateLocal(value);
-  if (!local) return value;
-  return format(local, "PPP");
+  return formatBookingCollection(value, "PPP");
 }
 
 function formatNoteTime(iso: string) {

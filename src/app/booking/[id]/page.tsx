@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { bookingCalendarDateLocal } from "@/lib/localCalendarDate";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 import {
   AlertCircle,
   ArrowLeft,
@@ -322,12 +322,10 @@ export default function BookingStatusPage() {
               />
               <div>
                 <p className="font-medium">
-                  {(() => {
-                    const local = bookingCalendarDateLocal(booking.collectionDate);
-                    return local
-                      ? format(local, "EEEE, d MMMM yyyy")
-                      : booking.collectionDate;
-                  })()}
+                  {formatBookingCollection(
+                    booking.collectionDate,
+                    "EEEE, d MMMM yyyy"
+                  )}
                 </p>
                 <p className="text-muted-foreground flex items-center gap-1.5 mt-0.5">
                   <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />

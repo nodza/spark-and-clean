@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+
 /**
  * Product calendar days use South Africa Standard Time (no DST).
  * Booking `yyyy-MM-dd` values are treated as calendar days, not UTC midnights.
@@ -103,4 +105,18 @@ export function isBookingOnLocalDay(
   day: string
 ): boolean {
   return bookingCalendarDate(collectionDate) === day;
+}
+
+/**
+ * Format a booking collection day with date-fns.
+ * Never falls back to raw `new Date(iso)` (UTC prefix / off-by-one).
+ */
+export function formatBookingCollection(
+  collectionDate: string,
+  pattern: string,
+  fallback: string = collectionDate
+): string {
+  const local = bookingCalendarDateLocal(collectionDate);
+  if (!local) return fallback;
+  return format(local, pattern);
 }
