@@ -34,6 +34,7 @@ export function isAdminFullOnlyPath(pathname: string): boolean {
   if (pathname.startsWith("/admin/clients")) return true;
   if (pathname.startsWith("/admin/assignments")) return true;
   if (pathname.startsWith("/admin/vehicles")) return true;
+  if (pathname.startsWith("/admin/rugs")) return true;
   return false;
 }
 

@@ -171,7 +171,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
                 className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
               >
                 {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                {busy ? "Attaching…" : "Use this code"}
+                {busy ? "Attaching?" : "Use this code"}
               </button>
             ) : (
               <button
@@ -181,7 +181,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
                 className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
               >
                 {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                {busy ? "Attaching…" : "Generate tag"}
+                {busy ? "Attaching?" : "Generate tag"}
               </button>
             )}
           </div>

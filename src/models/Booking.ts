@@ -163,6 +163,7 @@ const BookingSchema = new Schema(
 );
 
 BookingSchema.index({ "customer.email": 1, status: 1 });
+BookingSchema.index({ "rug.tagCode": 1 }, { sparse: true });
 
 export type BookingDocument = InferSchemaType<typeof BookingSchema> & {
   _id: Schema.Types.ObjectId;
