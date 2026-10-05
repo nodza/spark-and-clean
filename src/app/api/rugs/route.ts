@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { isHttpError } from "@/lib/adminAuth";
@@ -7,6 +6,7 @@ import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
 import { isVanCollectStatus } from "@/lib/fieldStatus";
+import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
 import type { BookingStatus } from "@/types/booking";
 
 export async function POST(request: Request) {
@@ -59,8 +59,7 @@ export async function POST(request: Request) {
       return NextResponse.json(toClientBooking(booking as Record<string, unknown>));
     }
 
-    const tagCode =
-      suppliedTagCode || `SC-${randomBytes(5).toString("hex").toUpperCase()}`;
+    const tagCode = suppliedTagCode || generateRugTagCode();
     let asset = await RugAsset.findOne({ tagCode });
     let createdAsset = false;
     let claimedAsset = false;

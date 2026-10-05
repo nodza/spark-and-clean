@@ -83,7 +83,7 @@ describe("POST /api/rugs", () => {
     const result = await response.json();
 
     expect(response.status).toBe(200);
-    expect(result.rug.tagCode).toMatch(/^SC-[A-F0-9]{10}$/);
+    expect(result.rug.tagCode).toMatch(/^SC-RUG-[0-9A-HJKMNP-TV-Z]{8}$/);
     expect(result.rug.assetId).toBe("asset-1");
     expect(mocks.rugAssetCreate).toHaveBeenCalledWith(
       expect.objectContaining({
