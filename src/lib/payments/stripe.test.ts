@@ -58,6 +58,7 @@ describe("createDepositCheckoutSession", () => {
     expect(payload.line_items[0].price_data.currency).toBe("zar");
     expect(payload.metadata).toEqual({ bookingId: "SC-1", kind: "DEPOSIT" });
     expect(payload.client_reference_id).toBe("SC-1");
+    expect(payload.customer_email).toBe("sarah@example.com");
     expect(payload.return_url).toBe(
       "http://localhost:3000/booking/SC-1?checkout=success"
     );
@@ -89,6 +90,7 @@ describe("createBalanceCheckoutSession", () => {
     const payload = createSession.mock.calls[0][0];
     expect(payload.line_items[0].price_data.unit_amount).toBe(7500);
     expect(payload.metadata).toEqual({ bookingId: "SC-1", kind: "BALANCE" });
+    expect(payload.customer_email).toBe("sarah@example.com");
     expect(payload.payment_intent_data.metadata).toEqual({
       bookingId: "SC-1",
       kind: "BALANCE",

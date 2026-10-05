@@ -29,12 +29,14 @@ export function getStripe(): Stripe {
 
 async function createCheckoutSession(input: {
   bookingId: string;
+  customerEmail: string;
   amountCents: number;
   kind: "DEPOSIT" | "BALANCE";
   productName: string;
   productDescription: string;
 }): Promise<{ clientSecret: string; amountCents: number }> {
   const bookingId = input.bookingId;
+  const customerEmail = input.customerEmail.trim();
   const returnUrl = `${getAppUrl()}/booking/${encodeURIComponent(bookingId)}?checkout=success`;
 
   const session = await getStripe().checkout.sessions.create({
@@ -47,6 +49,7 @@ async function createCheckoutSession(input: {
     integration_identifier: "custom_embedded_web_0001",
     return_url: returnUrl,
     client_reference_id: bookingId,
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
     metadata: { bookingId, kind: input.kind },
     payment_intent_data: {
       metadata: { bookingId, kind: input.kind },
@@ -86,6 +89,7 @@ export async function createDepositCheckoutSession(input: {
   const percent = Math.round(DEPOSIT_FRACTION * 100);
   return createCheckoutSession({
     bookingId: input.bookingId,
+    customerEmail: input.customerEmail,
     amountCents,
     kind: "DEPOSIT",
     productName: `Collection deposit · ${input.bookingId}`,
@@ -105,6 +109,7 @@ export async function createBalanceCheckoutSession(input: {
 
   return createCheckoutSession({
     bookingId: input.bookingId,
+    customerEmail: input.customerEmail,
     amountCents,
     kind: "BALANCE",
     productName: `Remaining balance · ${input.bookingId}`,

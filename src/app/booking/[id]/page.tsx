@@ -66,9 +66,34 @@ function formatDimensions(widthM: number | null, lengthM: number | null) {
   return "To be measured on collection";
 }
 
-function CheckoutReturnNotice() {
+function CheckoutReturnNotice({
+  paymentStatus,
+}: {
+  paymentStatus: string;
+}) {
   const value = useSearchParams().get("checkout");
   if (value === "success") {
+    if (paymentStatus === "PAID") {
+      return (
+        <p
+          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
+          role="status"
+        >
+          You&apos;re back from checkout. This booking is settled.
+        </p>
+      );
+    }
+    if (paymentStatus === "DEPOSIT") {
+      return (
+        <p
+          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
+          role="status"
+        >
+          You&apos;re back from checkout. This booking stays on deposit until
+          Stripe confirms the remaining balance.
+        </p>
+      );
+    }
     return (
       <p
         className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
@@ -85,7 +110,17 @@ function CheckoutReturnNotice() {
         className="rounded-lg border bg-muted/40 px-3 py-2 text-muted-foreground"
         role="status"
       >
-        Checkout was cancelled. You can pay the deposit when you&apos;re ready.
+        {paymentStatus === "DEPOSIT" ? (
+          <>
+            Checkout was cancelled. You can pay the remaining balance when
+            you&apos;re ready.
+          </>
+        ) : (
+          <>
+            Checkout was cancelled. You can pay the deposit when you&apos;re
+            ready.
+          </>
+        )}
       </p>
     );
   }
@@ -459,7 +494,7 @@ export default function BookingStatusPage() {
           </div>
 
           <Suspense fallback={null}>
-            <CheckoutReturnNotice />
+            <CheckoutReturnNotice paymentStatus={booking.paymentStatus} />
           </Suspense>
 
           {booking.paymentStatus === "UNPAID" && clientOwnsBooking(user, booking) ? (

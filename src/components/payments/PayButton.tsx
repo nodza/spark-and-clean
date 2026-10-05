@@ -97,12 +97,18 @@ function paymentComplete(kind: PayKind, paymentStatus: string | null): boolean {
   return paymentStatus !== "UNPAID";
 }
 
-async function readStoredStatus(bookingId: string): Promise<string | null> {
+async function readStoredStatus(
+  bookingId: string,
+  clientSecret?: string
+): Promise<string | null> {
   const res = await fetch("/api/payments/sync-session", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bookingId }),
+    body: JSON.stringify({
+      bookingId,
+      ...(clientSecret ? { clientSecret } : {}),
+    }),
   });
   const data = (await res.json().catch(() => null)) as
     | { paymentStatus?: string }
@@ -111,17 +117,26 @@ async function readStoredStatus(bookingId: string): Promise<string | null> {
   return data.paymentStatus;
 }
 
+/**
+ * Sync the Checkout session that was just paid, then poll until the booking
+ * status catches up (webhook lag). Always pass clientSecret so a later BALANCE
+ * session is not lost behind an older paid DEPOSIT session.
+ */
 async function waitForStoredStatus(
   bookingId: string,
-  kind: PayKind
+  kind: PayKind,
+  clientSecret: string
 ): Promise<string | null> {
+  const first = await readStoredStatus(bookingId, clientSecret);
+  if (paymentComplete(kind, first)) return first;
+
   const deadline = Date.now() + WEBHOOK_WAIT_MS;
   while (Date.now() < deadline) {
-    const status = await readStoredStatus(bookingId);
-    if (paymentComplete(kind, status)) return status;
     await new Promise((resolve) => setTimeout(resolve, WEBHOOK_POLL_MS));
+    const status = await readStoredStatus(bookingId, clientSecret);
+    if (paymentComplete(kind, status)) return status;
   }
-  return readStoredStatus(bookingId);
+  return readStoredStatus(bookingId, clientSecret);
 }
 
 /**
@@ -198,7 +213,11 @@ export function PayButton({
               return;
             }
 
-            const paymentStatus = await waitForStoredStatus(bookingId, kind);
+            const paymentStatus = await waitForStoredStatus(
+              bookingId,
+              kind,
+              clientSecret
+            );
             setConfirming(false);
             if (paymentComplete(kind, paymentStatus)) {
               onPaidRef.current?.();
