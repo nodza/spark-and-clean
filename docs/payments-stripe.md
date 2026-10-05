@@ -1,6 +1,6 @@
 # Stripe deposit and balance checkout
 
-A logged-in client can start a card **deposit** while the booking is `UNPAID`, or pay the **remaining balance** while it is `DEPOSIT`, from the booking status page. Checkout does not change `paymentStatus`. A later webhook records the transfer and the ledger derives `DEPOSIT` or `PAID`.
+A logged-in client can start a card **deposit** while the booking is `UNPAID`, or pay the **remaining balance** while it is `DEPOSIT`, from the booking status page. Checkout does not change `paymentStatus`, and neither does the success redirect or a browser status check. `POST /api/webhooks/stripe` is the only automatic writer: it verifies `Stripe-Signature`, and a paid `checkout.session.completed`, `checkout.session.async_payment_succeeded`, or `payment_intent.succeeded` event records one ledger row. The ledger derives `DEPOSIT` or `PAID`. Replaying that event does not add the amount again. `POST /api/payments/webhook` runs the same handler.
 
 ## Environment variables
 
@@ -11,6 +11,20 @@ Set these in the host secret store or local `.env`. Do not commit values.
 | `STRIPE_SECRET_KEY` | Server. Creates the Checkout Session. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Browser. Initializes the embedded Checkout form. This is a Next.js app, so the name uses `NEXT_PUBLIC_`, not `VITE_`. |
 | `APP_URL` | Server. Absolute origin for the success and cancel return URLs, with no trailing path. Example shape: `https://example.com` |
-| `STRIPE_WEBHOOK_SECRET` | Server. Verifies `checkout.session.completed` and `checkout.session.async_payment_succeeded` before the ledger marks a booking paid. |
+| `STRIPE_WEBHOOK_SECRET` | Server. Verifies `Stripe-Signature` on `POST /api/webhooks/stripe` before the ledger marks a booking paid. |
 
 Deposit percent is `DEPOSIT_FRACTION` in `src/lib/payments/deposit.ts` (default `0.5`). Balance Checkout charges `amountDueCents - amountPaidCents` with metadata `kind=BALANCE`.
+
+## Local webhook forwarding
+
+`npm run dev` and `npm run stripe:listen` need to run together. The listen script uses `STRIPE_SECRET_KEY` from `.env`, so events are for the same account that creates Checkout Sessions. Copy the `whsec_...` value it prints into `STRIPE_WEBHOOK_SECRET`, then restart `npm run dev` so the server loads it.
+
+In PowerShell, an unquoted `--events a,b,c` is split into separate arguments and Stripe CLI does not subscribe to those events. `npm run stripe:listen` keeps the event list as one argument.
+
+### Why listen locally (and not on staging / production)
+
+Stripe can only deliver webhooks to a URL it can reach on the public internet. `localhost` is not reachable, so on a developer machine `stripe listen` forwards those events to `http://localhost:3000/api/webhooks/stripe`. Without that forwarder, the card can succeed in Checkout and the booking stays unpaid until something else updates it.
+
+Staging and production do **not** run `stripe listen`. Register the real app URL once in the Stripe Dashboard (e.g. `https://staging.example.com/api/webhooks/stripe` or the production host), use that endpoint’s `whsec_...` as `STRIPE_WEBHOOK_SECRET`, and Stripe posts there directly. The CLI is a local-only bridge; it is unused on deployed hosts.
+
+Instant EFT (Ozow) uses the same ledger — see `docs/payments-ozow.md`.

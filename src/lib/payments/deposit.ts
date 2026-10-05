@@ -45,6 +45,21 @@ export function depositAmountCents(amountDueCents: number): number {
   return Math.max(0, Math.round(DEPOSIT_FRACTION * amountDueCents));
 }
 
+/** Remaining balance after deposits / partial payments. */
+export function balanceAmountCents(
+  input: DueInput & {
+    billing?: { amountDueCents?: number; amountPaidCents?: number } | null;
+  }
+): number {
+  const due = amountDueCentsForBooking(input);
+  const paid =
+    typeof input.billing?.amountPaidCents === "number" &&
+    Number.isFinite(input.billing.amountPaidCents)
+      ? Math.max(0, Math.round(input.billing.amountPaidCents))
+      : 0;
+  return Math.max(0, due - paid);
+}
+
 /** Remaining cents after what has already been paid (balance Checkout amount). */
 export function remainingBalanceCents(
   amountDueCents: number,
@@ -59,6 +74,17 @@ export function remainingBalanceCents(
       ? Math.round(amountPaidCents)
       : 0;
   return Math.max(0, due - paid);
+}
+
+export function chargeAmountCents(
+  kind: "DEPOSIT" | "BALANCE",
+  booking: DueInput & {
+    billing?: { amountDueCents?: number; amountPaidCents?: number } | null;
+  }
+): number {
+  if (kind === "DEPOSIT") return depositAmountCents(amountDueCentsForBooking(booking));
+  if (kind === "BALANCE") return balanceAmountCents(booking);
+  return 0;
 }
 
 export function formatZarFromCents(cents: number): string {

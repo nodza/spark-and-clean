@@ -111,8 +111,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         isLoading: false,
       }));
       return newBooking;
-    } catch {
-      set({ error: "Failed to create booking", isLoading: false });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to create booking";
+      set({ error: message, isLoading: false });
       return undefined;
     }
   },

@@ -35,8 +35,8 @@ import { PayButton } from "@/components/payments/PayButton";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import {
   amountDueCentsForBooking,
+  balanceAmountCents,
   depositAmountCents,
-  remainingBalanceCents,
   DEPOSIT_FRACTION,
 } from "@/lib/payments/deposit";
 import { isPersistedClient } from "@/types/user";
@@ -90,7 +90,7 @@ function CheckoutReturnNotice({
           role="status"
         >
           You&apos;re back from checkout. This booking stays on deposit until
-          Stripe confirms the remaining balance.
+          the bank confirms the remaining balance.
         </p>
       );
     }
@@ -211,10 +211,7 @@ export default function BookingStatusPage() {
   const amountDueCents = amountDueCentsForBooking(booking);
   const depositCents = depositAmountCents(amountDueCents);
   const amountPaidCents = booking.billing?.amountPaidCents ?? 0;
-  const outstandingCents = remainingBalanceCents(
-    amountDueCents,
-    amountPaidCents
-  );
+  const outstandingCents = balanceAmountCents(booking);
   const afterDepositCents = Math.max(0, amountDueCents - depositCents);
   const depositPercent = Math.round(DEPOSIT_FRACTION * 100);
   const paymentLabel =
@@ -497,7 +494,15 @@ export default function BookingStatusPage() {
             <CheckoutReturnNotice paymentStatus={booking.paymentStatus} />
           </Suspense>
 
-          {booking.paymentStatus === "UNPAID" && clientOwnsBooking(user, booking) ? (
+          {booking.paymentStatus === "UNPAID" && !authReady ? (
+            <p className="rounded-lg border border-[#e8edf5] bg-[#f8fafc] px-3 py-2 text-xs text-[#5c6578]">
+              Checking your account before showing pay options…
+            </p>
+          ) : null}
+
+          {booking.paymentStatus === "UNPAID" &&
+          authReady &&
+          clientOwnsBooking(user, booking) ? (
             <div className="rounded-lg border border-[#e8edf5] p-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
                 <PayButton
@@ -540,8 +545,8 @@ export default function BookingStatusPage() {
           ) : null}
 
           {booking.paymentStatus === "DEPOSIT" &&
-          outstandingCents > 0 &&
-          clientOwnsBooking(user, booking) ? (
+          clientOwnsBooking(user, booking) &&
+          outstandingCents > 0 ? (
             <div className="rounded-lg border border-[#e8edf5] p-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
                 <PayButton
@@ -585,9 +590,12 @@ export default function BookingStatusPage() {
 
           {(booking.paymentStatus === "UNPAID" ||
             (booking.paymentStatus === "DEPOSIT" && outstandingCents > 0)) &&
+          authReady &&
           !clientOwnsBooking(user, booking) ? (
             <p className="rounded-lg border border-[#f3c9c9] bg-[#fff5f5] px-3 py-2 text-xs text-[#b42318]">
-              Outstanding balance on this order.
+              {user
+                ? "This unpaid booking is not linked to your account, so pay is hidden. Open a booking you own (same email / My Bookings), or ask ops to link it."
+                : "Sign in with the client account that owns this booking to pay the deposit."}
             </p>
           ) : null}
         </CardContent>

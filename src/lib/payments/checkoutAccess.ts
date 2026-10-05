@@ -1,4 +1,5 @@
 import { isClientRole, isFullAccount } from "@/types/user";
+import type { PaymentKind } from "@/models/Payment";
 
 export type CheckoutCaller = {
   id?: string;
@@ -35,9 +36,14 @@ export function clientOwnsBooking(
   return !booking.userId && email.length > 0 && bookingEmail === email;
 }
 
-function authorizeOwnedClientCheckout(
+/**
+ * Only a signed-in client who owns the booking may start Checkout.
+ * DEPOSIT while UNPAID; BALANCE while DEPOSIT (remaining due).
+ */
+export function authorizeCheckout(
   session: CheckoutCaller,
-  booking: CheckoutBooking
+  booking: CheckoutBooking,
+  kind: Extract<PaymentKind, "DEPOSIT" | "BALANCE">
 ): CheckoutAccess {
   if (!session || !isFullAccount(session) || !isClientRole(session.role)) {
     if (!session || session.guest || session.id?.startsWith("guest:")) {
@@ -58,28 +64,34 @@ function authorizeOwnedClientCheckout(
     };
   }
 
-  return { ok: true };
-}
+  if (kind === "DEPOSIT") {
+    if (booking.paymentStatus !== "UNPAID") {
+      return {
+        ok: false,
+        status: 409,
+        error: "A deposit can only be started while the booking is unpaid.",
+      };
+    }
+    return { ok: true };
+  }
 
-/**
- * Only a signed-in client who owns the booking may start deposit Checkout.
- */
-export function authorizeDepositCheckout(
-  session: CheckoutCaller,
-  booking: CheckoutBooking
-): CheckoutAccess {
-  const owned = authorizeOwnedClientCheckout(session, booking);
-  if (!owned.ok) return owned;
-
-  if (booking.paymentStatus !== "UNPAID") {
+  if (booking.paymentStatus !== "DEPOSIT") {
     return {
       ok: false,
       status: 409,
-      error: "A deposit can only be started while the booking is unpaid.",
+      error: "A balance payment can only be started after a deposit.",
     };
   }
 
   return { ok: true };
+}
+
+/** @deprecated Prefer authorizeCheckout(session, booking, "DEPOSIT") */
+export function authorizeDepositCheckout(
+  session: CheckoutCaller,
+  booking: CheckoutBooking
+): CheckoutAccess {
+  return authorizeCheckout(session, booking, "DEPOSIT");
 }
 
 /**
@@ -91,16 +103,8 @@ export function authorizeBalanceCheckout(
   booking: CheckoutBooking,
   remainingCents: number
 ): CheckoutAccess {
-  const owned = authorizeOwnedClientCheckout(session, booking);
-  if (!owned.ok) return owned;
-
-  if (booking.paymentStatus !== "DEPOSIT") {
-    return {
-      ok: false,
-      status: 409,
-      error: "The remaining balance can only be paid after a deposit.",
-    };
-  }
+  const access = authorizeCheckout(session, booking, "BALANCE");
+  if (!access.ok) return access;
 
   if (!Number.isFinite(remainingCents) || remainingCents < 1) {
     return {

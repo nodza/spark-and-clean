@@ -1,0 +1,26 @@
+{
+  "id": "evt_test_deposit_replay",
+  "object": "event",
+  "api_version": "2026-03-25.dahlia",
+  "created": 1750000000,
+  "livemode": false,
+  "pending_webhooks": 1,
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_deposit_replay",
+      "object": "checkout.session",
+      "payment_status": "paid",
+      "status": "complete",
+      "mode": "payment",
+      "amount_total": 7500,
+      "currency": "zar",
+      "client_reference_id": "SC-1",
+      "payment_intent": "pi_test_deposit_replay",
+      "metadata": {
+        "bookingId": "SC-1",
+        "kind": "DEPOSIT"
+      }
+    }
+  }
+}
