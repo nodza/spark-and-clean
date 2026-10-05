@@ -10,10 +10,13 @@ describe("fulfillPaidCheckoutSession", () => {
   beforeEach(() => {
     recordSuccess.mockReset();
     recordSuccess.mockResolvedValue({ ok: true });
+    vi.resetModules();
   });
 
   it("does not record an unpaid return", async () => {
-    const { fulfillPaidCheckoutSession } = await import("@/lib/payments/stripeWebhook");
+    const { fulfillPaidCheckoutSession } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
     const result = await fulfillPaidCheckoutSession({
       id: "cs_test",
       payment_status: "unpaid",
@@ -26,8 +29,10 @@ describe("fulfillPaidCheckoutSession", () => {
     expect(recordSuccess).not.toHaveBeenCalled();
   });
 
-  it("records a paid deposit against the payment intent", async () => {
-    const { fulfillPaidCheckoutSession } = await import("@/lib/payments/stripeWebhook");
+  it("records a paid deposit; userId is stamped inside recordSuccess", async () => {
+    const { fulfillPaidCheckoutSession } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
     await fulfillPaidCheckoutSession({
       id: "cs_test",
       payment_status: "paid",
@@ -46,3 +51,67 @@ describe("fulfillPaidCheckoutSession", () => {
     });
   });
 });
+
+describe("fulfillSucceededPaymentIntent", () => {
+  beforeEach(() => {
+    recordSuccess.mockReset();
+    recordSuccess.mockResolvedValue({ ok: true });
+  });
+
+  it("records a succeeded intent against the same providerRef as Checkout", async () => {
+    const { fulfillSucceededPaymentIntent } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
+    await fulfillSucceededPaymentIntent({
+      id: "pi_1",
+      status: "succeeded",
+      amount: 7500,
+      amount_received: 7500,
+      currency: "zar",
+      metadata: { bookingId: "SC-1", kind: "DEPOSIT" },
+    });
+    expect(recordSuccess).toHaveBeenCalledWith({
+      provider: "stripe",
+      providerRef: "pi_1",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+      currency: "zar",
+    });
+  });
+
+  it("does not record an intent that is not tied to a booking deposit", async () => {
+    const { fulfillSucceededPaymentIntent } = await import(
+      "@/lib/payments/stripeWebhook"
+    );
+    const result = await fulfillSucceededPaymentIntent({
+      id: "pi_1",
+      status: "succeeded",
+      amount_received: 7500,
+      currency: "zar",
+      metadata: {},
+    });
+    expect(result).toEqual({ ok: true, applied: false });
+    expect(recordSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyStripeEvent", () => {
+  beforeEach(() => {
+    recordSuccess.mockReset();
+    recordSuccess.mockResolvedValue({ ok: true });
+  });
+
+  it("ignores unrelated event types", async () => {
+    const { applyStripeEvent } = await import("@/lib/payments/stripeWebhook");
+    const result = await applyStripeEvent({
+      id: "evt_customer",
+      object: "event",
+      type: "customer.created",
+      data: { object: { id: "cus_1" } },
+    } as never);
+    expect(result).toEqual({ ok: true, applied: false });
+    expect(recordSuccess).not.toHaveBeenCalled();
+  });
+});
+

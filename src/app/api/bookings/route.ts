@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
+import { Coupon } from "@/models/Coupon";
 import { getSession } from "@/lib/session";
+import {
+  COUPON_APPLY_FIELDS,
+  COUPON_CODE_PATTERN,
+  UNKNOWN_COUPON_MESSAGE,
+  couponApplyError,
+  normalizeCouponCode,
+} from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
@@ -64,6 +72,28 @@ export async function POST(request: Request) {
       `SC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)
         .toString()
         .padStart(4, "0")}`;
+
+    const couponRaw =
+      typeof body.couponCode === "string" ? body.couponCode.trim() : "";
+    if (couponRaw) {
+      const couponCode = normalizeCouponCode(couponRaw);
+      if (!COUPON_CODE_PATTERN.test(couponCode)) {
+        return NextResponse.json(
+          { error: UNKNOWN_COUPON_MESSAGE },
+          { status: 400 }
+        );
+      }
+      const coupon = await Coupon.findOne({ code: couponCode })
+        .select(COUPON_APPLY_FIELDS)
+        .lean();
+      const city =
+        typeof body.city === "string" ? body.city : null;
+      const applyError = couponApplyError(coupon, { city });
+      if (applyError) {
+        return NextResponse.json({ error: applyError }, { status: 400 });
+      }
+      body.couponCode = couponCode;
+    }
 
     const rest = { ...(body as Record<string, unknown>) };
     delete rest.userId;

@@ -154,11 +154,14 @@ export function AdminSearchTopbar({
   searchValue,
   onSearchChange,
   searchPlaceholder = "Search by ID, name, phone, email, or address",
+  primaryAction,
 }: {
   /** When provided, wires the topbar search input (controlled). */
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
+  /** Replaces the default “New booking” control. */
+  primaryAction?: React.ReactNode;
 } = {}) {
   const controlled = typeof onSearchChange === "function";
   const inputRef = useRef<HTMLInputElement>(null);
@@ -196,19 +199,21 @@ export function AdminSearchTopbar({
           }
           placeholder={searchPlaceholder}
           className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#9aa0a6]"
-          aria-label="Search bookings by ID, name, phone, email, or address"
+          aria-label={searchPlaceholder}
         />
       </div>
-      <Link href="/book/rug" className="flex-none">
-        <button
-          type="button"
-          className="flex min-h-10 items-center gap-[8px] rounded-full px-[14px] py-[9px] text-[13px] font-extrabold text-white transition-colors duration-150 hover:bg-[#0a1a6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
-          style={{ background: "#000b49" }}
-        >
-          <span className="hidden sm:inline">+ New booking</span>
-          <span className="sm:hidden">+ New</span>
-        </button>
-      </Link>
+      {primaryAction ?? (
+        <Link href="/book/rug" className="flex-none">
+          <button
+            type="button"
+            className="flex min-h-10 items-center gap-[8px] rounded-full px-[14px] py-[9px] text-[13px] font-extrabold text-white transition-colors duration-150 hover:bg-[#0a1a6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
+            style={{ background: "#000b49" }}
+          >
+            <span className="hidden sm:inline">+ New booking</span>
+            <span className="sm:hidden">+ New</span>
+          </button>
+        </Link>
+      )}
     </div>
   );
 }

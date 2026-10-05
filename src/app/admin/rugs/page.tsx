@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, LoaderCircle, Search, Tag } from "lucide-react";
 import { AdminPortalShell } from "@/components/admin/AdminPortalShell";
@@ -19,25 +19,35 @@ export default function AdminRugsPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RugSearchResult[]>([]);
   const [state, setState] = useState<SearchState>("idle");
+  const abortRef = useRef<AbortController | null>(null);
 
   async function search(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const tagCode = query.trim();
     if (!tagCode) {
+      abortRef.current?.abort();
       setResults([]);
       setState("idle");
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setState("loading");
     try {
-      const response = await fetch(`/api/rugs?q=${encodeURIComponent(tagCode)}`);
+      const response = await fetch(`/api/rugs?q=${encodeURIComponent(tagCode)}`, {
+        signal: controller.signal,
+      });
       if (!response.ok) throw new Error("Search failed");
       const payload = (await response.json()) as { results?: RugSearchResult[] };
+      if (controller.signal.aborted) return;
       const matches = payload.results ?? [];
       setResults(matches);
       setState(matches.length ? "success" : "empty");
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setResults([]);
       setState("error");
     }

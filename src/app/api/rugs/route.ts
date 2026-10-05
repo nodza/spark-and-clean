@@ -5,8 +5,19 @@ import { requireTechnicianSession } from "@/lib/fieldMessageAuth";
 import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
+import { isVanCollectStatus } from "@/lib/fieldStatus";
 import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
 import { getSession } from "@/lib/session";
+import type { BookingStatus } from "@/types/booking";
+
+const LOOKUP_FIELDS = { id: 1, customer: 1, rug: 1, status: 1 } as const;
+
+function bookingHasTag(
+  booking: { rug?: { tagCode?: string | null } } | null | undefined,
+  tagCode: string
+) {
+  return booking?.rug?.tagCode?.trim().toUpperCase() === tagCode;
+}
 
 export async function GET(request: Request) {
   try {
@@ -22,15 +33,23 @@ export async function GET(request: Request) {
 
     await connectDB();
     const asset = await RugAsset.findOne({ tagCode }).lean();
-    let booking = asset?.currentBookingId
-      ? await Booking.findOne({ id: asset.currentBookingId })
-          .select({ id: 1, customer: 1, rug: 1, status: 1 })
-          .lean()
-      : null;
+
+    let booking =
+      asset?.currentBookingId
+        ? await Booking.findOne({ id: asset.currentBookingId })
+            .select(LOOKUP_FIELDS)
+            .lean()
+        : null;
+
+    // Stale currentBookingId (tag moved/reused) — ignore and fall back.
+    if (booking && !bookingHasTag(booking, tagCode)) {
+      booking = null;
+    }
 
     if (!booking) {
       booking = await Booking.findOne({ "rug.tagCode": tagCode })
-        .select({ id: 1, customer: 1, rug: 1, status: 1 })
+        .select(LOOKUP_FIELDS)
+        .sort({ updatedAt: -1 })
         .lean();
     }
     if (!booking) return NextResponse.json({ results: [] });
@@ -91,7 +110,7 @@ export async function POST(request: Request) {
     if (booking.assignedDriverId !== session.driverProfileId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (booking.status !== "SCHEDULED") {
+    if (!isVanCollectStatus(booking.status as BookingStatus)) {
       return NextResponse.json(
         { error: "Tags can only be attached before collection" },
         { status: 409 }
@@ -159,14 +178,19 @@ export async function POST(request: Request) {
       {
         id: bookingId,
         assignedDriverId: session.driverProfileId,
-        status: "SCHEDULED",
+        status: { $in: ["BOOKED", "SCHEDULED"] },
         $or: [
           { "rug.tagCode": { $exists: false } },
           { "rug.tagCode": null },
           { "rug.tagCode": "" },
         ],
       },
-      { $set: { "rug.tagCode": tagCode, "rug.assetId": asset._id } },
+      {
+        $set: {
+          "rug.tagCode": tagCode,
+          "rug.assetId": asset._id,
+        },
+      },
       { new: true, runValidators: true }
     ).lean();
 

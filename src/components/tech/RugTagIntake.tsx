@@ -11,30 +11,12 @@ type RugTagIntakeProps = {
 
 const printStyles = `
   @page { size: A4; margin: 12mm; }
-  @media print {
-    body * { visibility: hidden !important; }
-    #rug-tag-print-sheet,
-    #rug-tag-print-sheet * { visibility: visible !important; }
-    #rug-tag-print-sheet {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      display: flex !important;
-      width: 50mm !important;
-      min-height: 56mm !important;
-      padding: 3mm !important;
-      border: 0.3mm solid #bbb !important;
-      background: #fff !important;
-      color: #111 !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 2mm !important;
-      font-family: Arial, sans-serif !important;
-    }
-    #rug-tag-print-sheet img { display: block !important; width: 42mm !important; height: 42mm !important; }
-    #rug-tag-print-sheet p { margin: 0 !important; font-size: 11pt !important; font-weight: 700 !important; overflow-wrap: anywhere !important; text-align: center !important; }
-  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #111; font-family: Arial, sans-serif; }
+  .sticker { width: 50mm; min-height: 56mm; padding: 3mm; border: 0.3mm solid #bbb; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; }
+  img { display: block; width: 42mm; height: 42mm; }
+  p { margin: 0; font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
+  @media screen { body { padding: 16px; } }
 `;
 
 export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
@@ -76,7 +58,36 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
   function printSticker() {
     if (!tagCode) return;
     setPrintError(null);
-    window.print();
+    const printWindow = window.open("", "_blank", "popup,width=480,height=640");
+    if (!printWindow) {
+      setPrintError("Allow pop-ups to print this sticker.");
+      return;
+    }
+
+    const document = printWindow.document;
+    document.title = `Rug tag ${tagCode}`;
+    const style = document.createElement("style");
+    style.textContent = printStyles;
+    const sticker = document.createElement("main");
+    sticker.className = "sticker";
+    const image = document.createElement("img");
+    image.alt = `QR code for rug tag ${tagCode}`;
+    const code = document.createElement("p");
+    code.textContent = tagCode;
+    sticker.append(image, code);
+    document.head.append(style);
+    document.body.replaceChildren(sticker);
+
+    image.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    image.onerror = () => {
+      printWindow.close();
+      setPrintError("Could not load the QR sticker. Try again.");
+    };
+    printWindow.onafterprint = () => printWindow.close();
+    image.src = qrUrl;
   }
 
   return (
@@ -92,12 +103,6 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
       </div>
       {tagCode ? (
         <>
-          <style>{printStyles}</style>
-          <div id="rug-tag-print-sheet" style={{ display: "none" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrUrl} alt={`QR code for rug tag ${tagCode}`} />
-            <p>{tagCode}</p>
-          </div>
           <div className="mt-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -139,7 +144,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
       ) : (
         <>
           <p className="mt-1 text-xs text-[#6b7280]">
-            Attach a tag before collection; its printable QR will appear here.
+            Attach a tag before marking this rug collected.
           </p>
           <label
             htmlFor="rug-tag-code"
@@ -158,25 +163,27 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
             className="h-11 w-full rounded-lg border border-[#d9e1e5] bg-white px-3 text-sm text-navy outline-none placeholder:text-[#9aa0a6] focus:border-[#0a7a63] focus:ring-2 focus:ring-[#0a7a63]/15 disabled:opacity-60"
           />
           <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void attachTag()}
-              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-              {busy ? "Attaching…" : "Generate tag"}
-            </button>
             {tagCodeInput.trim() ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void attachTag(tagCodeInput.trim())}
-                className="flex h-10 flex-1 items-center justify-center rounded-lg border border-[#0a7a63] bg-white px-3 text-xs font-bold text-[#0a7a63] hover:bg-[#edf8f4] disabled:pointer-events-none disabled:opacity-60"
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
               >
-                Use this code
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                {busy ? "Attaching?" : "Use this code"}
               </button>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void attachTag()}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0a7a63] px-3 text-xs font-bold text-white hover:bg-[#086b56] disabled:pointer-events-none disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                {busy ? "Attaching?" : "Generate tag"}
+              </button>
+            )}
           </div>
           {tagError ? (
             <p className="mt-2 text-xs font-medium text-destructive" role="alert">

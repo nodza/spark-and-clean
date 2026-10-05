@@ -27,6 +27,27 @@ export async function requireFullAdmin(): Promise<SessionUser> {
   return requireFullAdminSession(await getSession());
 }
 
+/**
+ * Any admin session (full or marketing-only).
+ * Missing session → 401. Client, technician, or admin without a tier → 403.
+ */
+export function requireAdminSession(session: SessionUser | null): SessionUser {
+  if (!session) {
+    throw new HttpError(401, "Unauthorized");
+  }
+  if (
+    session.role !== "admin" ||
+    (session.adminTier !== "full" && session.adminTier !== "marketing-only")
+  ) {
+    throw new HttpError(403, "Forbidden");
+  }
+  return session;
+}
+
+export async function requireAdmin(): Promise<SessionUser> {
+  return requireAdminSession(await getSession());
+}
+
 export function isHttpError(err: unknown): err is HttpError {
   return err instanceof HttpError;
 }

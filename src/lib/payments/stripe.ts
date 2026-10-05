@@ -27,18 +27,16 @@ export function getStripe(): Stripe {
   });
 }
 
-export async function createDepositCheckoutSession(input: {
+async function createCheckoutSession(input: {
   bookingId: string;
   customerEmail: string;
-  amountDueCents: number;
+  amountCents: number;
+  kind: "DEPOSIT" | "BALANCE";
+  productName: string;
+  productDescription: string;
 }): Promise<{ clientSecret: string; amountCents: number }> {
-  const amountCents = depositAmountCents(input.amountDueCents);
-  if (amountCents < 1) {
-    throw new Error("DEPOSIT_AMOUNT_TOO_SMALL");
-  }
-
   const bookingId = input.bookingId;
-  const percent = Math.round(DEPOSIT_FRACTION * 100);
+  const customerEmail = input.customerEmail.trim();
   const returnUrl = `${getAppUrl()}/booking/${encodeURIComponent(bookingId)}?checkout=success`;
 
   const session = await getStripe().checkout.sessions.create({
@@ -51,19 +49,20 @@ export async function createDepositCheckoutSession(input: {
     integration_identifier: "custom_embedded_web_0001",
     return_url: returnUrl,
     client_reference_id: bookingId,
-    metadata: { bookingId, kind: "DEPOSIT" },
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
+    metadata: { bookingId, kind: input.kind },
     payment_intent_data: {
-      metadata: { bookingId, kind: "DEPOSIT" },
+      metadata: { bookingId, kind: input.kind },
     },
     line_items: [
       {
         quantity: 1,
         price_data: {
           currency: "zar",
-          unit_amount: amountCents,
+          unit_amount: input.amountCents,
           product_data: {
-            name: `Collection deposit · ${bookingId}`,
-            description: `${percent}% deposit. The balance is due before delivery.`,
+            name: input.productName,
+            description: input.productDescription,
           },
         },
       },
@@ -74,7 +73,48 @@ export async function createDepositCheckoutSession(input: {
     throw new Error("Stripe did not return a checkout client secret");
   }
 
-  return { clientSecret: session.client_secret, amountCents };
+  return { clientSecret: session.client_secret, amountCents: input.amountCents };
+}
+
+export async function createDepositCheckoutSession(input: {
+  bookingId: string;
+  customerEmail: string;
+  amountDueCents: number;
+}): Promise<{ clientSecret: string; amountCents: number }> {
+  const amountCents = depositAmountCents(input.amountDueCents);
+  if (amountCents < 1) {
+    throw new Error("DEPOSIT_AMOUNT_TOO_SMALL");
+  }
+
+  const percent = Math.round(DEPOSIT_FRACTION * 100);
+  return createCheckoutSession({
+    bookingId: input.bookingId,
+    customerEmail: input.customerEmail,
+    amountCents,
+    kind: "DEPOSIT",
+    productName: `Collection deposit · ${input.bookingId}`,
+    productDescription: `${percent}% deposit. The balance is due before delivery.`,
+  });
+}
+
+export async function createBalanceCheckoutSession(input: {
+  bookingId: string;
+  customerEmail: string;
+  amountCents: number;
+}): Promise<{ clientSecret: string; amountCents: number }> {
+  const amountCents = Math.max(0, Math.round(input.amountCents));
+  if (amountCents < 1) {
+    throw new Error("BALANCE_AMOUNT_TOO_SMALL");
+  }
+
+  return createCheckoutSession({
+    bookingId: input.bookingId,
+    customerEmail: input.customerEmail,
+    amountCents,
+    kind: "BALANCE",
+    productName: `Remaining balance · ${input.bookingId}`,
+    productDescription: "Final payment for this booking.",
+  });
 }
 
 /** Checkout client secrets look like `cs_test_..._secret_...`. */
