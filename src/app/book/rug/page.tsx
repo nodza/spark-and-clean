@@ -14,6 +14,7 @@ import {
 } from "@/components/booking/BookingWizardShell";
 import { generateBookingReference } from "@/lib/bookingReference";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
+import { couponHoldId } from "@/lib/promotion/requestCouponPreview";
 import {
   hasFieldErrors,
   validateStep1Dimensions,
@@ -71,9 +72,10 @@ function buildSubmittedBooking(
       odourRemoval: false,
       stainProtection: false,
     },
-    estimatedPriceMin: formData.estimatedPriceMin || 0,
-    estimatedPriceMax: formData.estimatedPriceMax || 0,
+    estimatedPriceMin: formData.estimatedPriceMin ?? 0,
+    estimatedPriceMax: formData.estimatedPriceMax ?? 0,
     couponCode: formData.couponCode,
+    promotion: formData.promotion,
     status: "BOOKED",
     paymentStatus: "UNPAID",
     createdAt: new Date().toISOString(),
@@ -165,22 +167,30 @@ export default function BookingWizard() {
   );
 
   useEffect(() => {
+    if (formData.couponCode) return;
     if (
       formData.estimatedPriceMin === estimate.totalMin &&
-      formData.estimatedPriceMax === estimate.totalMax
+      formData.estimatedPriceMax === estimate.totalMax &&
+      !formData.promotion
     ) {
       return;
     }
-    setFormData((prev) => ({
-      ...prev,
-      estimatedPriceMin: estimate.totalMin,
-      estimatedPriceMax: estimate.totalMax,
-    }));
+    setFormData((prev) => {
+      if (prev.couponCode) return prev;
+      const { promotion: _promotion, ...rest } = prev;
+      return {
+        ...rest,
+        estimatedPriceMin: estimate.totalMin,
+        estimatedPriceMax: estimate.totalMax,
+      };
+    });
   }, [
     estimate.totalMin,
     estimate.totalMax,
+    formData.couponCode,
     formData.estimatedPriceMin,
     formData.estimatedPriceMax,
+    formData.promotion,
   ]);
 
   const nextStep = () => {
@@ -276,7 +286,11 @@ export default function BookingWizard() {
       bookingId
     );
 
-    const created = await addBooking(booking);
+    const created = await addBooking(
+      formData.couponCode
+        ? { ...booking, couponHoldId: couponHoldId(formData.couponCode) }
+        : booking
+    );
     if (!created) {
       setSubmitError(
         useBookingStore.getState().error ||
@@ -312,16 +326,21 @@ export default function BookingWizard() {
     formData.addOns?.stainProtection,
   ].filter(Boolean).length;
 
-  const estimatePrimary =
-    estimate.dimensionsSkipped || estimate.totalMin <= 0
-      ? "TBC"
-      : `R${estimate.totalMin}`;
-  const estimateHint =
-    estimate.dimensionsSkipped || estimate.totalMin <= 0
-      ? "Measured on pickup"
-      : estimate.totalMax > estimate.totalMin
-        ? `up to R${estimate.totalMax}`
-        : undefined;
+  const quotedMin =
+    formData.couponCode && typeof formData.estimatedPriceMin === "number"
+      ? formData.estimatedPriceMin
+      : estimate.totalMin;
+  const quotedMax =
+    formData.couponCode && typeof formData.estimatedPriceMax === "number"
+      ? formData.estimatedPriceMax
+      : estimate.totalMax;
+  const priceKnown = !estimate.dimensionsSkipped && estimate.totalMin > 0;
+  const estimatePrimary = priceKnown ? `R${quotedMin}` : "TBC";
+  const estimateHint = !priceKnown
+    ? "Measured on pickup"
+    : quotedMax > quotedMin
+      ? `up to R${quotedMax}`
+      : undefined;
 
   const isLastStep = step === totalSteps;
   const continueDisabled = isLastStep && (!termsAccepted || isSubmitting);

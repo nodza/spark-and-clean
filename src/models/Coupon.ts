@@ -32,6 +32,8 @@ const CouponSchema = new Schema(
     /** Null means unlimited. */
     maxRedemptions: { type: Number, default: null },
     redeemedCount: { type: Number, required: true, default: 0, min: 0 },
+    /** Browser session that already counted the latest apply, so a refresh does not count twice. */
+    redemptionHoldId: { type: String, default: null },
     validFrom: { type: Date, default: null },
     validTo: { type: Date, default: null },
     city: {

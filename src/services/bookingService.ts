@@ -40,7 +40,9 @@ class BookingService {
     return res.json();
   }
 
-  async createBooking(booking: Booking): Promise<Booking> {
+  async createBooking(
+    booking: Booking & { couponHoldId?: string }
+  ): Promise<Booking> {
     const res = await fetch("/api/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

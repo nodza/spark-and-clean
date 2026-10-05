@@ -36,6 +36,7 @@ import {
   couponValueFieldError,
   couponWindowFieldError,
   formatCouponDiscount,
+  formatCouponUses,
   formatCouponWindow,
   type CouponType,
 } from "@/lib/coupon";
@@ -697,12 +698,7 @@ function CouponTable({
 function Uses({ coupon }: { coupon: CouponRow }) {
   return (
     <span className="text-body" style={{ color: "#32373c" }}>
-      {coupon.redeemedCount}
-      <span className="text-meta" style={{ color: "#9aa0a6" }}>
-        {coupon.maxRedemptions == null
-          ? " used"
-          : ` / ${coupon.maxRedemptions}`}
-      </span>
+      {formatCouponUses(coupon.redeemedCount, coupon.maxRedemptions)}
     </span>
   );
 }

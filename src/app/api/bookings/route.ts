@@ -75,23 +75,38 @@ export async function POST(request: Request) {
 
     const couponRaw =
       typeof body.couponCode === "string" ? body.couponCode.trim() : "";
+    let couponCode = "";
+    let couponMax: number | null = null;
+    let couponAlreadyCounted = false;
     if (couponRaw) {
-      const couponCode = normalizeCouponCode(couponRaw);
+      couponCode = normalizeCouponCode(couponRaw);
       if (!COUPON_CODE_PATTERN.test(couponCode)) {
         return NextResponse.json(
           { error: UNKNOWN_COUPON_MESSAGE },
           { status: 400 }
         );
       }
+      const holdId =
+        typeof body.couponHoldId === "string" ? body.couponHoldId.trim() : "";
       const coupon = await Coupon.findOne({ code: couponCode })
-        .select(COUPON_APPLY_FIELDS)
+        .select(`${COUPON_APPLY_FIELDS} redemptionHoldId`)
         .lean();
+      couponAlreadyCounted = Boolean(
+        holdId && coupon && coupon.redemptionHoldId === holdId
+      );
+      const holdsThis = couponAlreadyCounted;
       const city =
         typeof body.city === "string" ? body.city : null;
-      const applyError = couponApplyError(coupon, { city });
+      const applyError = couponApplyError(coupon, { city, holding: holdsThis });
       if (applyError) {
         return NextResponse.json({ error: applyError }, { status: 400 });
       }
+      couponMax =
+        coupon &&
+        typeof coupon.maxRedemptions === "number" &&
+        Number.isInteger(coupon.maxRedemptions)
+          ? coupon.maxRedemptions
+          : null;
       body.couponCode = couponCode;
     }
 
@@ -100,6 +115,7 @@ export async function POST(request: Request) {
     delete rest.notes;
     delete rest.fieldMessages;
     delete rest.fieldThreadReadAt;
+    delete rest.couponHoldId;
 
     const payload: Record<string, unknown> = {
       ...rest,
@@ -116,13 +132,57 @@ export async function POST(request: Request) {
       payload.userId = session.id;
     }
 
-    const existingBefore = await Booking.findOne({ id }).select("_id").lean();
+    const existingBefore = await Booking.findOne({ id })
+      .select("_id couponCode")
+      .lean();
+    const previousCode =
+      existingBefore &&
+      typeof (existingBefore as { couponCode?: unknown }).couponCode === "string"
+        ? (existingBefore as { couponCode: string }).couponCode
+        : "";
 
-    const created = await Booking.findOneAndUpdate(
-      { id },
-      { $set: payload },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).lean();
+    let claimedCode: string | null = null;
+    if (couponCode && previousCode !== couponCode && !couponAlreadyCounted) {
+      const claimFilter: Record<string, unknown> = { code: couponCode };
+      if (couponMax != null) claimFilter.redeemedCount = { $lt: couponMax };
+      const claimed = await Coupon.findOneAndUpdate(claimFilter, {
+        $inc: { redeemedCount: 1 },
+      });
+      if (!claimed) {
+        const used = couponMax ?? 0;
+        return NextResponse.json(
+          { error: `This coupon has been fully used (${used}/${used})` },
+          { status: 400 }
+        );
+      }
+      claimedCode = couponCode;
+    }
+    if (previousCode && previousCode !== couponCode) {
+      await Coupon.updateOne(
+        { code: previousCode, redeemedCount: { $gt: 0 } },
+        { $inc: { redeemedCount: -1 } }
+      );
+    }
+
+    let created;
+    try {
+      created = await Booking.findOneAndUpdate(
+        { id },
+        { $set: payload },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).lean();
+    } catch (writeErr) {
+      if (claimedCode) {
+        await Coupon.updateOne(
+          { code: claimedCode, redeemedCount: { $gt: 0 } },
+          { $inc: { redeemedCount: -1 } }
+        );
+      }
+      if (previousCode && previousCode !== couponCode) {
+        await Coupon.updateOne({ code: previousCode }, { $inc: { redeemedCount: 1 } });
+      }
+      throw writeErr;
+    }
 
     const clientBooking = toClientBooking(created as Record<string, unknown>);
 

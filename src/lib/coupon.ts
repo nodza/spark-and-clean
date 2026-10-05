@@ -58,7 +58,7 @@ function utcDay(date: Date): number {
  */
 export function couponApplyError(
   doc: CouponApplyDoc | null,
-  opts?: { city?: string | null; now?: Date }
+  opts?: { city?: string | null; now?: Date; holding?: boolean }
 ): string | null {
   if (!doc) return UNKNOWN_COUPON_MESSAGE;
   const inactive = inactiveCouponMessage(doc.active);
@@ -68,12 +68,22 @@ export function couponApplyError(
   const today = utcDay(now);
   const validFrom = asApplyDate(doc.validFrom);
   const validTo = asApplyDate(doc.validTo);
-  if (validFrom && today < utcDay(validFrom)) return COUPON_NOT_YET_VALID_MESSAGE;
+  if (validFrom && today < utcDay(validFrom)) {
+    return COUPON_NOT_YET_VALID_MESSAGE.replace(
+      "yet",
+      `until ${formatCouponDate(validFrom.toISOString())}`
+    );
+  }
   if (validTo && today > utcDay(validTo)) return COUPON_EXPIRED_MESSAGE;
 
-  if (typeof doc.city === "string" && doc.city) {
+  if (typeof doc.city === "string" && doc.city.trim()) {
+    const couponCity = doc.city.trim();
     const bookingCity = typeof opts?.city === "string" ? opts.city.trim() : "";
-    if (bookingCity !== doc.city) return COUPON_CITY_MESSAGE;
+    if (bookingCity.toLowerCase() !== couponCity.toLowerCase()) {
+    return bookingCity
+      ? `${COUPON_CITY_MESSAGE.replace("your city", `${bookingCity}.`)} It only applies in ${couponCity}.`
+      : `This coupon only applies in ${couponCity}.`;
+    }
   }
 
   const max =
@@ -84,7 +94,9 @@ export function couponApplyError(
     typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
       ? doc.redeemedCount
       : 0;
-  if (max != null && used >= max) return COUPON_FULLY_USED_MESSAGE;
+  if (max != null && used >= max && !(opts?.holding && used === max)) {
+    return `${COUPON_FULLY_USED_MESSAGE} (${used}/${max})`;
+  }
 
   return null;
 }
@@ -411,6 +423,19 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
     city,
     createdAt: toIso(doc.createdAt),
   };
+}
+
+/** "0 used" when unlimited, otherwise "2/10". */
+export function formatCouponUses(
+  redeemedCount: number,
+  maxRedemptions: number | null
+): string {
+  const used =
+    Number.isFinite(redeemedCount) && redeemedCount > 0
+      ? Math.floor(redeemedCount)
+      : 0;
+  if (maxRedemptions == null) return `${used} used`;
+  return `${used}/${maxRedemptions}`;
 }
 
 export function formatCouponDiscount(type: CouponType, value: number): string {

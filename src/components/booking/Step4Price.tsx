@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Booking } from "@/types/booking";
@@ -11,7 +11,12 @@ import {
 } from "@/lib/bookingEstimate";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
-import { COUPON_CODE_PATTERN } from "@/lib/coupon";
+import { COUPON_CODE_PATTERN, formatCouponDiscount } from "@/lib/coupon";
+import { estimateQuoteMidpointCents } from "@/lib/promotion/applyCoupon";
+import {
+  requestCouponPreview,
+  type CouponPreviewQuote,
+} from "@/lib/promotion/requestCouponPreview";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -78,8 +83,12 @@ export function Step4Price({ data, update }: StepProps) {
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
   const [couponStatus, setCouponStatus] = useState<
     "idle" | "checking" | "success" | "error"
-  >(data.couponCode ? "success" : "idle");
+  >(data.couponCode ? "checking" : "idle");
   const [couponError, setCouponError] = useState("Invalid coupon format");
+  const [couponMessage, setCouponMessage] = useState("");
+  /** Base totals (before discount) already quoted for the applied code. */
+  const quotedKey = useRef("");
+  const applySeq = useRef(0);
 
   const odourDisplay = dimensionsSkipped
     ? `+R${ODOUR_RATE}/m²`
@@ -88,48 +97,133 @@ export function Step4Price({ data, update }: StepProps) {
     ? `+R${STAIN_PROTECTION_RATE}/m²`
     : `+R${stainProtectPrice || Math.round(area * STAIN_PROTECTION_RATE)}`;
 
+  const clearCoupon = () => {
+    quotedKey.current = "";
+    setCouponMessage("");
+    update({
+      couponCode: "",
+      estimatedPriceMin: estimate.totalMin,
+      estimatedPriceMax: estimate.totalMax,
+      promotion: undefined,
+    });
+  };
+
+  const publishQuote = (
+    quote: CouponPreviewQuote,
+    baseMin: number,
+    baseMax: number
+  ) => {
+    quotedKey.current = `${quote.code}|${baseMin}|${baseMax}`;
+    update({
+      couponCode: quote.code,
+      estimatedPriceMin: quote.estimateMin,
+      estimatedPriceMax: quote.estimateMax,
+      promotion: {
+        amountDueCents: estimateQuoteMidpointCents(
+          quote.estimateMin,
+          quote.estimateMax
+        ),
+      },
+    });
+    setCouponInput(quote.code);
+    setCouponMessage(
+      `✓ ${formatCouponDiscount(quote.type, quote.value)} discount applied`
+    );
+    setCouponStatus("success");
+  };
+
   const applyCoupon = async () => {
     const code = couponInput.trim();
+    const seq = ++applySeq.current;
 
     if (!isValidCouponFormat(code)) {
       setCouponError("Invalid coupon format");
       setCouponStatus("error");
-      update({ couponCode: "" });
+      clearCoupon();
       return;
     }
 
+    const baseMin = estimate.totalMin;
+    const baseMax = estimate.totalMax;
     setCouponStatus("checking");
     try {
-      const res = await fetch("/api/coupons/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          ...(data.city ? { city: data.city } : {}),
-        }),
+      const result = await requestCouponPreview({
+        code,
+        estimateMin: baseMin,
+        estimateMax: baseMax,
+        city: data.city,
+        recordUse: true,
       });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok || payload.valid !== true) {
-        setCouponError(
-          typeof payload.error === "string"
-            ? payload.error
-            : "That coupon code isn't valid"
-        );
+      if (seq !== applySeq.current) return;
+      if (!result.ok) {
+        setCouponError(result.error);
         setCouponStatus("error");
-        update({ couponCode: "" });
+        clearCoupon();
         return;
       }
-      const accepted =
-        typeof payload.code === "string" ? payload.code : code.trim();
-      update({ couponCode: accepted });
-      setCouponInput(accepted);
-      setCouponStatus("success");
+      publishQuote(result.quote, baseMin, baseMax);
     } catch {
+      if (seq !== applySeq.current) return;
       setCouponError("Could not check that coupon. Please try again.");
       setCouponStatus("error");
-      update({ couponCode: "" });
+      clearCoupon();
     }
   };
+
+  useEffect(() => {
+    const code = data.couponCode;
+    if (!code) return;
+    const baseMin = estimate.totalMin;
+    const baseMax = estimate.totalMax;
+    const key = `${code}|${baseMin}|${baseMax}`;
+    if (quotedKey.current === key) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await requestCouponPreview({
+          code,
+          estimateMin: baseMin,
+          estimateMax: baseMax,
+          city: data.city,
+          recordUse: true,
+        });
+        if (cancelled) return;
+        if (!result.ok) {
+          quotedKey.current = "";
+          setCouponMessage("");
+          setCouponError(result.error);
+          setCouponStatus("error");
+          update({
+            couponCode: "",
+            estimatedPriceMin: baseMin,
+            estimatedPriceMax: baseMax,
+            promotion: undefined,
+          });
+          return;
+        }
+        publishQuote(result.quote, baseMin, baseMax);
+      } catch {
+        if (cancelled) return;
+        quotedKey.current = "";
+        setCouponMessage("");
+        setCouponError("Could not check that coupon. Please try again.");
+        setCouponStatus("error");
+        update({
+          couponCode: "",
+          estimatedPriceMin: baseMin,
+          estimatedPriceMax: baseMax,
+          promotion: undefined,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // publishQuote closes over the latest update; totals and code are the triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.couponCode, data.city, estimate.totalMin, estimate.totalMax]);
 
   return (
     <div>
@@ -196,9 +290,10 @@ export function Step4Price({ data, update }: StepProps) {
           }
           className="min-w-0 flex-1"
           onChange={(e) => {
+            applySeq.current += 1;
             setCouponInput(e.target.value);
             if (couponStatus !== "idle") setCouponStatus("idle");
-            if (data.couponCode) update({ couponCode: "" });
+            if (data.couponCode) clearCoupon();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -222,15 +317,15 @@ export function Step4Price({ data, update }: StepProps) {
           {couponError}
         </p>
       )}
-      {couponStatus === "success" && (
+      {couponStatus === "success" && couponMessage ? (
         <p
           id="coupon-success"
           className="text-[12px] font-semibold text-green"
           role="status"
         >
-          ✓ Coupon saved
+          {couponMessage}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
