@@ -4,8 +4,10 @@ import {
   amountDueCentsForBooking,
   balanceAmountCents,
   depositAmountCents,
+  remainingBalanceCents,
 } from "@/lib/payments/deposit";
 import {
+  authorizeBalanceCheckout,
   authorizeCheckout,
   authorizeDepositCheckout,
 } from "@/lib/payments/checkoutAccess";
@@ -32,6 +34,17 @@ describe("balanceAmountCents", () => {
         billing: { amountDueCents: 15000, amountPaidCents: 7500 },
       })
     ).toBe(7500);
+  });
+});
+
+describe("remainingBalanceCents", () => {
+  it("returns due minus paid", () => {
+    expect(remainingBalanceCents(15000, 7500)).toBe(7500);
+    expect(remainingBalanceCents(15000, 15000)).toBe(0);
+  });
+
+  it("never goes negative", () => {
+    expect(remainingBalanceCents(1000, 2000)).toBe(0);
   });
 });
 
@@ -137,5 +150,44 @@ describe("authorizeDepositCheckout", () => {
       ok: false,
       status: 409,
     });
+  });
+});
+
+describe("authorizeBalanceCheckout", () => {
+  const booking = {
+    userId: "user-sarah",
+    status: "SCHEDULED",
+    paymentStatus: "DEPOSIT",
+    customer: { email: "sarah@example.com" },
+  };
+
+  it("allows the owning client when there is a remaining balance", () => {
+    expect(
+      authorizeBalanceCheckout(
+        { id: "user-sarah", email: "sarah@example.com", role: "client" },
+        booking,
+        7500
+      ).ok
+    ).toBe(true);
+  });
+
+  it("rejects when paymentStatus is not DEPOSIT", () => {
+    const result = authorizeBalanceCheckout(
+      { id: "user-sarah", email: "sarah@example.com", role: "client" },
+      { ...booking, paymentStatus: "UNPAID" },
+      7500
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(409);
+  });
+
+  it("rejects when remaining cents are zero", () => {
+    const result = authorizeBalanceCheckout(
+      { id: "user-sarah", email: "sarah@example.com", role: "client" },
+      booking,
+      0
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(409);
   });
 });

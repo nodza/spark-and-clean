@@ -46,6 +46,7 @@ describe("accessControl", () => {
     expect(isAdminFullOnlyPath("/admin/clients")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/assignments")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/vehicles")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/rugs")).toBe(true);
     expect(isAdminFullOnlyPath("/admin")).toBe(false);
     expect(isAdminFullOnlyPath("/admin/pricing")).toBe(false);
   });
@@ -73,6 +74,7 @@ describe("accessControl", () => {
     const hit = canAccessPath(adminMarketing, "/admin/analytics");
     expect(hit.ok).toBe(false);
     if (!hit.ok) expect(hit.redirectTo).toContain("/admin?access=denied");
+    expect(canAccessPath(adminMarketing, "/admin/rugs").ok).toBe(false);
 
     expect(canAccessPath(adminMarketing, "/admin").ok).toBe(true);
     expect(canAccessPath(adminMarketing, "/admin/pricing").ok).toBe(true);

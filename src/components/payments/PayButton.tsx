@@ -75,20 +75,36 @@ type PayButtonProps = {
 
 const WEBHOOK_WAIT_MS = 15_000;
 const WEBHOOK_POLL_MS = 1_500;
-const DEPOSIT_PENDING_NOTICE =
-  "Your payment went through. The deposit will show on this booking shortly.";
+
+function pendingNoticeFor(kind: PayKind): string {
+  return kind === "BALANCE"
+    ? "Your payment went through. The remaining balance will show on this booking shortly."
+    : "Your payment went through. The deposit will show on this booking shortly.";
+}
+
+function waitingCopyFor(kind: PayKind): string {
+  return kind === "BALANCE"
+    ? "Your payment went through. Adding the balance to your booking…"
+    : "Your payment went through. Adding the deposit to your booking…";
+}
 
 function storedStatusMeansPaid(kind: PayKind, status: string): boolean {
   if (kind === "BALANCE") return status === "PAID";
   return status !== "UNPAID";
 }
 
-async function readStoredPaymentStatus(bookingId: string): Promise<string | null> {
+async function readStoredPaymentStatus(
+  bookingId: string,
+  clientSecret?: string
+): Promise<string | null> {
   const res = await fetch("/api/payments/sync-session", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bookingId }),
+    body: JSON.stringify({
+      bookingId,
+      ...(clientSecret ? { clientSecret } : {}),
+    }),
   });
   if (!res.ok) return null;
   const data = (await res.json().catch(() => null)) as
@@ -164,20 +180,20 @@ export function PayButton({
         );
         const stripeConfigured = stripeFromApi || stripeFallback;
         const ozowConfigured = Boolean(data?.ozow);
-        const stripe = stripeConfigured && kind === "DEPOSIT";
+        const stripe =
+          stripeConfigured && (kind === "DEPOSIT" || kind === "BALANCE");
         const ozow =
           ozowConfigured && (kind === "DEPOSIT" || kind === "BALANCE");
         setProviders({ stripe, ozow, ozowConfigured });
         if (stripe) setSelected("STRIPE");
         else if (ozow) setSelected("OZOW");
-        else if (kind === "DEPOSIT") setSelected("OZOW"); // show EFT + not-configured msg
         else setSelected("OZOW");
       })
       .catch(() => {
         if (cancelled) return;
         const stripeFallback =
           Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()) &&
-          kind === "DEPOSIT";
+          (kind === "DEPOSIT" || kind === "BALANCE");
         setProviders({
           stripe: stripeFallback,
           ozow: false,
@@ -236,7 +252,7 @@ export function PayButton({
       appearance,
     });
     const form = checkout.createForm({ layout: "expanded" });
-    form.mount("#checkout-form");
+    form.mount(`#checkout-form-${kind.toLowerCase()}`);
 
     void checkout.loadActions().then((loadActionsResult) => {
       if (!alive) return;
@@ -269,7 +285,7 @@ export function PayButton({
             const started = Date.now();
             let status: string | null = null;
             while (alive && Date.now() - started < WEBHOOK_WAIT_MS) {
-              status = await readStoredPaymentStatus(bookingId);
+              status = await readStoredPaymentStatus(bookingId, clientSecret);
               if (!alive) return;
               if (status && storedStatusMeansPaid(kind, status)) break;
               await delay(WEBHOOK_POLL_MS);
@@ -280,14 +296,14 @@ export function PayButton({
               onPaidRef.current?.();
               return;
             }
-            setNotice(DEPOSIT_PENDING_NOTICE);
+            setNotice(pendingNoticeFor(kind));
           })
           .catch(() => {
             if (!alive) return;
             setConfirming(false);
             setWaiting(false);
             if (submittedRef.current) {
-              setNotice(DEPOSIT_PENDING_NOTICE);
+              setNotice(pendingNoticeFor(kind));
               return;
             }
             setError("Payment could not be confirmed. Please try again.");
@@ -372,8 +388,12 @@ export function PayButton({
     );
   }
 
-  // Balance is Ozow-only today — still show the not-configured message, don't hide quietly.
-  if (kind === "BALANCE" && !providers.ozowConfigured) {
+  // Balance with nothing configured — say so instead of hiding quietly.
+  if (
+    kind === "BALANCE" &&
+    !providers.stripe &&
+    !providers.ozowConfigured
+  ) {
     return (
       <p className="text-sm text-muted-foreground">{ozowNotConfiguredMessage}</p>
     );
@@ -412,8 +432,11 @@ export function PayButton({
       ? `Pay R ${formatRand(amountCents)} balance`
       : `Pay R ${formatRand(amountCents)} deposit`;
 
-  // Always show Card vs Instant EFT on deposit; never hide EFT when Ozow env is missing.
-  const showChooser = kind === "DEPOSIT" && !clientSecret;
+  // Card vs Instant EFT when more than one option is available.
+  const showChooser =
+    !clientSecret &&
+    (kind === "DEPOSIT" ||
+      (kind === "BALANCE" && providers.stripe && providers.ozowConfigured));
   const ozowReady = providers.ozowConfigured && providers.ozow;
   const canPaySelected =
     selected === "STRIPE"
@@ -447,27 +470,29 @@ export function PayButton({
               Card
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              setSelected("OZOW");
-              setError(null);
-            }}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
-              selected === "OZOW"
-                ? "border-navy bg-navy text-white"
-                : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]",
-              !providers.stripe && "col-span-2"
-            )}
-          >
-            <Building2 className="size-3.5" aria-hidden />
-            Instant EFT
-          </button>
+          {kind === "DEPOSIT" || providers.ozowConfigured ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelected("OZOW");
+                setError(null);
+              }}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold",
+                selected === "OZOW"
+                  ? "border-navy bg-navy text-white"
+                  : "border-[#e3e7ed] bg-white text-navy hover:bg-[#f5f7fa]",
+                !providers.stripe && "col-span-2"
+              )}
+            >
+              <Building2 className="size-3.5" aria-hidden />
+              Instant EFT
+            </button>
+          ) : null}
         </div>
       ) : null}
 
-      {kind === "DEPOSIT" &&
+      {(kind === "DEPOSIT" || kind === "BALANCE") &&
       selected === "OZOW" &&
       !providers.ozowConfigured ? (
         <p className="text-sm text-muted-foreground">{ozowNotConfiguredMessage}</p>
@@ -500,7 +525,7 @@ export function PayButton({
           <ArrowRight className="size-4" aria-hidden />
         </Button>
       ) : null}
-      <div id="checkout-form" className="min-w-0" />
+      <div id={`checkout-form-${kind.toLowerCase()}`} className="min-w-0" />
       {confirming ? (
         <p className="text-sm text-[#5c6570]" role="status">
           Checking your details…
@@ -508,7 +533,7 @@ export function PayButton({
       ) : null}
       {waiting ? (
         <p className="text-sm text-[#5c6570]" role="status" aria-live="polite">
-          Your payment went through. Adding the deposit to your booking…
+          {waitingCopyFor(kind)}
         </p>
       ) : null}
       {notice ? (
