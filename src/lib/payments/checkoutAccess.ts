@@ -93,3 +93,26 @@ export function authorizeDepositCheckout(
 ): CheckoutAccess {
   return authorizeCheckout(session, booking, "DEPOSIT");
 }
+
+/**
+ * Balance Checkout is only for an owned booking that already has a deposit
+ * and still has remaining cents.
+ */
+export function authorizeBalanceCheckout(
+  session: CheckoutCaller,
+  booking: CheckoutBooking,
+  remainingCents: number
+): CheckoutAccess {
+  const access = authorizeCheckout(session, booking, "BALANCE");
+  if (!access.ok) return access;
+
+  if (!Number.isFinite(remainingCents) || remainingCents < 1) {
+    return {
+      ok: false,
+      status: 409,
+      error: "There is no remaining balance on this booking.",
+    };
+  }
+
+  return { ok: true };
+}

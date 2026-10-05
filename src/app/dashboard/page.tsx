@@ -182,11 +182,16 @@ function LiveBookingCard({ booking }: { booking: Booking }) {
   const progress = progressFor(booking.status);
   const meta = liveMeta(booking);
   const pay = paymentChip(booking.paymentStatus);
+  const needsBalance = booking.paymentStatus === "DEPOSIT";
+  const trackLabel = needsBalance ? "Pay balance" : "Track";
 
   return (
     <Link
       href={`/booking/${booking.id}`}
-      className="mb-4 block overflow-hidden rounded-[14px] border border-[#e3e7ed] bg-white no-underline shadow-[0_2px_10px_rgba(0,11,73,.04)] last:mb-0"
+      className={cn(
+        "mb-4 block overflow-hidden rounded-[14px] border bg-white no-underline shadow-[0_2px_10px_rgba(0,11,73,.04)] last:mb-0",
+        needsBalance ? "border-primary/30" : "border-[#e3e7ed]"
+      )}
     >
       <div className="flex flex-col gap-3 px-4 pb-4 pt-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6 sm:pb-[18px] sm:pt-[22px]">
         <div className="min-w-0">
@@ -234,9 +239,16 @@ function LiveBookingCard({ booking }: { booking: Booking }) {
             Step {progress.step} of {progress.total}
             {progress.hint ? ` · ${progress.hint}` : ""}
           </span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-extrabold text-[#0a7a63]">
-            Track
-            <span className="hidden sm:inline"> booking</span>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 text-[12.5px] font-extrabold",
+              needsBalance ? "text-[#000b49]" : "text-[#0a7a63]"
+            )}
+          >
+            {trackLabel}
+            <span className="hidden sm:inline">
+              {needsBalance ? "" : " booking"}
+            </span>
             <ChevronRight className="size-4" strokeWidth={2.2} aria-hidden />
           </span>
         </div>

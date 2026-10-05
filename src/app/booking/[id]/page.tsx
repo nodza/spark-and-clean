@@ -66,9 +66,34 @@ function formatDimensions(widthM: number | null, lengthM: number | null) {
   return "To be measured on collection";
 }
 
-function CheckoutReturnNotice() {
+function CheckoutReturnNotice({
+  paymentStatus,
+}: {
+  paymentStatus: string;
+}) {
   const value = useSearchParams().get("checkout");
   if (value === "success") {
+    if (paymentStatus === "PAID") {
+      return (
+        <p
+          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
+          role="status"
+        >
+          You&apos;re back from checkout. This booking is settled.
+        </p>
+      );
+    }
+    if (paymentStatus === "DEPOSIT") {
+      return (
+        <p
+          className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
+          role="status"
+        >
+          You&apos;re back from checkout. This booking stays on deposit until
+          the bank confirms the remaining balance.
+        </p>
+      );
+    }
     return (
       <p
         className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-foreground"
@@ -85,7 +110,17 @@ function CheckoutReturnNotice() {
         className="rounded-lg border bg-muted/40 px-3 py-2 text-muted-foreground"
         role="status"
       >
-        Checkout was cancelled. You can pay the deposit when you&apos;re ready.
+        {paymentStatus === "DEPOSIT" ? (
+          <>
+            Checkout was cancelled. You can pay the remaining balance when
+            you&apos;re ready.
+          </>
+        ) : (
+          <>
+            Checkout was cancelled. You can pay the deposit when you&apos;re
+            ready.
+          </>
+        )}
       </p>
     );
   }
@@ -175,7 +210,9 @@ export default function BookingStatusPage() {
   const isDelivered = booking.status === "DELIVERED";
   const amountDueCents = amountDueCentsForBooking(booking);
   const depositCents = depositAmountCents(amountDueCents);
-  const balanceCents = Math.max(0, amountDueCents - depositCents);
+  const amountPaidCents = booking.billing?.amountPaidCents ?? 0;
+  const outstandingCents = balanceAmountCents(booking);
+  const afterDepositCents = Math.max(0, amountDueCents - depositCents);
   const depositPercent = Math.round(DEPOSIT_FRACTION * 100);
   const paymentLabel =
     booking.paymentStatus === "PAID"
@@ -400,7 +437,7 @@ export default function BookingStatusPage() {
               <div className="min-w-0">
                 <p className="text-xs text-[#7b8494]">Amount due</p>
                 <p className="text-lg font-bold tabular-nums tracking-tight text-[#172033]">
-                  {formatRand(amountDueCents)}
+                  {formatRand(outstandingCents)}
                 </p>
               </div>
             </div>
@@ -414,9 +451,7 @@ export default function BookingStatusPage() {
                     Deposit · {depositPercent}%
                   </p>
                   <p className="text-lg font-bold tabular-nums tracking-tight text-[#0d8a4b]">
-                    {formatRand(
-                      booking.paymentStatus === "PAID" ? 0 : depositCents
-                    )}
+                    {formatRand(depositCents)}
                   </p>
                 </div>
               </div>
@@ -443,19 +478,20 @@ export default function BookingStatusPage() {
                 "This booking is settled."
               ) : booking.paymentStatus === "DEPOSIT" ? (
                 <>
-                  Deposit received. {formatRand(balanceCents)} remains before delivery.
+                  Deposit received. {formatRand(outstandingCents)} remains before
+                  delivery.
                 </>
               ) : (
                 <>
                   A {depositPercent}% deposit holds the collection slot. The remaining{" "}
-                  {formatRand(balanceCents)} is due before delivery.
+                  {formatRand(afterDepositCents)} is due before delivery.
                 </>
               )}
             </p>
           </div>
 
           <Suspense fallback={null}>
-            <CheckoutReturnNotice />
+            <CheckoutReturnNotice paymentStatus={booking.paymentStatus} />
           </Suspense>
 
           {booking.paymentStatus === "UNPAID" && !authReady ? (
@@ -500,7 +536,7 @@ export default function BookingStatusPage() {
                       Remaining
                     </dt>
                     <dd className="font-medium tabular-nums text-[#172033]">
-                      {formatRand(balanceCents)}
+                      {formatRand(afterDepositCents)}
                     </dd>
                   </div>
                 </dl>
@@ -510,18 +546,50 @@ export default function BookingStatusPage() {
 
           {booking.paymentStatus === "DEPOSIT" &&
           clientOwnsBooking(user, booking) &&
-          balanceAmountCents(booking) > 0 ? (
+          outstandingCents > 0 ? (
             <div className="rounded-lg border border-[#e8edf5] p-3">
-              <PayButton
-                bookingId={booking.id}
-                amountCents={balanceAmountCents(booking)}
-                kind="BALANCE"
-                onPaid={() => void refresh()}
-              />
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
+                <PayButton
+                  bookingId={booking.id}
+                  amountCents={outstandingCents}
+                  kind="BALANCE"
+                  onPaid={() => void refresh()}
+                />
+                <dl className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Wallet className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Total
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(amountDueCents)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Coins className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Paid
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(amountPaidCents)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[#5c6578]">
+                    <dt className="flex items-center gap-1.5">
+                      <Clock className="size-3.5 text-[#8b93a7]" aria-hidden />
+                      Remaining
+                    </dt>
+                    <dd className="font-medium tabular-nums text-[#172033]">
+                      {formatRand(outstandingCents)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           ) : null}
 
-          {booking.paymentStatus === "UNPAID" &&
+          {(booking.paymentStatus === "UNPAID" ||
+            (booking.paymentStatus === "DEPOSIT" && outstandingCents > 0)) &&
           authReady &&
           !clientOwnsBooking(user, booking) ? (
             <p className="rounded-lg border border-[#f3c9c9] bg-[#fff5f5] px-3 py-2 text-xs text-[#b42318]">
