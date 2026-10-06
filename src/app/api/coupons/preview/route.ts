@@ -4,7 +4,6 @@ import { Coupon } from "@/models/Coupon";
 import {
   COUPON_APPLY_FIELDS,
   COUPON_CODE_PATTERN,
-  COUPON_FULLY_USED_MESSAGE,
   couponApplyError,
   normalizeCouponCode,
   type CouponType,
@@ -27,43 +26,10 @@ function readMax(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
-/** Count one apply for this browser hold. The same hold id is a no-op. */
-async function recordCouponUse(
-  code: string,
-  holdId: string,
-  maxRedemptions: number | null
-): Promise<{ redeemedCount: number } | { error: string }> {
-  const cap =
-    maxRedemptions != null ? { redeemedCount: { $lt: maxRedemptions } } : {};
-  const updated = await Coupon.findOneAndUpdate(
-    { code, redemptionHoldId: { $ne: holdId }, ...cap },
-    { $inc: { redeemedCount: 1 }, $set: { redemptionHoldId: holdId } },
-    { new: true }
-  )
-    .select("redeemedCount")
-    .lean();
-  if (updated && typeof updated.redeemedCount === "number") {
-    return { redeemedCount: updated.redeemedCount };
-  }
-
-  const again = await Coupon.findOne({ code })
-    .select("redeemedCount redemptionHoldId")
-    .lean();
-  if (
-    again &&
-    again.redemptionHoldId === holdId &&
-    typeof again.redeemedCount === "number"
-  ) {
-    return { redeemedCount: again.redeemedCount };
-  }
-
-  const used = maxRedemptions ?? readCount(again?.redeemedCount);
-  return { error: `${COUPON_FULLY_USED_MESSAGE} (${used}/${used})` };
-}
-
 /**
  * Quote a catalogue coupon against an estimate that already includes add-ons.
  * Public so a guest can see the discounted price before booking.
+ * This does not count a redemption. A use is counted only when a booking is saved.
  */
 export async function POST(request: Request) {
   try {
@@ -93,18 +59,12 @@ export async function POST(request: Request) {
     }
 
     const city = typeof raw.city === "string" ? raw.city : null;
-    const holdId =
-      typeof raw.holdId === "string" ? raw.holdId.trim().slice(0, 80) : "";
-    const recordUse = raw.recordUse === true && holdId.length > 0;
 
     await connectDB();
     const doc = await Coupon.findOne({ code })
-      .select(`${COUPON_APPLY_FIELDS} type value redemptionHoldId`)
+      .select(`${COUPON_APPLY_FIELDS} type value`)
       .lean();
-    const holdsThis = Boolean(
-      holdId && doc && doc.redemptionHoldId === holdId
-    );
-    const applyError = couponApplyError(doc, { city, holding: holdsThis });
+    const applyError = couponApplyError(doc, { city });
     if (applyError || !doc) {
       return NextResponse.json(
         { error: applyError ?? "That coupon code isn't valid" },
@@ -123,14 +83,7 @@ export async function POST(request: Request) {
     }
 
     const maxRedemptions = readMax(doc.maxRedemptions);
-    let redeemedCount = readCount(doc.redeemedCount);
-    if (recordUse && !holdsThis) {
-      const recorded = await recordCouponUse(code, holdId, maxRedemptions);
-      if ("error" in recorded) {
-        return NextResponse.json({ error: recorded.error }, { status: 400 });
-      }
-      redeemedCount = recorded.redeemedCount;
-    }
+    const redeemedCount = readCount(doc.redeemedCount);
 
     const applied = applyCoupon({ type, value }, estimateMin, estimateMax);
     return NextResponse.json(

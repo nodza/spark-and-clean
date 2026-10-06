@@ -58,7 +58,7 @@ function utcDay(date: Date): number {
  */
 export function couponApplyError(
   doc: CouponApplyDoc | null,
-  opts?: { city?: string | null; now?: Date; holding?: boolean }
+  opts?: { city?: string | null; now?: Date }
 ): string | null {
   if (!doc) return UNKNOWN_COUPON_MESSAGE;
   const inactive = inactiveCouponMessage(doc.active);
@@ -80,9 +80,9 @@ export function couponApplyError(
     const couponCity = doc.city.trim();
     const bookingCity = typeof opts?.city === "string" ? opts.city.trim() : "";
     if (bookingCity.toLowerCase() !== couponCity.toLowerCase()) {
-    return bookingCity
-      ? `${COUPON_CITY_MESSAGE.replace("your city", `${bookingCity}.`)} It only applies in ${couponCity}.`
-      : `This coupon only applies in ${couponCity}.`;
+      return bookingCity
+        ? `${COUPON_CITY_MESSAGE.replace("your city", `${bookingCity}.`)} It only applies in ${couponCity}.`
+        : `This coupon only applies in ${couponCity}.`;
     }
   }
 
@@ -94,7 +94,7 @@ export function couponApplyError(
     typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
       ? doc.redeemedCount
       : 0;
-  if (max != null && used >= max && !(opts?.holding && used === max)) {
+  if (max != null && used >= max) {
     return `${COUPON_FULLY_USED_MESSAGE} (${used}/${max})`;
   }
 

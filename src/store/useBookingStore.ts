@@ -18,9 +18,7 @@ interface BookingState {
 
   fetchBookings: (opts?: { silent?: boolean }) => Promise<void>;
   fetchBookingById: (id: string) => Promise<Booking | undefined>;
-  addBooking: (
-    booking: Booking & { couponHoldId?: string }
-  ) => Promise<Booking | undefined>;
+  addBooking: (booking: Booking) => Promise<Booking | undefined>;
   /** null = success; string = error message for toast */
   updateBookingStatus: (
     id: string,

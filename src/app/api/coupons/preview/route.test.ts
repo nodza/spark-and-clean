@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findOne = vi.fn();
-const findOneAndUpdate = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
@@ -10,7 +9,6 @@ vi.mock("@/lib/mongodb", () => ({
 vi.mock("@/models/Coupon", () => ({
   Coupon: {
     findOne: (...args: unknown[]) => findOne(...args),
-    findOneAndUpdate: (...args: unknown[]) => findOneAndUpdate(...args),
   },
 }));
 
@@ -25,7 +23,6 @@ function post(body: unknown) {
 describe("POST /api/coupons/preview", () => {
   beforeEach(() => {
     findOne.mockReset();
-    findOneAndUpdate.mockReset();
     findOne.mockReturnValue({
       select: () => ({ lean: async () => null }),
     });
@@ -119,7 +116,7 @@ describe("POST /api/coupons/preview", () => {
     expect(await res.json()).toEqual({ error: "This coupon has expired" });
   });
 
-  it("counts one use on recordUse and returns the new total", async () => {
+  it("does not use up a redemption when the caller asks to record a use", async () => {
     findOne.mockReturnValue({
       select: () => ({
         lean: async () => ({
@@ -128,12 +125,8 @@ describe("POST /api/coupons/preview", () => {
           value: 5,
           maxRedemptions: 1,
           redeemedCount: 0,
-          redemptionHoldId: null,
         }),
       }),
-    });
-    findOneAndUpdate.mockReturnValue({
-      select: () => ({ lean: async () => ({ redeemedCount: 1 }) }),
     });
     const { POST } = await import("./route");
     const res = await POST(
@@ -148,13 +141,12 @@ describe("POST /api/coupons/preview", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       code: "FIRSTTIME",
-      redeemedCount: 1,
+      redeemedCount: 0,
       maxRedemptions: 1,
     });
-    expect(findOneAndUpdate).toHaveBeenCalledOnce();
   });
 
-  it("keeps 1/1 when the same hold previews again", async () => {
+  it("rejects a full coupon even when the caller sends an old hold id", async () => {
     findOne.mockReturnValue({
       select: () => ({
         lean: async () => ({
@@ -177,8 +169,9 @@ describe("POST /api/coupons/preview", () => {
         holdId: "hold-1",
       })
     );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ redeemedCount: 1, maxRedemptions: 1 });
-    expect(findOneAndUpdate).not.toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "This coupon has been fully used (1/1)",
+    });
   });
 });

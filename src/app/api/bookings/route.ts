@@ -12,6 +12,7 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
+import { confirmCouponQuote } from "@/lib/promotion/confirmCoupon";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
       typeof body.couponCode === "string" ? body.couponCode.trim() : "";
     let couponCode = "";
     let couponMax: number | null = null;
-    let couponAlreadyCounted = false;
+    let confirmed: ReturnType<typeof confirmCouponQuote> | null = null;
     if (couponRaw) {
       couponCode = normalizeCouponCode(couponRaw);
       if (!COUPON_CODE_PATTERN.test(couponCode)) {
@@ -86,28 +87,50 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      const holdId =
-        typeof body.couponHoldId === "string" ? body.couponHoldId.trim() : "";
       const coupon = await Coupon.findOne({ code: couponCode })
-        .select(`${COUPON_APPLY_FIELDS} redemptionHoldId`)
+        .select(`${COUPON_APPLY_FIELDS} type value`)
         .lean();
-      couponAlreadyCounted = Boolean(
-        holdId && coupon && coupon.redemptionHoldId === holdId
-      );
-      const holdsThis = couponAlreadyCounted;
-      const city =
-        typeof body.city === "string" ? body.city : null;
-      const applyError = couponApplyError(coupon, { city, holding: holdsThis });
-      if (applyError) {
-        return NextResponse.json({ error: applyError }, { status: 400 });
+      const city = typeof body.city === "string" ? body.city : null;
+      const applyError = couponApplyError(coupon, { city });
+      if (applyError || !coupon) {
+        return NextResponse.json(
+          { error: applyError ?? UNKNOWN_COUPON_MESSAGE },
+          { status: 400 }
+        );
+      }
+      const type =
+        coupon.type === "PERCENT" || coupon.type === "FIXED_CENTS"
+          ? coupon.type
+          : null;
+      const value = typeof coupon.value === "number" ? coupon.value : NaN;
+      if (!type || !Number.isFinite(value)) {
+        return NextResponse.json(
+          { error: UNKNOWN_COUPON_MESSAGE },
+          { status: 400 }
+        );
       }
       couponMax =
-        coupon &&
         typeof coupon.maxRedemptions === "number" &&
         Number.isInteger(coupon.maxRedemptions)
           ? coupon.maxRedemptions
           : null;
-      body.couponCode = couponCode;
+      const rug =
+        body.rug && typeof body.rug === "object" && !Array.isArray(body.rug)
+          ? body.rug
+          : null;
+      const addOns =
+        body.addOns &&
+        typeof body.addOns === "object" &&
+        !Array.isArray(body.addOns)
+          ? body.addOns
+          : null;
+      confirmed = confirmCouponQuote({
+        couponId: String(coupon._id),
+        code: couponCode,
+        coupon: { type, value },
+        rug,
+        addOns,
+      });
     }
 
     const rest = { ...(body as Record<string, unknown>) };
@@ -116,6 +139,9 @@ export async function POST(request: Request) {
     delete rest.fieldMessages;
     delete rest.fieldThreadReadAt;
     delete rest.couponHoldId;
+    delete rest.promotion;
+    delete rest.paymentStatus;
+    delete rest.billing;
 
     const payload: Record<string, unknown> = {
       ...rest,
@@ -126,6 +152,23 @@ export async function POST(request: Request) {
         email: body.customer?.email?.toLowerCase?.() ?? body.customer?.email,
       },
     };
+
+    if (confirmed) {
+      payload.couponCode = confirmed.promotion.code;
+      payload.promotion = confirmed.promotion;
+      payload.estimatedPriceMin = confirmed.estimatedPriceMin;
+      payload.estimatedPriceMax = confirmed.estimatedPriceMax;
+      if (
+        payload.rug &&
+        typeof payload.rug === "object" &&
+        !Array.isArray(payload.rug)
+      ) {
+        payload.rug = {
+          ...(payload.rug as Record<string, unknown>),
+          areaSqM: confirmed.areaSqM,
+        };
+      }
+    }
 
     // Only a full client session may stamp userId. Guests stay unclaimed.
     if (session && isFullAccount(session) && isClientRole(session.role)) {
@@ -141,8 +184,12 @@ export async function POST(request: Request) {
         ? (existingBefore as { couponCode: string }).couponCode
         : "";
 
+    if (!existingBefore) {
+      payload.paymentStatus = "UNPAID";
+    }
+
     let claimedCode: string | null = null;
-    if (couponCode && previousCode !== couponCode && !couponAlreadyCounted) {
+    if (couponCode && previousCode !== couponCode) {
       const claimFilter: Record<string, unknown> = { code: couponCode };
       if (couponMax != null) claimFilter.redeemedCount = { $lt: couponMax };
       const claimed = await Coupon.findOneAndUpdate(claimFilter, {
@@ -164,11 +211,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const update: {
+      $set: Record<string, unknown>;
+      $unset?: { promotion: 1 };
+    } = { $set: payload };
+    if (!confirmed) {
+      update.$unset = { promotion: 1 };
+    }
+
     let created;
     try {
       created = await Booking.findOneAndUpdate(
         { id },
-        { $set: payload },
+        update,
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
     } catch (writeErr) {

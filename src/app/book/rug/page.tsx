@@ -15,7 +15,6 @@ import {
 import { generateBookingReference } from "@/lib/bookingReference";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
 import { localCalendarDate } from "@/lib/localCalendarDate";
-import { couponHoldId } from "@/lib/promotion/requestCouponPreview";
 import {
   hasFieldErrors,
   validateStep1Dimensions,
@@ -287,11 +286,7 @@ export default function BookingWizard() {
       bookingId
     );
 
-    const created = await addBooking(
-      formData.couponCode
-        ? { ...booking, couponHoldId: couponHoldId(formData.couponCode) }
-        : booking
-    );
+    const created = await addBooking(booking);
     if (!created) {
       setSubmitError(
         useBookingStore.getState().error ||

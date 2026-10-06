@@ -152,7 +152,6 @@ export function Step4Price({ data, update }: StepProps) {
         estimateMin: baseMin,
         estimateMax: baseMax,
         city: data.city,
-        recordUse: true,
       });
       if (seq !== applySeq.current) return;
       if (!result.ok) {
@@ -186,7 +185,6 @@ export function Step4Price({ data, update }: StepProps) {
           estimateMin: baseMin,
           estimateMax: baseMax,
           city: data.city,
-          recordUse: true,
         });
         if (cancelled) return;
         if (!result.ok) {

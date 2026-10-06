@@ -1,26 +1,5 @@
 import type { CouponType } from "@/lib/coupon";
 
-const HOLD_PREFIX = "spark-coupon-hold:";
-const memoryHolds = new Map<string, string>();
-
-/** Stable id for this browser session so Apply counts once, even if the step reloads. */
-export function couponHoldId(code: string): string {
-  const key = `${HOLD_PREFIX}${code}`;
-  try {
-    const existing = sessionStorage.getItem(key);
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    sessionStorage.setItem(key, id);
-    return id;
-  } catch {
-    const existing = memoryHolds.get(key);
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    memoryHolds.set(key, id);
-    return id;
-  }
-}
-
 export type CouponPreviewQuote = {
   code: string;
   type: CouponType;
@@ -32,13 +11,12 @@ export type CouponPreviewQuote = {
   maxRedemptions: number | null;
 };
 
+/** Ask the server what this code would do. This does not use up a redemption. */
 export async function requestCouponPreview(input: {
   code: string;
   estimateMin: number;
   estimateMax: number;
   city?: string;
-  /** Count this apply once. Repeats with the same hold id do not count again. */
-  recordUse?: boolean;
 }): Promise<{ ok: true; quote: CouponPreviewQuote } | { ok: false; error: string }> {
   const res = await fetch("/api/coupons/preview", {
     method: "POST",
@@ -48,9 +26,6 @@ export async function requestCouponPreview(input: {
       estimateMin: input.estimateMin,
       estimateMax: input.estimateMax,
       ...(input.city ? { city: input.city } : {}),
-      ...(input.recordUse
-        ? { recordUse: true, holdId: couponHoldId(input.code) }
-        : {}),
     }),
   });
   const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;

@@ -167,9 +167,9 @@ describe("inactive coupons", () => {
     expect(
       couponApplyError(
         { active: true, maxRedemptions: 1, redeemedCount: 1 },
-        { now, holding: true }
+        { now }
       )
-    ).toBeNull();
+    ).toBe("This coupon has been fully used (1/1)");
   });
 
   it("accepts an active flag on update", () => {
