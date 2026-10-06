@@ -231,13 +231,26 @@ export function TechJobDetailClient() {
 
   const showJob = loadState.kind === "ready";
 
+  if (showJob) {
+    return (
+      <JobContent
+        booking={loadState.booking}
+        pendingStatus={pendingStatus}
+        actionError={actionError}
+        onStatusUpdate={handleStatusUpdate}
+        onTagged={(booking) => setLoadState({ kind: "ready", booking })}
+        onBack={() => router.push("/tech/dashboard")}
+      />
+    );
+  }
+
   return (
     <TechAppShell activeTab="job">
       <button
         type="button"
         onClick={() => router.push("/tech/dashboard")}
         disabled={pendingStatus !== null}
-        className="mb-3.5 inline-block text-[13px] font-bold text-[#0a7a63] hover:text-navy disabled:opacity-40"
+        className="mb-3.5 inline-flex min-h-11 items-center text-[13px] font-bold text-[#0a7a63] hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 disabled:opacity-40"
       >
         ← Today
       </button>
@@ -278,15 +291,6 @@ export function TechJobDetailClient() {
         />
       ) : null}
 
-      {showJob ? (
-        <JobContent
-          booking={loadState.booking}
-          pendingStatus={pendingStatus}
-          actionError={actionError}
-          onStatusUpdate={handleStatusUpdate}
-          onTagged={(booking) => setLoadState({ kind: "ready", booking })}
-        />
-      ) : null}
     </TechAppShell>
   );
 }
@@ -397,6 +401,7 @@ function JobContent({
   actionError,
   onStatusUpdate,
   onTagged,
+  onBack,
 }: {
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
@@ -406,7 +411,7 @@ function JobContent({
     status: "COLLECTED" | "DELIVERED",
     dimensions?: CollectDimensions | null
   ) => void;
-  onTagged: (booking: Booking) => void;
+  onBack: () => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
   const phoneHref = phone ? telHref(phone) : null;
@@ -430,6 +435,14 @@ function JobContent({
       if (!parsed.ok) {
         setWidthError(parsed.widthError);
         setLengthError(parsed.lengthError);
+        const sizeFields = document.getElementById("pickup-size");
+        const reduceMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+        sizeFields?.scrollIntoView({
+          block: "center",
+          behavior: reduceMotion ? "auto" : "smooth",
+        });
         return;
       }
       setWidthError(undefined);
@@ -443,8 +456,80 @@ function JobContent({
   const conditionPhotos = (booking.rug.photos ?? []).filter(isDisplayablePhotoUrl);
   const labelPhotos = (booking.rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
 
+  const needsTag = canCollect && !booking.rug.tagCode && !busy;
+  const showActionBar = canCollect || canDeliver;
+
+  const actionButtonClass =
+    "flex h-[50px] w-full min-w-0 touch-manipulation items-center justify-center gap-2 rounded-full text-[14.5px] font-extrabold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70";
+
+  const actionBar = showActionBar ? (
+    <div className="min-w-0">
+      {actionError ? (
+        <p
+          className="mb-2.5 rounded-xl border border-[#f6c9c9] bg-[#fdecec] px-3 py-2 text-sm font-semibold text-[#b33232]"
+          role="alert"
+        >
+          {actionError}
+        </p>
+      ) : null}
+      {needsTag ? (
+        <p
+          id="collect-tag-hint"
+          className="mb-2 text-center text-xs font-semibold text-[#6b7280]"
+        >
+          Attach a tag code before collecting.
+        </p>
+      ) : null}
+      {canCollect ? (
+        <button
+          type="button"
+          disabled={busy || !booking.rug.tagCode}
+          aria-busy={pendingStatus === "COLLECTED"}
+          aria-describedby={needsTag ? "collect-tag-hint" : undefined}
+          onClick={() => {
+            if (booking.rug.tagCode) submitCollect();
+          }}
+          className={cn(actionButtonClass, "bg-navy hover:bg-[#001a6e] active:bg-[#000833]")}
+        >
+          {pendingStatus === "COLLECTED" ? (
+            <Loader2 className="size-5 animate-spin" aria-hidden />
+          ) : null}
+          {pendingStatus === "COLLECTED" ? "Saving…" : "Mark as collected"}
+        </button>
+      ) : null}
+      {canDeliver ? (
+        <button
+          type="button"
+          disabled={busy}
+          aria-busy={pendingStatus === "DELIVERED"}
+          onClick={() => onStatusUpdate("DELIVERED")}
+          className={cn(
+            actionButtonClass,
+            "bg-[#0a7a63] hover:bg-[#086b56] active:bg-[#065a48]"
+          )}
+        >
+          {pendingStatus === "DELIVERED" ? (
+            <Loader2 className="size-5 animate-spin" aria-hidden />
+          ) : (
+            <CheckCircle2 className="size-5" aria-hidden />
+          )}
+          {pendingStatus === "DELIVERED" ? "Saving…" : "Mark as delivered"}
+        </button>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
-    <div className="pb-2">
+    <TechAppShell activeTab="job" actionBar={actionBar}>
+      <div className="pb-2">
+      <button
+        type="button"
+        onClick={onBack}
+        disabled={busy}
+        className="mb-3.5 inline-flex min-h-11 items-center text-[13px] font-bold text-[#0a7a63] hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 disabled:opacity-40"
+      >
+        ← Today
+      </button>
       <section className="overflow-hidden rounded-[14px] border border-[#e3e7ed] bg-white">
         <div className="p-[18px]">
           <div className="flex items-start justify-between gap-3">
@@ -597,7 +682,10 @@ function JobContent({
         ) : null}
 
         {showSize ? (
-          <div className="mb-3 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
+          <div
+            id="pickup-size"
+            className="mb-3 scroll-mb-4 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5"
+          >
             <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
               SIZE ON PICKUP
             </p>
@@ -677,59 +765,6 @@ function JobContent({
           </div>
         ) : null}
 
-        {actionError ? (
-          <p
-            className="mb-3 rounded-xl border border-[#f6c9c9] bg-[#fdecec] px-3 py-2 text-sm font-semibold text-[#b33232]"
-            role="alert"
-          >
-            {actionError}
-          </p>
-        ) : null}
-
-        {canCollect ? (
-          <span
-            className={cn(
-              "block w-full",
-              !booking.rug.tagCode && !busy && "cursor-not-allowed"
-            )}
-            title={
-              !booking.rug.tagCode && !busy
-                ? "Attach a tag code first."
-                : undefined
-            }
-          >
-            <button
-              type="button"
-              disabled={busy || !booking.rug.tagCode}
-              onClick={() => {
-                if (booking.rug.tagCode) submitCollect();
-              }}
-              className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
-            >
-              {pendingStatus === "COLLECTED" ? (
-                <Loader2 className="size-5 animate-spin" aria-hidden />
-              ) : null}
-              {pendingStatus === "COLLECTED" ? "Saving…" : "Mark as collected"}
-            </button>
-          </span>
-        ) : null}
-
-        {canDeliver ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onStatusUpdate("DELIVERED")}
-            className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0a7a63] text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#086b56] active:bg-[#065a48] disabled:pointer-events-none disabled:opacity-70"
-          >
-            {pendingStatus === "DELIVERED" ? (
-              <Loader2 className="size-5 animate-spin" aria-hidden />
-            ) : (
-              <CheckCircle2 className="size-5" aria-hidden />
-            )}
-            {pendingStatus === "DELIVERED" ? "Saving…" : "Mark as delivered"}
-          </button>
-        ) : null}
-
         {!pendingStatus && booking.status === "COLLECTED" ? (
           <div className="rounded-full border border-[#e3e7ed] bg-white py-3.5 text-center text-sm font-bold text-[#9aa0a6]">
             Collected
@@ -749,6 +784,7 @@ function JobContent({
           </div>
         ) : null}
       </div>
-    </div>
+      </div>
+    </TechAppShell>
   );
 }
