@@ -167,4 +167,22 @@ describe("admin booking query", () => {
       "SC-2025-0003",
     ]);
   });
+
+  it("filters by SA calendar day for evening-UTC ISO collection timestamps", () => {
+    // Picking 2 Oct in SA was historically stored as 1 Oct 22:00 UTC.
+    const withOffset = [
+      ...seed,
+      booking({
+        id: "SC-2026-1002",
+        collectionDate: "2026-10-01T22:00:00.000Z",
+        createdAt: "2026-10-01T10:00:00Z",
+      }),
+    ];
+
+    const rows = applyBookingListQuery(withOffset, {
+      ...EMPTY_BOOKING_FILTERS,
+      on: "2026-10-02",
+    });
+    expect(rows.map((b) => b.id)).toEqual(["SC-2026-1002"]);
+  });
 });

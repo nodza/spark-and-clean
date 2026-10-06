@@ -5,6 +5,7 @@ import {
   ContactRound,
   LayoutGrid,
   MapPinned,
+  PackageSearch,
   Tag,
   Truck,
   Users,
@@ -21,6 +22,7 @@ export type AdminNavKey =
   | "assignments"
   | "technicians"
   | "clients"
+  | "rugs"
   | "pricing"
   | "vehicles"
   | "analytics";
@@ -85,6 +87,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     match: (p) => p.startsWith("/admin/clients"),
   },
   {
+    key: "rugs",
+    label: "Rugs",
+    href: "/admin/rugs",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: PackageSearch,
+    match: (p) => p.startsWith("/admin/rugs"),
+  },
+  {
     key: "pricing",
     label: "Pricing & coupons",
     href: "/admin/pricing",
@@ -119,6 +130,7 @@ export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin/assignments": "Assignments",
   "/admin/technicians": "Technicians",
   "/admin/clients": "Clients",
+  "/admin/rugs": "Rugs",
   "/admin/pricing": "Pricing & coupons",
   "/admin/vehicles": "Vehicles",
   "/admin/analytics": "Analytics",

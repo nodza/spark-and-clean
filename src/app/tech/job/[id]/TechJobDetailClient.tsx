@@ -401,6 +401,7 @@ function JobContent({
   booking: Booking;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   actionError: string | null;
+  onTagged: (booking: Booking) => void;
   onStatusUpdate: (
     status: "COLLECTED" | "DELIVERED",
     dimensions?: CollectDimensions | null
@@ -573,7 +574,6 @@ function JobContent({
           />
         </div>
       </div>
-
       <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
         FIELD MESSAGES
       </p>

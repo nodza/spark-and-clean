@@ -65,7 +65,8 @@ export interface Booking {
   addressLine1: string;
   city: string;
   coordinates?: Coordinates;
-  collectionDate: string; // ISO
+  /** Calendar day `yyyy-MM-dd` (legacy rows may still store ISO timestamps). */
+  collectionDate: string;
   collectionSlot: "MORNING" | "AFTERNOON";
   rug: RugDetails;
   addOns: {

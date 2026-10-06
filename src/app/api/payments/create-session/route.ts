@@ -5,9 +5,15 @@ import { getSession } from "@/lib/session";
 import { toClientBooking } from "@/lib/serialize";
 import { authorizeCheckout } from "@/lib/payments/checkoutAccess";
 import { isClientRole, isFullAccount } from "@/types/user";
-import { amountDueCentsForBooking, chargeAmountCents } from "@/lib/payments/deposit";
+import {
+  amountDueCentsForBooking,
+  chargeAmountCents,
+} from "@/lib/payments/deposit";
 import { createOzowHostedPayment } from "@/lib/payments/ozow";
-import { createDepositCheckoutSession } from "@/lib/payments/stripe";
+import {
+  createBalanceCheckoutSession,
+  createDepositCheckoutSession,
+} from "@/lib/payments/stripe";
 import { toPublicApiError } from "@/lib/publicApiError";
 import type { PaymentKind } from "@/models/Payment";
 
@@ -15,8 +21,8 @@ const PROVIDERS = new Set(["STRIPE", "OZOW"]);
 const KINDS = new Set(["DEPOSIT", "BALANCE"]);
 
 /**
- * Start Stripe or Ozow checkout. Does not write paymentStatus.
- * Webhooks / Ozow notify call ledger.recordSuccess.
+ * Start Stripe or Ozow checkout for a deposit or remaining balance.
+ * Does not write paymentStatus — webhooks / Ozow notify call ledger.recordSuccess.
  */
 export async function POST(request: Request) {
   try {
@@ -52,13 +58,6 @@ export async function POST(request: Request) {
     }
 
     const kind = kindRaw as Extract<PaymentKind, "DEPOSIT" | "BALANCE">;
-
-    if (provider === "STRIPE" && kind !== "DEPOSIT") {
-      return NextResponse.json(
-        { error: "Stripe checkout currently supports DEPOSIT only." },
-        { status: 400 }
-      );
-    }
 
     const bookingId =
       typeof payload.bookingId === "string" ? payload.bookingId.trim() : "";
@@ -108,10 +107,23 @@ export async function POST(request: Request) {
     }
 
     if (provider === "STRIPE") {
-      const checkout = await createDepositCheckoutSession({
+      if (kind === "DEPOSIT") {
+        const checkout = await createDepositCheckoutSession({
+          bookingId: booking.id,
+          customerEmail: booking.customer.email,
+          amountDueCents: amountDueCentsForBooking(booking),
+        });
+        return NextResponse.json({
+          client_secret: checkout.clientSecret,
+          provider: "STRIPE",
+          kind,
+        });
+      }
+
+      const checkout = await createBalanceCheckoutSession({
         bookingId: booking.id,
         customerEmail: booking.customer.email,
-        amountDueCents: amountDueCentsForBooking(booking),
+        amountCents,
       });
       return NextResponse.json({
         client_secret: checkout.clientSecret,
@@ -136,7 +148,11 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const raw = err instanceof Error ? err.message : "Failed to start checkout";
-    if (raw === "DEPOSIT_AMOUNT_TOO_SMALL" || raw === "OZOW_AMOUNT_TOO_SMALL") {
+    if (
+      raw === "DEPOSIT_AMOUNT_TOO_SMALL" ||
+      raw === "BALANCE_AMOUNT_TOO_SMALL" ||
+      raw === "OZOW_AMOUNT_TOO_SMALL"
+    ) {
       return NextResponse.json(
         { error: "There is nothing to collect on this booking." },
         { status: 400 }

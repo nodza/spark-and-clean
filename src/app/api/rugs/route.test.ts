@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
   requireTechnicianSession: vi.fn(),
   connectDB: vi.fn(),
   bookingFindOne: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   rugAssetUpdateOne: vi.fn(),
 }));
 
+vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
 vi.mock("@/lib/fieldMessageAuth", () => ({
   requireTechnicianSession: mocks.requireTechnicianSession,
 }));
@@ -32,15 +34,25 @@ vi.mock("@/models/RugAsset", () => ({
   },
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
+const tagCode = "SC-RUG-ABC12345";
 const bookingFixture = {
   id: "SC-DEMO-1",
   assignedDriverId: "driver_thabo",
   status: "SCHEDULED",
-  customer: { email: "client@example.com" },
+  customer: { name: "Ada Lovelace", email: "client@example.com" },
   rug: { type: "Wool", photos: [], tagCode: undefined, assetId: undefined },
 };
+
+function query(result: unknown) {
+  const request = {
+    select: vi.fn(() => request),
+    sort: vi.fn(() => request),
+    lean: vi.fn().mockResolvedValue(result),
+  };
+  return request;
+}
 
 function post(body: Record<string, unknown>) {
   return POST(
@@ -52,15 +64,44 @@ function post(body: Record<string, unknown>) {
   );
 }
 
+function search(value: string, key = "q") {
+  return GET(new Request(`http://localhost/api/rugs?${key}=${encodeURIComponent(value)}`));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getSession.mockResolvedValue({ role: "admin", adminTier: "full" });
   mocks.requireTechnicianSession.mockResolvedValue({
     role: "technician",
     driverProfileId: "driver_thabo",
   });
   mocks.connectDB.mockResolvedValue(undefined);
-  mocks.bookingFindOne.mockReturnValue({
-    lean: () => Promise.resolve({ ...bookingFixture, rug: { ...bookingFixture.rug } }),
+  mocks.bookingFindOne.mockImplementation((filter) => {
+    if (filter?.id === "SC-DEMO-1") {
+      return {
+        lean: () =>
+          Promise.resolve({
+            ...bookingFixture,
+            rug: { ...bookingFixture.rug },
+          }),
+      };
+    }
+    if (filter?.id === "SC-2025-0001") {
+      return query({
+        id: "SC-2025-0001",
+        customer: { name: "Ada Lovelace" },
+        rug: { photos: ["/uploads/rug.jpg"], tagCode },
+        status: "READY",
+      });
+    }
+    return query({
+      id: "SC-2025-0001",
+      customer: { name: "Ada Lovelace" },
+      rug: { photos: ["/uploads/rug.jpg"], tagCode },
+      status: "READY",
+      paymentStatus: "PAID",
+      couponCode: "HIDDEN-CODE",
+    });
   });
   mocks.rugAssetFindOne.mockResolvedValue(null);
   mocks.rugAssetCreate.mockResolvedValue({ _id: "asset-1" });
@@ -77,13 +118,107 @@ beforeEach(() => {
   }));
 });
 
+describe("GET /api/rugs", () => {
+  it("returns the matching tag and only operational lookup fields", async () => {
+    mocks.rugAssetFindOne.mockReturnValue({
+      lean: () =>
+        Promise.resolve({
+          currentBookingId: "SC-2025-0001",
+          photoUrls: ["/uploads/rug.jpg"],
+        }),
+    });
+    const response = await search(tagCode.toLowerCase());
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.results).toEqual([
+      {
+        tagCode,
+        customer: "Ada Lovelace",
+        bookingId: "SC-2025-0001",
+        status: "READY",
+        thumbnails: ["/uploads/rug.jpg"],
+      },
+    ]);
+    expect(JSON.stringify(payload)).not.toMatch(/payment|coupon/i);
+  });
+
+  it("accepts tagCode as an alternative query parameter", async () => {
+    mocks.rugAssetFindOne.mockReturnValue({
+      lean: () => Promise.resolve({ currentBookingId: "SC-2025-0001" }),
+    });
+    const response = await search(tagCode, "tagCode");
+    expect(response.status).toBe(200);
+    expect(mocks.rugAssetFindOne).toHaveBeenCalledWith({ tagCode });
+  });
+
+  it("ignores a stale currentBookingId and falls back to the newest matching booking", async () => {
+    mocks.rugAssetFindOne.mockReturnValue({
+      lean: () => Promise.resolve({ currentBookingId: "SC-STALE" }),
+    });
+    mocks.bookingFindOne.mockImplementation((filter) => {
+      if (filter?.id === "SC-STALE") {
+        return query({
+          id: "SC-STALE",
+          customer: { name: "Old Job" },
+          rug: { photos: [], tagCode: "SC-RUG-OTHER" },
+          status: "DELIVERED",
+        });
+      }
+      if (filter?.["rug.tagCode"] === tagCode) {
+        return query({
+          id: "SC-2025-0099",
+          customer: { name: "Ada Lovelace" },
+          rug: { photos: ["/uploads/new.jpg"], tagCode },
+          status: "IN_PLANT",
+        });
+      }
+      return query(null);
+    });
+
+    const response = await search(tagCode);
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.results).toEqual([
+      {
+        tagCode,
+        customer: "Ada Lovelace",
+        bookingId: "SC-2025-0099",
+        status: "IN_PLANT",
+        thumbnails: ["/uploads/new.jpg"],
+      },
+    ]);
+    expect(mocks.bookingFindOne).toHaveBeenCalledWith({ "rug.tagCode": tagCode });
+  });
+
+  it("returns an empty result for an unknown tag", async () => {
+    mocks.rugAssetFindOne.mockImplementation(() => ({
+      lean: () => Promise.resolve(null),
+    }));
+    mocks.bookingFindOne.mockReturnValue(query(null));
+
+    const response = await search("SC-RUG-UNKNOWN");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ results: [] });
+  });
+
+  it("denies marketing-only admins before querying data", async () => {
+    mocks.getSession.mockResolvedValue({ role: "admin", adminTier: "marketing-only" });
+
+    const response = await search(tagCode);
+    expect(response.status).toBe(403);
+    expect(mocks.connectDB).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/rugs", () => {
   it("creates a generated tag asset and links it to the assigned booking", async () => {
     const response = await post({ bookingId: "SC-DEMO-1" });
     const result = await response.json();
 
     expect(response.status).toBe(200);
-    expect(result.rug.tagCode).toMatch(/^SC-[A-F0-9]{10}$/);
+    expect(result.rug.tagCode).toMatch(/^SC-RUG-[0-9A-HJKMNP-TV-Z]{8}$/);
     expect(result.rug.assetId).toBe("asset-1");
     expect(mocks.rugAssetCreate).toHaveBeenCalledWith(
       expect.objectContaining({
