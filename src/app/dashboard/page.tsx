@@ -2,14 +2,13 @@
 
 import { useMemo, Suspense } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 import { ChevronRight, Package, RefreshCw } from "lucide-react";
 import type { Booking, BookingStatus } from "@/types/booking";
 import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 import { BOOKING_STATUS_STEPS } from "@/components/booking/BookingStatusTimeline";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
-import { bookingCalendarDate } from "@/lib/localCalendarDate";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 import { amountDueCentsForBooking, balanceAmountCents } from "@/lib/payments/deposit";
 import { cn } from "@/lib/utils";
 
@@ -30,11 +29,8 @@ function formatRand(cents: number) {
 }
 
 function formatCalendarDay(value: string, pattern: string) {
-  const day = bookingCalendarDate(value);
-  if (!day) return null;
-  const [year, month, date] = day.split("-").map(Number);
-  if (!year || !month || !date) return null;
-  return format(new Date(year, month - 1, date), pattern);
+  const formatted = formatBookingCollection(value, pattern, "");
+  return formatted || null;
 }
 
 function slotWindow(slot: Booking["collectionSlot"]) {

@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+
 /**
  * Product calendar days use South Africa Standard Time (no DST).
  * Booking `yyyy-MM-dd` values are treated as calendar days, not UTC midnights.
@@ -58,22 +60,44 @@ export function johannesburgCalendarDate(date: Date = new Date()): string {
   return localCalendarDate(date);
 }
 
+/**
+ * Local civil date from a DatePicker / Calendar selection.
+ * Do not use `toISOString()` — that shifts the calendar day in UTC+2.
+ */
+export function toCalendarDateString(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
 /** Booking collection calendar day in South Africa. */
 export function bookingCalendarDate(collectionDate: string): string | null {
-  const prefix = collectionDate.slice(0, 10);
-  const isDatePrefix = /^\d{4}-\d{2}-\d{2}$/.test(prefix);
+  const trimmed = collectionDate.trim();
+  if (!trimmed) return null;
 
-  // Date-only values are calendar days (dispatch intent), not UTC midnights.
-  if (isDatePrefix && collectionDate.length === 10) {
-    return prefix;
+  // Pure date-only values are calendar days (dispatch intent), not UTC midnights.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
   }
 
-  const parsed = new Date(collectionDate);
+  // Full ISO timestamps: use Africa/Johannesburg, never the UTC date prefix.
+  // (`2026-10-01T22:00:00.000Z` is 2 Oct in SA — slicing to 2026-10-01 is wrong.)
+  const parsed = new Date(trimmed);
   if (!Number.isNaN(parsed.getTime())) {
     return calendarDateInTimeZone(parsed, APP_TIMEZONE);
   }
 
-  return isDatePrefix ? prefix : null;
+  const prefix = trimmed.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(prefix) ? prefix : null;
+}
+
+/**
+ * Local Date at noon for a booking calendar day (safe for date-fns / Calendar UI).
+ */
+export function bookingCalendarDateLocal(collectionDate: string): Date | null {
+  const day = bookingCalendarDate(collectionDate);
+  if (!day) return null;
+  const [year, month, date] = day.split("-").map(Number);
+  if (!year || !month || !date) return null;
+  return new Date(year, month - 1, date, 12, 0, 0, 0);
 }
 
 export function isBookingOnLocalDay(
@@ -81,4 +105,18 @@ export function isBookingOnLocalDay(
   day: string
 ): boolean {
   return bookingCalendarDate(collectionDate) === day;
+}
+
+/**
+ * Format a booking collection day with date-fns.
+ * Never falls back to raw `new Date(iso)` (UTC prefix / off-by-one).
+ */
+export function formatBookingCollection(
+  collectionDate: string,
+  pattern: string,
+  fallback: string = collectionDate
+): string {
+  const local = bookingCalendarDateLocal(collectionDate);
+  if (!local) return fallback;
+  return format(local, pattern);
 }

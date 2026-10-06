@@ -3,8 +3,8 @@ import { Booking } from "@/types/booking";
 import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { format } from "date-fns";
 import { MapPin, Ruler, Tag, WalletCards } from "lucide-react";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -48,9 +48,8 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
     data.rug.widthM > 0 &&
     data.rug.lengthM > 0;
 
-  const parsedCollectionDate = data.collectionDate ? new Date(data.collectionDate) : null;
-  const collectionDate = parsedCollectionDate && !Number.isNaN(parsedCollectionDate.getTime())
-    ? format(parsedCollectionDate, "PPP")
+  const collectionDate = data.collectionDate
+    ? formatBookingCollection(data.collectionDate, "PPP", "") || null
     : null;
   const collectionSlot =
     data.collectionSlot === "MORNING"

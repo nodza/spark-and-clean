@@ -14,6 +14,7 @@ import {
 } from "@/components/booking/BookingWizardShell";
 import { generateBookingReference } from "@/lib/bookingReference";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
+import { localCalendarDate } from "@/lib/localCalendarDate";
 import {
   hasFieldErrors,
   validateStep1Dimensions,
@@ -58,7 +59,7 @@ function buildSubmittedBooking(
     addressLine1: formData.addressLine1 || "",
     city: formData.city || "",
     coordinates: formData.coordinates,
-    collectionDate: formData.collectionDate || new Date().toISOString(),
+    collectionDate: formData.collectionDate || localCalendarDate(),
     collectionSlot: formData.collectionSlot || "MORNING",
     rug: formData.rug || {
       type: "",
