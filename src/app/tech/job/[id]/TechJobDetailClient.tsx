@@ -36,6 +36,7 @@ import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
   bothDimensionsEmpty,
+  hasRugTagCode,
   isVanCollectStatus,
   isVanDeliverStatus,
   parseOptionalCollectDimensions,
@@ -406,7 +407,6 @@ function JobContent({
     status: "COLLECTED" | "DELIVERED",
     dimensions?: CollectDimensions | null
   ) => void;
-  onTagged: (booking: Booking) => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
   const phoneHref = phone ? telHref(phone) : null;
@@ -416,6 +416,7 @@ function JobContent({
     isVanCollectStatus(booking.status) || pendingStatus === "COLLECTED";
   const canDeliver =
     isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
+  const hasTagCode = hasRugTagCode(booking.rug.tagCode);
   const showSize =
     canCollect && bothDimensionsEmpty(booking.rug.widthM, booking.rug.lengthM);
   const [widthRaw, setWidthRaw] = useState("");
@@ -690,19 +691,19 @@ function JobContent({
           <span
             className={cn(
               "block w-full",
-              !booking.rug.tagCode && !busy && "cursor-not-allowed"
+              !hasTagCode && !busy && "cursor-not-allowed"
             )}
             title={
-              !booking.rug.tagCode && !busy
+              !hasTagCode && !busy
                 ? "Attach a tag code first."
                 : undefined
             }
           >
             <button
               type="button"
-              disabled={busy || !booking.rug.tagCode}
+              disabled={busy || !hasTagCode}
               onClick={() => {
-                if (booking.rug.tagCode) submitCollect();
+                if (hasTagCode) submitCollect();
               }}
               className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-navy text-[14.5px] font-extrabold text-white transition-colors hover:bg-[#001a6e] active:bg-[#000833] disabled:pointer-events-none disabled:opacity-70"
             >
