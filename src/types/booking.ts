@@ -19,9 +19,13 @@ export interface BookingBilling {
 
 /**
  * E8 promotion snapshot (optional). When amountDueCents is set, the ledger
- * uses it instead of the estimate midpoint.
+ * uses it instead of the estimate midpoint. Confirm fills this from a server
+ * coupon re-check, not from the client's posted total.
  */
 export interface BookingPromotion {
+  couponId?: string;
+  code?: string;
+  discountCents?: number;
   amountDueCents?: number;
 }
 
@@ -75,7 +79,7 @@ export interface Booking {
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;
-  /** Phase 1 stub — format-validated promo code; discount calc deferred to E8 */
+  /** Kept for older screens. The charged discount is booking.promotion. */
   couponCode?: string;
   /** Ledger snapshot — optional until first succeeded transfer is recorded */
   billing?: BookingBilling;
