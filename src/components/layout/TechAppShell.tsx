@@ -1,30 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   CalendarDays,
-  Check,
   LogOut,
-  User,
+  Map as MapIcon,
+  MessageSquare,
 } from "lucide-react";
 import { TechLayout, type TechTab } from "@/components/layout/TechLayout";
 import { Button } from "@/components/ui/button";
+import { TECH_BOTTOM_NAV, techNavKeyForPath } from "@/config/techNav";
 import { useAuth, useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { FIELD_INBOX_POLL_MS } from "@/lib/fieldMessages";
 import { cn } from "@/lib/utils";
 
-export type TechAppTab = "today" | "completed" | "profile" | "messages";
+export type TechAppTab =
+  | "today"
+  | "map"
+  | "messages"
+  | "completed"
+  | "profile";
 
-const TAB_HREF: Record<Exclude<TechAppTab, "messages">, string> = {
-  today: "/tech/dashboard",
-  completed: "/tech/completed",
-  profile: "/tech/profile",
-};
+const TAB_ICONS = {
+  today: CalendarDays,
+  map: MapIcon,
+  messages: MessageSquare,
+} as const;
 
 const headerIconBtn =
-  "relative size-9 shrink-0 rounded-full text-white/90 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 focus-visible:ring-offset-navy";
+  "relative size-11 shrink-0 rounded-full text-white/90 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 focus-visible:ring-offset-navy";
 
 type TechAppShellProps = {
   activeTab: TechAppTab | "job";
@@ -32,12 +38,14 @@ type TechAppShellProps = {
   contentClassName?: string;
   padded?: boolean;
   className?: string;
+  /** Pinned above the tab bar. Used by the job Collect / Deliver action. */
+  actionBar?: ReactNode;
 };
 
 function TechBootScreen({ message = "Loading…" }: { message?: string }) {
   return (
     <div
-      className="mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col items-center justify-center gap-3 bg-[#f5f7fa] px-6"
+      className="fixed inset-x-0 top-0 z-30 mx-auto flex h-dvh w-full max-w-[430px] flex-col items-center justify-center gap-3 bg-[#f5f7fa] px-6"
       role="status"
       aria-live="polite"
     >
@@ -60,8 +68,10 @@ export function TechAppShell({
   contentClassName,
   padded = true,
   className,
+  actionBar,
 }: TechAppShellProps) {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
   const { ready: authReady, logout } = useAuth();
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
   const [unreadCount, setUnreadCount] = useState(0);
@@ -95,33 +105,27 @@ export function TechAppShell({
   }, [ready, user, refreshUnread]);
 
   const tabs: TechTab[] = useMemo(
-    () => [
-      {
-        key: "today",
-        label: "Today",
-        icon: <CalendarDays strokeWidth={1.8} />,
-      },
-      {
-        key: "completed",
-        label: "Completed",
-        icon: <Check strokeWidth={1.8} />,
-      },
-      {
-        key: "profile",
-        label: "Profile",
-        icon: <User strokeWidth={1.8} />,
-      },
-    ],
-    []
+    () =>
+      TECH_BOTTOM_NAV.map((tab) => {
+        const Icon = TAB_ICONS[tab.key];
+        return {
+          key: tab.key,
+          label: tab.label,
+          href: tab.href,
+          icon: <Icon strokeWidth={1.8} />,
+          badgeCount: tab.key === "messages" ? unreadCount : undefined,
+        };
+      }),
+    [unreadCount]
   );
 
-  const handleTabChange = useCallback(
-    (key: string) => {
-      const href = TAB_HREF[key as keyof typeof TAB_HREF];
-      if (href) router.push(href);
-    },
-    [router]
-  );
+  const highlighted =
+    techNavKeyForPath(pathname) ??
+    (activeTab === "job" || activeTab === "today"
+      ? "today"
+      : activeTab === "map" || activeTab === "messages"
+        ? activeTab
+        : "");
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -138,16 +142,20 @@ export function TechAppShell({
   }
 
   const displayName = user.name?.trim() || user.email;
+  const onProfile =
+    pathname === "/tech/profile" || pathname.startsWith("/tech/profile/");
 
   return (
     <TechLayout
       className={className}
       driverName={displayName}
-      driverSubtitle="Your assigned route"
-      activeTab={activeTab === "job" ? "today" : activeTab}
-      onTabChange={handleTabChange}
+      driverSubtitle={onProfile ? "Account" : "Profile"}
+      profileHref="/tech/profile"
+      profileActive={onProfile}
+      activeTab={highlighted}
       tabs={tabs}
-      contentClassName={contentClassName}
+      actionBar={actionBar}
+      contentClassName={cn(actionBar && "flex flex-col overflow-hidden", contentClassName)}
       headerAction={
         <>
           <Button
@@ -184,9 +192,14 @@ export function TechAppShell({
     >
       <div
         className={cn(
-          padded && "px-[18px] py-5 pb-7",
-          !padded && "h-full min-h-0"
+          actionBar
+            ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-[18px] py-5"
+            : padded && "px-[18px] py-5 pb-7",
+          !actionBar && !padded && "h-full min-h-0"
         )}
+        style={
+          actionBar ? { WebkitOverflowScrolling: "touch" } : undefined
+        }
       >
         {children}
       </div>

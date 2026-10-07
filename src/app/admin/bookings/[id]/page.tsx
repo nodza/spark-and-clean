@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
-import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CallAction,
@@ -35,12 +44,39 @@ import {
   bookingStatusVariant,
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
+import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 import { rugDimensionLabel } from "@/lib/techUi";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
+
+const PAYMENT_OVERRIDE_LABEL: Record<PaymentStatus, string> = {
+  UNPAID: "Unpaid",
+  DEPOSIT: "Deposit paid",
+  PAID: "Paid in full",
+};
+
+const PAYMENT_RANK: Record<PaymentStatus, number> = {
+  UNPAID: 0,
+  DEPOSIT: 1,
+  PAID: 2,
+};
+
+function isPaymentUpgrade(from: PaymentStatus, to: PaymentStatus): boolean {
+  return PAYMENT_RANK[to] > PAYMENT_RANK[from];
+}
+
+function paymentOverrideWarning(next: PaymentStatus): string {
+  if (next === "PAID") {
+    return "The booking will show as paid in full even if no gateway payment was received.";
+  }
+  if (next === "UNPAID") {
+    return "The booking will show as unpaid even if a gateway receipt already exists.";
+  }
+  return "The booking will show as deposit paid even if that deposit was not taken through the gateway.";
+}
 
 type DriverOption = {
   id: string;
@@ -55,11 +91,7 @@ function addOnLabels(booking: Booking): string[] {
 }
 
 function formatCollectionLong(value: string) {
-  const day = /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : "";
-  if (day) return format(parseISO(day), "PPP");
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return format(parsed, "PPP");
+  return formatBookingCollection(value, "PPP");
 }
 
 function formatNoteTime(iso: string) {
@@ -186,6 +218,10 @@ export default function AdminBookingDetail() {
   const [noteDraft, setNoteDraft] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<{
+    from: PaymentStatus;
+    to: PaymentStatus;
+  } | null>(null);
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -358,16 +394,30 @@ export default function AdminBookingDetail() {
     }
   };
 
-  const handlePayment = async (val: string) => {
-    if (!booking || saving) return;
+  const requestPaymentChange = (val: string) => {
+    if (!booking || saving || pendingPayment) return;
+    if (!isPaymentStatus(val) || val === booking.paymentStatus) return;
+    setPendingPayment({ from: booking.paymentStatus, to: val });
+  };
+
+  const confirmPaymentChange = async () => {
+    if (!booking || !pendingPayment || saving) return;
     setSaving(true);
     try {
-      const error = await updatePaymentStatus(booking.id, val as PaymentStatus);
-      if (error) toast.error(error);
+      const error = await updatePaymentStatus(booking.id, pendingPayment.to);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      setPendingPayment(null);
     } finally {
       setSaving(false);
     }
   };
+
+  const upgrading = pendingPayment
+    ? isPaymentUpgrade(pendingPayment.from, pendingPayment.to)
+    : false;
 
   return (
     <AdminPortalShell
@@ -442,6 +492,11 @@ export default function AdminBookingDetail() {
                 </div>
               </div>
             </div>
+
+            <BookingReceipts
+              bookingId={booking.id}
+              refreshKey={booking.paymentStatus}
+            />
 
             <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="flex min-w-0 flex-col gap-[18px]">
@@ -737,35 +792,101 @@ export default function AdminBookingDetail() {
                 </div>
 
                 <div className="ds-card">
-                  <div className="text-card-title" style={{ color: "#000b49" }}>
-                    Payment
+                  <div
+                    id="ops-override-title"
+                    className="text-card-title"
+                    style={{ color: "#000b49" }}
+                  >
+                    Ops override
                   </div>
+                  <p
+                    id="ops-override-help"
+                    className="text-meta mt-[6px]"
+                    style={{ color: "#9aa0a6" }}
+                  >
+                    Manual payment status. You will be asked to confirm. It does
+                    not create or change a gateway receipt.
+                  </p>
                   <RadioGroup
                     className="mt-[14px]"
                     value={booking.paymentStatus}
-                    disabled={saving}
-                    onValueChange={(val) => void handlePayment(val)}
+                    disabled={saving || pendingPayment !== null}
+                    aria-labelledby="ops-override-title"
+                    aria-describedby="ops-override-help"
+                    onValueChange={requestPaymentChange}
                   >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving} />
-                      <Label htmlFor="unpaid" className="text-destructive font-medium">
+                    <div className="flex min-h-11 items-center gap-3">
+                      <RadioGroupItem value="UNPAID" id="unpaid" disabled={saving || pendingPayment !== null} className="size-5" />
+                      <Label htmlFor="unpaid" className="min-h-11 flex-1 cursor-pointer text-destructive font-medium">
                         Unpaid
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving} />
-                      <Label htmlFor="deposit" className="text-orange-500 font-medium">
+                    <div className="flex min-h-11 items-center gap-3">
+                      <RadioGroupItem value="DEPOSIT" id="deposit" disabled={saving || pendingPayment !== null} className="size-5" />
+                      <Label htmlFor="deposit" className="min-h-11 flex-1 cursor-pointer text-orange-500 font-medium">
                         Deposit paid
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="PAID" id="paid" disabled={saving} />
-                      <Label htmlFor="paid" className="text-green-600 font-medium">
+                    <div className="flex min-h-11 items-center gap-3">
+                      <RadioGroupItem value="PAID" id="paid" disabled={saving || pendingPayment !== null} className="size-5" />
+                      <Label htmlFor="paid" className="min-h-11 flex-1 cursor-pointer text-green-600 font-medium">
                         Paid in full
                       </Label>
                     </div>
                   </RadioGroup>
                 </div>
+
+                <Dialog
+                  open={pendingPayment !== null}
+                  onOpenChange={(open) => {
+                    if (!open && !saving) setPendingPayment(null);
+                  }}
+                >
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Confirm payment status?</DialogTitle>
+                      <DialogDescription>
+                        {pendingPayment
+                          ? `Change this booking from ${PAYMENT_OVERRIDE_LABEL[pendingPayment.from]} to ${PAYMENT_OVERRIDE_LABEL[pendingPayment.to]}?`
+                          : ""}
+                      </DialogDescription>
+                    </DialogHeader>
+                    {pendingPayment ? (
+                      <p className="text-sm leading-relaxed text-[#32373c]">
+                        {paymentOverrideWarning(pendingPayment.to)} This does not
+                        create a gateway receipt.
+                      </p>
+                    ) : null}
+                    <DialogFooter className="mt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-11"
+                        disabled={saving}
+                        onClick={() => setPendingPayment(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={upgrading ? "default" : "highlight"}
+                        className={
+                          upgrading
+                            ? "min-h-11 px-5 text-[13px] font-extrabold"
+                            : "min-h-11"
+                        }
+                        disabled={saving || !pendingPayment}
+                        onClick={() => void confirmPaymentChange()}
+                      >
+                        {saving
+                          ? "Saving…"
+                          : pendingPayment
+                            ? `Set to ${PAYMENT_OVERRIDE_LABEL[pendingPayment.to]}`
+                            : "Confirm"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
           </>

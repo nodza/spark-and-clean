@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   APP_TIMEZONE,
   bookingCalendarDate,
+  bookingCalendarDateLocal,
   calendarDateInTimeZone,
+  formatBookingCollection,
   isBookingOnLocalDay,
   localCalendarDate,
+  toCalendarDateString,
 } from "@/lib/localCalendarDate";
 
 describe("calendarDateInTimeZone", () => {
@@ -47,13 +50,44 @@ describe("localCalendarDate", () => {
   });
 });
 
+describe("toCalendarDateString", () => {
+  it("keeps the local civil day from a Calendar picker Date", () => {
+    const picked = new Date(2026, 9, 2, 0, 0, 0, 0);
+    expect(toCalendarDateString(picked)).toBe("2026-10-02");
+  });
+});
+
 describe("bookingCalendarDate", () => {
   it("keeps a date-only yyyy-MM-dd string as that calendar day", () => {
     expect(bookingCalendarDate("2026-09-14")).toBe("2026-09-14");
   });
 
-  it("maps ISO timestamps to the SA calendar day", () => {
+  it("maps ISO timestamps to the SA calendar day, not the UTC prefix", () => {
     expect(bookingCalendarDate("2026-09-13T22:30:00.000Z")).toBe("2026-09-14");
+    // Picking 2 Oct in SA stores as 1 Oct 22:00 UTC with toISOString().
+    expect(bookingCalendarDate("2026-10-01T22:00:00.000Z")).toBe("2026-10-02");
+  });
+});
+
+describe("bookingCalendarDateLocal", () => {
+  it("builds a local Date for the SA calendar day", () => {
+    const local = bookingCalendarDateLocal("2026-10-01T22:00:00.000Z");
+    expect(local).not.toBeNull();
+    expect(local!.getFullYear()).toBe(2026);
+    expect(local!.getMonth()).toBe(9);
+    expect(local!.getDate()).toBe(2);
+  });
+});
+
+describe("formatBookingCollection", () => {
+  it("formats the SA calendar day, not the UTC prefix", () => {
+    expect(formatBookingCollection("2026-10-01T22:00:00.000Z", "d MMM yyyy")).toBe(
+      "2 Oct 2026"
+    );
+  });
+
+  it("returns the fallback when the value is not a date", () => {
+    expect(formatBookingCollection("not-a-date", "PPP", "n/a")).toBe("n/a");
   });
 });
 

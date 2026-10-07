@@ -177,18 +177,29 @@ export default function TechDashboardPage() {
       ) : null}
 
       <section className="border-t border-[#f0f2f6] pt-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between text-left text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]"
-          onClick={() => setDoneOpen((open) => !open)}
-          aria-expanded={doneOpen}
-        >
-          <span>DONE TODAY ({done.length})</span>
-          <ChevronDown
-            className={cn("size-4 transition-transform", doneOpen && "rotate-180")}
-            aria-hidden
-          />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="flex min-h-11 min-w-0 flex-1 items-center justify-between text-left text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2"
+            onClick={() => setDoneOpen((open) => !open)}
+            aria-expanded={doneOpen}
+          >
+            <span className="truncate">DONE TODAY ({done.length})</span>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 transition-transform",
+                doneOpen && "rotate-180"
+              )}
+              aria-hidden
+            />
+          </button>
+          <Link
+            href="/tech/completed"
+            className="inline-flex min-h-11 shrink-0 items-center text-[11px] font-bold text-[#0a7a63] hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2"
+          >
+            View all
+          </Link>
+        </div>
         {doneOpen && done.length > 0 ? (
           <div className="mt-3">
             <JobList jobs={done} forceDone />

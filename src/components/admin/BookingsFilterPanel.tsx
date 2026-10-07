@@ -1,12 +1,12 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
 import { Calendar, X } from "lucide-react";
 import {
   type AdminBookingFilters,
   type BookingListSort,
 } from "@/lib/adminBookingQuery";
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 import type { BookingStatus } from "@/types/booking";
 import { cn } from "@/lib/utils";
 
@@ -17,9 +17,7 @@ function titleCase(value: string) {
 }
 
 function formatFilterDate(value: string) {
-  const day = /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : "";
-  if (!day) return value;
-  return format(parseISO(day), "dd MMM yyyy");
+  return formatBookingCollection(value, "dd MMM yyyy");
 }
 
 function statusDot(status: string): string {
