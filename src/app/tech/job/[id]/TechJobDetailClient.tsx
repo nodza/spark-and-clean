@@ -36,6 +36,7 @@ import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
   bothDimensionsEmpty,
+  hasRugTagCode,
   isVanCollectStatus,
   isVanDeliverStatus,
   parseOptionalCollectDimensions,
@@ -421,6 +422,7 @@ function JobContent({
     isVanCollectStatus(booking.status) || pendingStatus === "COLLECTED";
   const canDeliver =
     isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
+  const hasTagCode = hasRugTagCode(booking.rug.tagCode);
   const showSize =
     canCollect && bothDimensionsEmpty(booking.rug.widthM, booking.rug.lengthM);
   const [widthRaw, setWidthRaw] = useState("");
@@ -456,7 +458,7 @@ function JobContent({
   const conditionPhotos = (booking.rug.photos ?? []).filter(isDisplayablePhotoUrl);
   const labelPhotos = (booking.rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
 
-  const needsTag = canCollect && !booking.rug.tagCode && !busy;
+  const needsTag = canCollect && !hasTagCode && !busy;
   const showActionBar = canCollect || canDeliver;
 
   const actionButtonClass =
@@ -483,11 +485,11 @@ function JobContent({
       {canCollect ? (
         <button
           type="button"
-          disabled={busy || !booking.rug.tagCode}
+          disabled={busy || !hasTagCode}
           aria-busy={pendingStatus === "COLLECTED"}
           aria-describedby={needsTag ? "collect-tag-hint" : undefined}
           onClick={() => {
-            if (booking.rug.tagCode) submitCollect();
+            if (hasTagCode) submitCollect();
           }}
           className={cn(actionButtonClass, "bg-navy hover:bg-[#001a6e] active:bg-[#000833]")}
         >
