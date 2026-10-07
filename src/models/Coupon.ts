@@ -32,8 +32,6 @@ const CouponSchema = new Schema(
     /** Null means unlimited. */
     maxRedemptions: { type: Number, default: null },
     redeemedCount: { type: Number, required: true, default: 0, min: 0 },
-    /** Unused. Redemptions are counted on booking confirm, not on preview. */
-    redemptionHoldId: { type: String, default: null },
     validFrom: { type: Date, default: null },
     validTo: { type: Date, default: null },
     city: {

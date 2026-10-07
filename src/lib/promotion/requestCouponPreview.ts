@@ -7,8 +7,6 @@ export type CouponPreviewQuote = {
   discountCents: number;
   estimateMin: number;
   estimateMax: number;
-  redeemedCount: number;
-  maxRedemptions: number | null;
 };
 
 /** Ask the server what this code would do. This does not use up a redemption. */
@@ -55,16 +53,6 @@ export async function requestCouponPreview(input: {
       discountCents: payload.discountCents,
       estimateMin: payload.estimateMin,
       estimateMax: payload.estimateMax,
-      redeemedCount:
-        typeof payload.redeemedCount === "number" &&
-        Number.isFinite(payload.redeemedCount)
-          ? payload.redeemedCount
-          : 0,
-      maxRedemptions:
-        typeof payload.maxRedemptions === "number" &&
-        Number.isInteger(payload.maxRedemptions)
-          ? payload.maxRedemptions
-          : null,
     },
   };
 }

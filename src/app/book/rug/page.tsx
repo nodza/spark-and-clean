@@ -15,6 +15,7 @@ import {
 import { generateBookingReference } from "@/lib/bookingReference";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
 import { localCalendarDate } from "@/lib/localCalendarDate";
+import { estimateQuoteMidpointCents } from "@/lib/promotion/applyCoupon";
 import {
   hasFieldErrors,
   validateStep1Dimensions,
@@ -322,21 +323,44 @@ export default function BookingWizard() {
     formData.addOns?.stainProtection,
   ].filter(Boolean).length;
 
+  const hasCoupon = Boolean(formData.couponCode?.trim());
   const quotedMin =
-    formData.couponCode && typeof formData.estimatedPriceMin === "number"
+    hasCoupon && typeof formData.estimatedPriceMin === "number"
       ? formData.estimatedPriceMin
       : estimate.totalMin;
   const quotedMax =
-    formData.couponCode && typeof formData.estimatedPriceMax === "number"
+    hasCoupon && typeof formData.estimatedPriceMax === "number"
       ? formData.estimatedPriceMax
       : estimate.totalMax;
   const priceKnown = !estimate.dimensionsSkipped && estimate.totalMin > 0;
-  const estimatePrimary = priceKnown ? `R${quotedMin}` : "TBC";
+  const formatRand = (rands: number) => `R${Math.round(rands)}`;
+  const formatCents = (cents: number) => `R${Math.round(cents / 100)}`;
+
+  const estimatePrimary = priceKnown ? formatRand(estimate.totalMin) : "TBC";
   const estimateHint = !priceKnown
     ? "Measured on pickup"
-    : quotedMax > quotedMin
-      ? `up to R${quotedMax}`
+    : estimate.totalMax > estimate.totalMin
+      ? `up to ${formatRand(estimate.totalMax)}`
       : undefined;
+
+  const discountCents =
+    hasCoupon &&
+    typeof formData.promotion?.discountCents === "number" &&
+    formData.promotion.discountCents > 0
+      ? formData.promotion.discountCents
+      : hasCoupon && priceKnown
+        ? Math.max(
+            0,
+            estimateQuoteMidpointCents(estimate.totalMin, estimate.totalMax) -
+              estimateQuoteMidpointCents(quotedMin, quotedMax)
+          )
+        : 0;
+  const amountDueCents =
+    hasCoupon &&
+    typeof formData.promotion?.amountDueCents === "number" &&
+    formData.promotion.amountDueCents >= 0
+      ? formData.promotion.amountDueCents
+      : estimateQuoteMidpointCents(quotedMin, quotedMax);
 
   const isLastStep = step === totalSteps;
   const continueDisabled = isLastStep && (!termsAccepted || isSubmitting);
@@ -352,6 +376,17 @@ export default function BookingWizard() {
         addOnsLabel: addOnCount ? `${addOnCount} selected` : "none",
         estimatePrimary,
         estimateHint,
+        ...(hasCoupon && priceKnown
+          ? {
+              couponCode: formData.couponCode!.trim(),
+              discountLabel: `−${formatCents(discountCents)}`,
+              totalPrimary: formatCents(amountDueCents),
+              totalHint:
+                quotedMax > quotedMin
+                  ? `${formatRand(quotedMin)} – ${formatRand(quotedMax)}`
+                  : undefined,
+            }
+          : {}),
       }}
       showBack={step > 1}
       onBack={prevStep}

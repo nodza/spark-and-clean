@@ -16,8 +16,16 @@ export type BookingWizardSummary = {
   rugLabel: string;
   cityLabel: string;
   addOnsLabel: string;
+  /** Pre-discount estimate (or current estimate when no coupon). */
   estimatePrimary: string;
   estimateHint?: string;
+  /** Applied catalogue code, when present. */
+  couponCode?: string;
+  /** Discount line, e.g. "−R157". */
+  discountLabel?: string;
+  /** Final amount due after discount. */
+  totalPrimary?: string;
+  totalHint?: string;
 };
 
 type BookingWizardShellProps = {
@@ -38,12 +46,14 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 text-[13px] leading-snug">
       <span className="shrink-0 text-[#6b7280]">{label}</span>
-      <b className="max-w-[60%] text-right font-bold text-navy">{value}</b>
+      <b className="max-w-[60%] break-all text-right font-bold text-navy">{value}</b>
     </div>
   );
 }
 
 function BookingSummary({ summary }: { summary: BookingWizardSummary }) {
+  const hasCoupon = Boolean(summary.couponCode && summary.discountLabel);
+
   return (
     <aside
       className="w-full shrink-0 rounded-[14px] bg-[#f7f8fa] p-4 md:w-[240px] md:p-[18px]"
@@ -55,15 +65,36 @@ function BookingSummary({ summary }: { summary: BookingWizardSummary }) {
         <SummaryRow label="City" value={summary.cityLabel} />
         <SummaryRow label="Add-ons" value={summary.addOnsLabel} />
       </div>
-      <div className="mt-3.5 flex items-baseline justify-between gap-3 border-t border-[#eceef1] pt-3 text-[16px] font-extrabold text-navy">
-        <span>Estimate</span>
-        <span className="tabular text-right">{summary.estimatePrimary}</span>
+      <div className="mt-3.5 space-y-2 border-t border-[#eceef1] pt-3">
+        <div className="flex items-baseline justify-between gap-3 text-[16px] font-extrabold text-navy">
+          <span>{hasCoupon ? "Subtotal" : "Estimate"}</span>
+          <span className="tabular text-right">{summary.estimatePrimary}</span>
+        </div>
+        {summary.estimateHint ? (
+          <p className="text-right text-[11px] font-medium leading-snug text-[#9aa0a6]">
+            {summary.estimateHint}
+          </p>
+        ) : null}
+        {hasCoupon ? (
+          <>
+            <div className="flex items-baseline justify-between gap-3 text-[13px] font-bold text-[#0a7a63]">
+              <span className="min-w-0 truncate">Coupon {summary.couponCode}</span>
+              <span className="shrink-0 tabular">{summary.discountLabel}</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 border-t border-[#eceef1] pt-2 text-[16px] font-extrabold text-navy">
+              <span>Total</span>
+              <span className="tabular text-right">
+                {summary.totalPrimary ?? summary.estimatePrimary}
+              </span>
+            </div>
+            {summary.totalHint ? (
+              <p className="text-right text-[11px] font-medium leading-snug text-[#9aa0a6]">
+                {summary.totalHint}
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
-      {summary.estimateHint ? (
-        <p className="mt-1.5 text-right text-[11px] font-medium leading-snug text-[#9aa0a6]">
-          {summary.estimateHint}
-        </p>
-      ) : null}
     </aside>
   );
 }
@@ -141,7 +172,7 @@ export function BookingWizardShell({
               className="min-w-0 truncate text-center text-[13px] font-extrabold text-navy tabular md:hidden"
               aria-live="polite"
             >
-              {summary.estimatePrimary}
+              {summary.totalPrimary ?? summary.estimatePrimary}
             </div>
           ) : null}
           <Button

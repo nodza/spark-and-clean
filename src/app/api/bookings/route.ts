@@ -12,7 +12,7 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
-import { confirmCouponQuote } from "@/lib/promotion/confirmCoupon";
+import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
@@ -74,11 +74,25 @@ export async function POST(request: Request) {
         .toString()
         .padStart(4, "0")}`;
 
+    // Create-only: never overwrite an existing booking (blocks coupon inventory attacks).
+    const existingBefore = await Booking.findOne({ id }).select("_id").lean();
+    if (existingBefore) {
+      return NextResponse.json(
+        { error: "A booking with this id already exists" },
+        { status: 409 }
+      );
+    }
+
     const couponRaw =
       typeof body.couponCode === "string" ? body.couponCode.trim() : "";
     let couponCode = "";
     let couponMax: number | null = null;
-    let confirmed: ReturnType<typeof confirmCouponQuote> | null = null;
+    let couponForQuote: {
+      couponId: string;
+      code: string;
+      coupon: { type: "PERCENT" | "FIXED_CENTS"; value: number };
+    } | null = null;
+
     if (couponRaw) {
       couponCode = normalizeCouponCode(couponRaw);
       if (!COUPON_CODE_PATTERN.test(couponCode)) {
@@ -114,23 +128,31 @@ export async function POST(request: Request) {
         Number.isInteger(coupon.maxRedemptions)
           ? coupon.maxRedemptions
           : null;
-      const rug =
-        body.rug && typeof body.rug === "object" && !Array.isArray(body.rug)
-          ? body.rug
-          : null;
-      const addOns =
-        body.addOns &&
-        typeof body.addOns === "object" &&
-        !Array.isArray(body.addOns)
-          ? body.addOns
-          : null;
-      confirmed = confirmCouponQuote({
+      couponForQuote = {
         couponId: String(coupon._id),
         code: couponCode,
         coupon: { type, value },
-        rug,
-        addOns,
-      });
+      };
+    }
+
+    const rug =
+      body.rug && typeof body.rug === "object" && !Array.isArray(body.rug)
+        ? body.rug
+        : null;
+    const addOns =
+      body.addOns &&
+      typeof body.addOns === "object" &&
+      !Array.isArray(body.addOns)
+        ? body.addOns
+        : null;
+
+    const quoted = confirmBookingQuote({
+      coupon: couponForQuote,
+      rug,
+      addOns,
+    });
+    if ("error" in quoted) {
+      return NextResponse.json({ error: quoted.error }, { status: 400 });
     }
 
     const rest = { ...(body as Record<string, unknown>) };
@@ -142,32 +164,37 @@ export async function POST(request: Request) {
     delete rest.promotion;
     delete rest.paymentStatus;
     delete rest.billing;
+    delete rest.couponCode;
+    delete rest.estimatedPriceMin;
+    delete rest.estimatedPriceMax;
 
     const payload: Record<string, unknown> = {
       ...rest,
       id,
       createdAt: body.createdAt || new Date().toISOString(),
+      paymentStatus: "UNPAID",
+      estimatedPriceMin: quoted.estimatedPriceMin,
+      estimatedPriceMax: quoted.estimatedPriceMax,
       customer: {
         ...body.customer,
         email: body.customer?.email?.toLowerCase?.() ?? body.customer?.email,
       },
     };
 
-    if (confirmed) {
-      payload.couponCode = confirmed.promotion.code;
-      payload.promotion = confirmed.promotion;
-      payload.estimatedPriceMin = confirmed.estimatedPriceMin;
-      payload.estimatedPriceMax = confirmed.estimatedPriceMax;
-      if (
-        payload.rug &&
-        typeof payload.rug === "object" &&
-        !Array.isArray(payload.rug)
-      ) {
-        payload.rug = {
-          ...(payload.rug as Record<string, unknown>),
-          areaSqM: confirmed.areaSqM,
-        };
-      }
+    if (
+      payload.rug &&
+      typeof payload.rug === "object" &&
+      !Array.isArray(payload.rug)
+    ) {
+      payload.rug = {
+        ...(payload.rug as Record<string, unknown>),
+        areaSqM: quoted.areaSqM,
+      };
+    }
+
+    if (quoted.promotion) {
+      payload.couponCode = quoted.promotion.code;
+      payload.promotion = quoted.promotion;
     }
 
     // Only a full client session may stamp userId. Guests stay unclaimed.
@@ -175,21 +202,8 @@ export async function POST(request: Request) {
       payload.userId = session.id;
     }
 
-    const existingBefore = await Booking.findOne({ id })
-      .select("_id couponCode")
-      .lean();
-    const previousCode =
-      existingBefore &&
-      typeof (existingBefore as { couponCode?: unknown }).couponCode === "string"
-        ? (existingBefore as { couponCode: string }).couponCode
-        : "";
-
-    if (!existingBefore) {
-      payload.paymentStatus = "UNPAID";
-    }
-
     let claimedCode: string | null = null;
-    if (couponCode && previousCode !== couponCode) {
+    if (couponCode) {
       const claimFilter: Record<string, unknown> = { code: couponCode };
       if (couponMax != null) claimFilter.redeemedCount = { $lt: couponMax };
       const claimed = await Coupon.findOneAndUpdate(claimFilter, {
@@ -204,28 +218,10 @@ export async function POST(request: Request) {
       }
       claimedCode = couponCode;
     }
-    if (previousCode && previousCode !== couponCode) {
-      await Coupon.updateOne(
-        { code: previousCode, redeemedCount: { $gt: 0 } },
-        { $inc: { redeemedCount: -1 } }
-      );
-    }
-
-    const update: {
-      $set: Record<string, unknown>;
-      $unset?: { promotion: 1 };
-    } = { $set: payload };
-    if (!confirmed) {
-      update.$unset = { promotion: 1 };
-    }
 
     let created;
     try {
-      created = await Booking.findOneAndUpdate(
-        { id },
-        update,
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      ).lean();
+      created = await Booking.create(payload);
     } catch (writeErr) {
       if (claimedCode) {
         await Coupon.updateOne(
@@ -233,28 +229,36 @@ export async function POST(request: Request) {
           { $inc: { redeemedCount: -1 } }
         );
       }
-      if (previousCode && previousCode !== couponCode) {
-        await Coupon.updateOne({ code: previousCode }, { $inc: { redeemedCount: 1 } });
+      if (
+        writeErr &&
+        typeof writeErr === "object" &&
+        "code" in writeErr &&
+        (writeErr as { code?: unknown }).code === 11000
+      ) {
+        return NextResponse.json(
+          { error: "A booking with this id already exists" },
+          { status: 409 }
+        );
       }
       throw writeErr;
     }
 
-    const clientBooking = toClientBooking(created as Record<string, unknown>);
+    const clientBooking = toClientBooking(
+      created.toObject() as Record<string, unknown>
+    );
 
     // In-app ops alert only on create — no WhatsApp / SMS / email.
-    if (!existingBefore) {
-      try {
-        await createNewBookingAlert({
-          id: clientBooking.id,
-          customer: clientBooking.customer,
-          suburb: clientBooking.suburb,
-        });
-      } catch (alertErr) {
-        console.error(
-          "[api/bookings POST] ops alert failed",
-          alertErr instanceof Error ? alertErr.message : alertErr
-        );
-      }
+    try {
+      await createNewBookingAlert({
+        id: clientBooking.id,
+        customer: clientBooking.customer,
+        suburb: clientBooking.suburb,
+      });
+    } catch (alertErr) {
+      console.error(
+        "[api/bookings POST] ops alert failed",
+        alertErr instanceof Error ? alertErr.message : alertErr
+      );
     }
 
     return NextResponse.json(clientBooking);

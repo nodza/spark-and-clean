@@ -18,18 +18,11 @@ function readEstimate(value: unknown): number | null {
   return value;
 }
 
-function readCount(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function readMax(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
-
 /**
  * Quote a catalogue coupon against an estimate that already includes add-ons.
  * Public so a guest can see the discounted price before booking.
  * This does not count a redemption. A use is counted only when a booking is saved.
+ * Usage counts are not returned (admin-only via the catalogue API).
  */
 export async function POST(request: Request) {
   try {
@@ -82,9 +75,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxRedemptions = readMax(doc.maxRedemptions);
-    const redeemedCount = readCount(doc.redeemedCount);
-
     const applied = applyCoupon({ type, value }, estimateMin, estimateMax);
     return NextResponse.json(
       {
@@ -94,8 +84,6 @@ export async function POST(request: Request) {
         discountCents: applied.discountCents,
         estimateMin: applied.estimateMin,
         estimateMax: applied.estimateMax,
-        redeemedCount,
-        maxRedemptions,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

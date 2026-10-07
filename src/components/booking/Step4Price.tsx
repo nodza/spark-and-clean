@@ -119,6 +119,8 @@ export function Step4Price({ data, update }: StepProps) {
       estimatedPriceMin: quote.estimateMin,
       estimatedPriceMax: quote.estimateMax,
       promotion: {
+        code: quote.code,
+        discountCents: quote.discountCents,
         amountDueCents: estimateQuoteMidpointCents(
           quote.estimateMin,
           quote.estimateMax

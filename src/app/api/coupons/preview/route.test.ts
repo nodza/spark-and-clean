@@ -46,8 +46,6 @@ describe("POST /api/coupons/preview", () => {
       discountCents: 10_000,
       estimateMin: 818,
       estimateMax: 982,
-      redeemedCount: 0,
-      maxRedemptions: null,
     });
   });
 
@@ -70,6 +68,28 @@ describe("POST /api/coupons/preview", () => {
       estimateMin: 950,
       estimateMax: 1150,
     });
+  });
+
+  it("does not expose redemption usage counts", async () => {
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          active: true,
+          type: "PERCENT",
+          value: 5,
+          maxRedemptions: 3,
+          redeemedCount: 2,
+        }),
+      }),
+    });
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({ code: "LIMITED", estimateMin: 1000, estimateMax: 1200 })
+    );
+    const payload = await res.json();
+    expect(res.status).toBe(200);
+    expect(payload).not.toHaveProperty("redeemedCount");
+    expect(payload).not.toHaveProperty("maxRedemptions");
   });
 
   it("rejects an unknown code and does not invent a discount", async () => {
@@ -139,14 +159,16 @@ describe("POST /api/coupons/preview", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const payload = await res.json();
+    expect(payload).toMatchObject({
       code: "FIRSTTIME",
-      redeemedCount: 0,
-      maxRedemptions: 1,
+      discountCents: expect.any(Number),
     });
+    expect(payload).not.toHaveProperty("redeemedCount");
+    expect(payload).not.toHaveProperty("maxRedemptions");
   });
 
-  it("rejects a full coupon even when the caller sends an old hold id", async () => {
+  it("rejects a full coupon", async () => {
     findOne.mockReturnValue({
       select: () => ({
         lean: async () => ({
@@ -155,7 +177,6 @@ describe("POST /api/coupons/preview", () => {
           value: 5,
           maxRedemptions: 1,
           redeemedCount: 1,
-          redemptionHoldId: "hold-1",
         }),
       }),
     });
