@@ -10,9 +10,12 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
-import { format } from "date-fns";
 import type { OpsAlert } from "@/types/opsAlert";
-import { isBookingOnLocalDay, localCalendarDate } from "@/lib/localCalendarDate";
+import {
+  formatBookingCollection,
+  isBookingOnLocalDay,
+  localCalendarDate,
+} from "@/lib/localCalendarDate";
 import { isActionableUnassignedToday, isUnassignedDriver } from "@/lib/bookingAttention";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 import type { Booking, Driver } from "@/types/booking";
@@ -379,7 +382,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <div className="text-body" style={{ color: "#32373c" }}>
-                          {format(new Date(booking.collectionDate), "MMM d")}
+                          {formatBookingCollection(booking.collectionDate, "MMM d")}
                         </div>
                         <div className="text-meta" style={{ color: "#9aa0a6" }}>
                           {booking.collectionSlot === "MORNING" ? "AM" : "PM"}

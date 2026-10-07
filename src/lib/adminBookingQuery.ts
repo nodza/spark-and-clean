@@ -1,5 +1,5 @@
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
-import { localCalendarDate } from "@/lib/localCalendarDate";
+import { localCalendarDate, bookingCalendarDate } from "@/lib/localCalendarDate";
 
 /** Default list sort: newest `createdAt` first. Toggle to soonest `collectionDate`. */
 export type BookingListSort = "created" | "collection";
@@ -103,11 +103,7 @@ export function bookingListHref(filters: Partial<AdminBookingFilters>): string {
 }
 
 export function collectionDay(value: string): string {
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().slice(0, 10);
+  return bookingCalendarDate(value) ?? "";
 }
 
 function digitsOnly(value: string): string {
