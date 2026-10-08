@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,10 @@ export function ConvertAccountForm({
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
   const [email, setEmail] = useState(defaultEmail);
+
+  useEffect(() => {
+    setEmail((current) => (current.trim() ? current : defaultEmail));
+  }, [defaultEmail]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +150,7 @@ export function ConvertAccountForm({
           placeholder="you@example.com"
           value={email}
           readOnly={emailLocked}
-          className={emailLocked ? "bg-rule" : undefined}
+          className={emailLocked ? "bg-[#f7f9fb] text-[#32373c]" : undefined}
           onChange={(e) => {
             if (emailLocked) return;
             setEmail(e.target.value);

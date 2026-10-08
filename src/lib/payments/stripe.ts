@@ -36,9 +36,9 @@ async function createCheckoutSession(input: {
   productDescription: string;
 }): Promise<{ clientSecret: string; amountCents: number }> {
   const bookingId = input.bookingId;
-  const customerEmail = input.customerEmail.trim();
   const returnUrl = `${getAppUrl()}/booking/${encodeURIComponent(bookingId)}?checkout=success`;
 
+  // Leave customer_email unset. Stripe locks the Checkout email field when it is set.
   const session = await getStripe().checkout.sessions.create({
     ui_mode: "form",
     mode: "payment",
@@ -49,7 +49,6 @@ async function createCheckoutSession(input: {
     integration_identifier: "custom_embedded_web_0001",
     return_url: returnUrl,
     client_reference_id: bookingId,
-    ...(customerEmail ? { customer_email: customerEmail } : {}),
     metadata: { bookingId, kind: input.kind },
     payment_intent_data: {
       metadata: { bookingId, kind: input.kind },

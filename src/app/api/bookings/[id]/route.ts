@@ -21,6 +21,18 @@ import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** Name and phone for the customer. Other driver fields stay off this payload. */
+async function customerTechnician(driverId?: string) {
+  const id = driverId?.trim();
+  if (!id) return null;
+  const driver = await Driver.findOne({ id }).select({ name: 1, phone: 1 }).lean();
+  if (!driver || typeof driver.name !== "string") return null;
+  const name = driver.name.trim();
+  if (!name) return null;
+  const phone = typeof driver.phone === "string" ? driver.phone.trim() : "";
+  return phone ? { name, phone } : { name };
+}
+
 /**
  * Public tracking by booking reference (the ID is the capability).
  * A signed-in full client may only open their own bookings.
@@ -60,7 +72,8 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json(booking);
+    const technician = await customerTechnician(booking.assignedDriverId);
+    return NextResponse.json(technician ? { ...booking, technician } : booking);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch booking";
     return NextResponse.json({ error: message }, { status: 500 });
