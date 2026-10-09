@@ -27,6 +27,8 @@ export interface BookingPromotion {
   code?: string;
   discountCents?: number;
   amountDueCents?: number;
+  /** ISO time of the one loyalty punch for this booking. */
+  loyaltyPunchedAt?: string;
 }
 
 /** Ops-only — never sent on customer/public booking payloads */

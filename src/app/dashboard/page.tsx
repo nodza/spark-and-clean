@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { ChevronRight, Package, RefreshCw } from "lucide-react";
 import type { Booking, BookingStatus } from "@/types/booking";
@@ -96,6 +96,39 @@ function progressFor(status: BookingStatus) {
     pct,
     hint: TRACKABLE_STEPS[Math.min(safe + 1, total - 1)]?.label ?? "",
   };
+}
+
+function useLoyaltyPunches(enabled: boolean, refreshKey: number) {
+  const [punches, setPunches] = useState<number | null>(null);
+  const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    void fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("me failed"))))
+      .then((data: { user?: { loyalty?: { punches?: unknown } } } | null) => {
+        if (cancelled) return;
+        const value = data?.user?.loyalty?.punches;
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          setPunches(value);
+          setLoyaltyError(null);
+          return;
+        }
+        setPunches((current) => current ?? 0);
+        setLoyaltyError("Loyalty punches could not be loaded.");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPunches((current) => current ?? 0);
+        setLoyaltyError("Loyalty punches could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, refreshKey]);
+
+  return { punches, loyaltyError };
 }
 
 function nextUpCopy(booking: Booking) {
@@ -360,6 +393,10 @@ export default function ClientDashboard() {
       };
     }, [bookings, email]);
 
+  const { punches: loyaltyPunches, loyaltyError } = useLoyaltyPunches(
+    ready && !!email,
+    deliveredCount
+  );
   const featured = activeBookings[0];
   const nextUp = featured ? nextUpCopy(featured) : null;
   const stampFilled = deliveredCount % 5;
@@ -524,6 +561,18 @@ export default function ClientDashboard() {
                     : `${formatRand(outstandingCents)} due`}
                 </div>
               </div>
+              {loyaltyPunches != null ? (
+                <div className="mt-3.5">
+                  <p className="text-[12.5px] text-[#6b7280]">
+                    Loyalty punches: {loyaltyPunches}
+                  </p>
+                  {loyaltyError ? (
+                    <p className="mt-1 text-[12px] font-semibold text-[#b33232]" role="alert">
+                      {loyaltyError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </aside>
         </div>

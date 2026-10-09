@@ -103,6 +103,8 @@ const PromotionSchema = new Schema(
     code: { type: String, trim: true },
     discountCents: { type: Number, min: 0 },
     amountDueCents: { type: Number, min: 0 },
+    /** Set the first time a delivered booking awards a loyalty punch. */
+    loyaltyPunchedAt: { type: Date },
   },
   { _id: false }
 );
