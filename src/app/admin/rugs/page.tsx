@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, LoaderCircle, Search, Tag } from "lucide-react";
+import { ArrowUpRight, Link2, LoaderCircle, Search, Tag } from "lucide-react";
 import { AdminPortalShell } from "@/components/admin/AdminPortalShell";
 
 type RugSearchResult = {
@@ -11,45 +11,157 @@ type RugSearchResult = {
   bookingId: string;
   status: string;
   thumbnails: string[];
+  isCurrent?: boolean;
 };
 
 type SearchState = "idle" | "loading" | "empty" | "success" | "error";
+type LinkState = "idle" | "loading" | "success" | "error";
+
+type LinkPreview = {
+  tagCode: string;
+  bookingId: string;
+  customerName: string;
+  bookingStatus: string;
+  previousBookingId: string | null;
+};
 
 export default function AdminRugsPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RugSearchResult[]>([]);
   const [state, setState] = useState<SearchState>("idle");
   const abortRef = useRef<AbortController | null>(null);
+  const searchSeq = useRef(0);
+
+  const [linkTagCode, setLinkTagCode] = useState("");
+  const [linkBookingId, setLinkBookingId] = useState("");
+  const [linkState, setLinkState] = useState<LinkState>("idle");
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+
+  function startLookup() {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const seq = ++searchSeq.current;
+    return { controller, seq };
+  }
+
+  function lookupIsCurrent(seq: number, controller: AbortController) {
+    return seq === searchSeq.current && !controller.signal.aborted;
+  }
+
+  async function loadLookup(tagCode: string, seq: number, controller: AbortController) {
+    const response = await fetch(`/api/rugs?q=${encodeURIComponent(tagCode)}`, {
+      signal: controller.signal,
+    });
+    if (!lookupIsCurrent(seq, controller)) return;
+    if (!response.ok) throw new Error("Search failed");
+    const payload = (await response.json()) as { results?: RugSearchResult[] };
+    if (!lookupIsCurrent(seq, controller)) return;
+    const matches = payload.results ?? [];
+    setResults(matches);
+    setState(matches.length ? "success" : "empty");
+    if (matches[0]?.tagCode) {
+      const nextTag = matches[0].tagCode;
+      setLinkTagCode(nextTag);
+      setLinkPreview((current) =>
+        current && current.tagCode === nextTag ? current : null
+      );
+    }
+  }
 
   async function search(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const tagCode = query.trim();
     if (!tagCode) {
       abortRef.current?.abort();
+      searchSeq.current += 1;
       setResults([]);
       setState("idle");
       return;
     }
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+    const { controller, seq } = startLookup();
     setState("loading");
     try {
-      const response = await fetch(`/api/rugs?q=${encodeURIComponent(tagCode)}`, {
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error("Search failed");
-      const payload = (await response.json()) as { results?: RugSearchResult[] };
-      if (controller.signal.aborted) return;
-      const matches = payload.results ?? [];
-      setResults(matches);
-      setState(matches.length ? "success" : "empty");
+      await loadLookup(tagCode, seq, controller);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      if (!lookupIsCurrent(seq, controller)) return;
       setResults([]);
       setState("error");
+    }
+  }
+
+  async function linkToBooking(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const tagCode = linkTagCode.trim().toUpperCase();
+    const bookingId = linkBookingId.trim();
+    if (!tagCode || !bookingId) return;
+
+    const previewMatches =
+      linkPreview?.tagCode === tagCode && linkPreview.bookingId === bookingId;
+
+    setLinkState("loading");
+    setLinkMessage(null);
+    try {
+      const response = await fetch("/api/rugs/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          tagCode,
+          ...(previewMatches ? {} : { dryRun: true }),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        customerName?: string;
+        bookingStatus?: string;
+        previousBookingId?: string | null;
+      };
+      if (!response.ok) {
+        setLinkPreview(null);
+        setLinkState("error");
+        setLinkMessage(payload.error || "Could not link this tag to the booking.");
+        return;
+      }
+
+      if (!previewMatches) {
+        setLinkPreview({
+          tagCode,
+          bookingId,
+          customerName: payload.customerName?.trim() || "Unknown customer",
+          bookingStatus: payload.bookingStatus || "BOOKED",
+          previousBookingId: payload.previousBookingId ?? null,
+        });
+        setLinkState("idle");
+        return;
+      }
+
+      const customerName = payload.customerName?.trim() || linkPreview.customerName;
+      const bookingStatus = payload.bookingStatus || linkPreview.bookingStatus;
+      setLinkState("success");
+      setLinkMessage(
+        payload.previousBookingId
+          ? `Linked ${tagCode} to ${bookingId} (${customerName}, ${bookingStatus}). Previous job ${payload.previousBookingId} still keeps the tag for history.`
+          : `Linked ${tagCode} to ${bookingId} (${customerName}, ${bookingStatus}).`
+      );
+      setLinkPreview(null);
+      setLinkBookingId("");
+      setQuery(tagCode);
+
+      const { controller, seq } = startLookup();
+      try {
+        await loadLookup(tagCode, seq, controller);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!lookupIsCurrent(seq, controller)) return;
+      }
+    } catch {
+      setLinkPreview(null);
+      setLinkState("error");
+      setLinkMessage("Could not link this tag to the booking.");
     }
   }
 
@@ -65,7 +177,8 @@ export default function AdminRugsPage() {
             Find a rug by tag
           </h1>
           <p className="mt-1 text-sm text-[#697078]">
-            Search by the code on the rug label.
+            Search by the code on the rug label. Repeat cleans keep the same tag
+            across booking history.
           </p>
           <form onSubmit={search} className="mt-5 flex max-w-[720px] gap-2">
             <label htmlFor="rug-tag-search" className="sr-only">
@@ -98,9 +211,131 @@ export default function AdminRugsPage() {
           </form>
         </div>
 
+        <section
+          aria-labelledby="link-to-booking-heading"
+          className="border-b border-[#e7e9ec] py-5"
+        >
+          <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#0a7a63]">
+            <Link2 size={15} aria-hidden />
+            Repeat clean
+          </div>
+          <h2
+            id="link-to-booking-heading"
+            className="mt-2 text-lg font-extrabold text-[#000b49]"
+          >
+            Link to booking
+          </h2>
+          <p className="mt-1 max-w-[720px] text-sm text-[#697078]">
+            Attach an existing physical-rug tag to a new booking for the same
+            customer so history and photos stay on one rug asset. Previous
+            bookings keep the tag for history. Payment status and coupons are
+            not copied. The new booking must be BOOKED or SCHEDULED. Linking is{" "}
+            <span className="font-semibold text-[#32373c]">rejected</span> while
+            the tag is IN_CARE on another open job (booked through ready).
+          </p>
+          <form
+            onSubmit={linkToBooking}
+            className="mt-4 grid max-w-[720px] gap-3 sm:grid-cols-[1fr_1fr_auto]"
+          >
+            <div>
+              <label
+                htmlFor="link-tag-code"
+                className="mb-1.5 block text-[11px] font-bold uppercase text-[#7b8388]"
+              >
+                Tag code
+              </label>
+              <input
+                id="link-tag-code"
+                type="text"
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                value={linkTagCode}
+                onChange={(event) => {
+                  setLinkTagCode(event.target.value.toUpperCase());
+                  setLinkPreview(null);
+                }}
+                placeholder="SC-RUG-…"
+                className="h-12 w-full rounded-[7px] border border-[#cfd5d8] bg-white px-3.5 font-mono text-[15px] text-[#20252a] outline-none placeholder:font-sans placeholder:text-[#92999e] focus:border-[#0a7a63] focus:ring-2 focus:ring-[#0a7a63]/15"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="link-booking-id"
+                className="mb-1.5 block text-[11px] font-bold uppercase text-[#7b8388]"
+              >
+                Booking id / reference
+              </label>
+              <input
+                id="link-booking-id"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                value={linkBookingId}
+                onChange={(event) => {
+                  setLinkBookingId(event.target.value.trimStart());
+                  setLinkPreview(null);
+                }}
+                placeholder="SC-2026-0001"
+                className="h-12 w-full rounded-[7px] border border-[#cfd5d8] bg-white px-3.5 font-mono text-[15px] text-[#20252a] outline-none placeholder:font-sans placeholder:text-[#92999e] focus:border-[#0a7a63] focus:ring-2 focus:ring-[#0a7a63]/15"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={
+                  linkState === "loading" ||
+                  !linkTagCode.trim() ||
+                  !linkBookingId.trim()
+                }
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[7px] bg-[#0a7a63] px-4 text-sm font-bold text-white transition-colors hover:bg-[#08735e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7a63] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {linkState === "loading" ? (
+                  <LoaderCircle size={17} className="animate-spin" aria-hidden />
+                ) : (
+                  <Link2 size={17} aria-hidden />
+                )}
+                {linkPreview ? "Confirm link" : "Link"}
+              </button>
+            </div>
+          </form>
+          {linkPreview ? (
+            <div className="mt-3 max-w-[720px] rounded-[7px] border border-[#d5ebe4] bg-[#f3faf7] px-3.5 py-3">
+              <p className="text-sm text-[#20252a]">
+                Link{" "}
+                <span className="font-mono font-bold">{linkPreview.tagCode}</span> to{" "}
+                <span className="font-mono font-bold">{linkPreview.bookingId}</span> for{" "}
+                <span className="font-semibold">{linkPreview.customerName}</span> (
+                {linkPreview.bookingStatus}). This only links bookings for that
+                customer.
+              </p>
+              <button
+                type="button"
+                onClick={() => setLinkPreview(null)}
+                className="mt-2 text-sm font-bold text-[#0a7a63] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7a63]"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
+          {linkMessage ? (
+            <p
+              role={linkState === "error" ? "alert" : "status"}
+              className={`mt-3 max-w-[720px] text-sm ${
+                linkState === "error"
+                  ? "font-semibold text-[#a33030]"
+                  : "text-[#08735e]"
+              }`}
+            >
+              {linkMessage}
+            </p>
+          ) : null}
+        </section>
+
         <section aria-live="polite" className="pt-5">
           {state === "idle" ? (
-            <p className="text-sm text-[#737b80]">Enter a rug tag to find its booking.</p>
+            <p className="text-sm text-[#737b80]">Enter a rug tag to find its booking history.</p>
           ) : null}
           {state === "loading" ? (
             <p className="text-sm text-[#737b80]">Searching tags…</p>
@@ -156,7 +391,14 @@ export default function AdminRugsPage() {
                       <div className="flex items-center justify-between gap-3 sm:block">
                         <div>
                           <p className="text-[11px] font-bold uppercase text-[#7b8388]">Booking</p>
-                          <p className="mt-1 text-sm font-semibold text-[#32373c]">{result.bookingId}</p>
+                          <p className="mt-1 text-sm font-semibold text-[#32373c]">
+                            {result.bookingId}
+                            {result.isCurrent ? (
+                              <span className="ml-2 text-[11px] font-bold uppercase text-[#0a7a63]">
+                                Current
+                              </span>
+                            ) : null}
+                          </p>
                         </div>
                         <span className="rounded-[4px] bg-[#eaf5f1] px-2 py-1 text-[11px] font-bold text-[#08735e]">
                           {result.status.replaceAll("_", " ")}
