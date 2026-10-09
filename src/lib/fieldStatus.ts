@@ -28,6 +28,10 @@ export function isVanDeliverStatus(status: BookingStatus): boolean {
   return status === "READY";
 }
 
+export function hasRugTagCode(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function isDepotStatus(status: BookingStatus): boolean {
   return DEPOT_STATUSES.includes(status);
 }
@@ -201,9 +205,7 @@ export function technicianFieldUpdate(input: {
   }
 
   if (input.to === "COLLECTED") {
-    const tagCode =
-      typeof input.tagCode === "string" ? input.tagCode.trim() : "";
-    if (!tagCode) {
+    if (!hasRugTagCode(input.tagCode)) {
       return {
         ok: false,
         status: 409,
