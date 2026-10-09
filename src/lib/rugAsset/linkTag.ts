@@ -16,6 +16,17 @@ export const ACTIVE_RUG_JOB_STATUSES: readonly BookingStatus[] = [
   "READY",
 ] as const;
 
+/** A repeat-clean link can only land on a job that has not been collected yet. */
+export const LINKABLE_TARGET_STATUSES: readonly BookingStatus[] = [
+  "BOOKED",
+  "SCHEDULED",
+] as const;
+
+export type RugCustomerRef = {
+  userId?: unknown;
+  email?: unknown;
+};
+
 export function normalizeTagCode(value: string): string {
   return value.trim().toUpperCase();
 }
@@ -27,8 +38,37 @@ export function isActiveRugJobStatus(status: unknown): boolean {
   );
 }
 
+export function isLinkableTargetStatus(status: unknown): boolean {
+  return (
+    typeof status === "string" &&
+    (LINKABLE_TARGET_STATUSES as readonly string[]).includes(status)
+  );
+}
+
 /**
- * Reject linking when the asset is IN_CARE on another non-delivered job.
+ * Same account when both bookings have a user id.
+ * Guest jobs (no user id) match on customer email.
+ */
+export function sameRugCustomer(left: RugCustomerRef, right: RugCustomerRef): boolean {
+  const leftId = customerId(left.userId);
+  const rightId = customerId(right.userId);
+  if (leftId && rightId) return leftId === rightId;
+  const leftEmail = customerEmail(left.email);
+  const rightEmail = customerEmail(right.email);
+  return Boolean(leftEmail && leftEmail === rightEmail);
+}
+
+function customerId(value: unknown): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function customerEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/**
+ * Reject linking when the asset is IN_CARE on another open job (BOOKED through READY).
  * DELIVERED / CANCELLED (or a missing/stale current booking) do not block.
  */
 export function inCareLinkConflict(input: {

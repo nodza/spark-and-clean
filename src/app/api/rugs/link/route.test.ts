@@ -34,6 +34,7 @@ const assetId = "asset-1";
 const newBooking = {
   id: "SC-2026-0002",
   status: "BOOKED",
+  userId: "user-ada",
   paymentStatus: "UNPAID",
   couponCode: undefined,
   rug: { type: "Wool", photos: [], tagCode: undefined, assetId: undefined },
@@ -81,13 +82,20 @@ describe("POST /api/rugs/link", () => {
       tagCode,
       status: "IN_CARE",
       currentBookingId: oldBooking.id,
+      ownerUserId: "user-ada",
+      ownerEmail: "client@example.com",
     });
     mocks.bookingFindOne.mockImplementation((filter: { id?: string }) => {
       if (filter?.id === newBooking.id) {
         return leanSelect({ ...newBooking, rug: { ...newBooking.rug } });
       }
       if (filter?.id === oldBooking.id) {
-        return leanSelect({ id: oldBooking.id, status: oldBooking.status });
+        return leanSelect({
+          id: oldBooking.id,
+          status: oldBooking.status,
+          userId: "user-ada",
+          customer: { email: "client@example.com", name: "Ada Lovelace" },
+        });
       }
       return leanSelect(null);
     });
@@ -121,6 +129,8 @@ describe("POST /api/rugs/link", () => {
     expect(payload.booking.rug.tagCode).toBe(tagCode);
     expect(payload.booking.paymentStatus).toBe("UNPAID");
     expect(payload.booking.couponCode).toBeUndefined();
+    expect(payload.customerName).toBe("Ada Lovelace");
+    expect(payload.bookingStatus).toBe("BOOKED");
 
     expect(mocks.rugAssetFindOneAndUpdate).toHaveBeenCalledWith(
       { _id: assetId, currentBookingId: oldBooking.id },
@@ -173,13 +183,20 @@ describe("POST /api/rugs/link", () => {
       tagCode,
       status: "RETURNED",
       currentBookingId: oldBooking.id,
+      ownerUserId: "user-ada",
+      ownerEmail: "client@example.com",
     });
     mocks.bookingFindOne.mockImplementation((filter: { id?: string }) => {
       if (filter?.id === newBooking.id) {
         return leanSelect({ ...newBooking });
       }
       if (filter?.id === oldBooking.id) {
-        return leanSelect({ id: oldBooking.id, status: "DELIVERED" });
+        return leanSelect({
+          id: oldBooking.id,
+          status: "DELIVERED",
+          userId: "user-ada",
+          customer: { email: "client@example.com" },
+        });
       }
       return leanSelect(null);
     });
@@ -217,6 +234,109 @@ describe("POST /api/rugs/link", () => {
     const response = await post({ bookingId: newBooking.id, tagCode });
     expect(response.status).toBe(403);
     expect(mocks.connectDB).not.toHaveBeenCalled();
+  });
+
+  it("rejects a delivered or cancelled target booking", async () => {
+    mocks.rugAssetFindOne.mockResolvedValue({
+      _id: assetId,
+      tagCode,
+      status: "IN_CARE",
+      currentBookingId: oldBooking.id,
+      ownerUserId: "user-ada",
+      ownerEmail: "client@example.com",
+    });
+    mocks.bookingFindOne.mockImplementation((filter: { id?: string }) => {
+      if (filter?.id === newBooking.id) {
+        return leanSelect({ ...newBooking, status: "DELIVERED" });
+      }
+      return leanSelect(null);
+    });
+
+    const response = await post({ bookingId: newBooking.id, tagCode });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "Tags can only be linked to a BOOKED or SCHEDULED booking.",
+    });
+    expect(mocks.rugAssetFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects linking a tag onto a different customer's booking", async () => {
+    mocks.rugAssetFindOne.mockResolvedValue({
+      _id: assetId,
+      tagCode,
+      status: "IN_CARE",
+      currentBookingId: oldBooking.id,
+      ownerUserId: "user-ada",
+      ownerEmail: "client@example.com",
+    });
+    mocks.bookingFindOne.mockImplementation((filter: { id?: string }) => {
+      if (filter?.id === newBooking.id) {
+        return leanSelect({
+          ...newBooking,
+          userId: "user-other",
+          customer: { name: "Other Person", email: "other@example.com" },
+        });
+      }
+      if (filter?.id === oldBooking.id) {
+        return leanSelect({
+          id: oldBooking.id,
+          status: "DELIVERED",
+          userId: "user-ada",
+          customer: { email: "client@example.com" },
+        });
+      }
+      return leanSelect(null);
+    });
+
+    const response = await post({ bookingId: newBooking.id, tagCode });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/another customer/);
+    expect(mocks.rugAssetFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("previews the target customer without writing", async () => {
+    mocks.rugAssetFindOne.mockResolvedValue({
+      _id: assetId,
+      tagCode,
+      status: "IN_CARE",
+      currentBookingId: oldBooking.id,
+      ownerUserId: "user-ada",
+      ownerEmail: "client@example.com",
+    });
+    mocks.bookingFindOne.mockImplementation((filter: { id?: string }) => {
+      if (filter?.id === newBooking.id) {
+        return leanSelect({ ...newBooking });
+      }
+      if (filter?.id === oldBooking.id) {
+        return leanSelect({
+          id: oldBooking.id,
+          status: "DELIVERED",
+          userId: "user-ada",
+          customer: { email: "client@example.com" },
+        });
+      }
+      return leanSelect(null);
+    });
+
+    const response = await post({
+      bookingId: newBooking.id,
+      tagCode,
+      dryRun: true,
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      dryRun: true,
+      tagCode,
+      bookingId: newBooking.id,
+      customerName: "Ada Lovelace",
+      bookingStatus: "BOOKED",
+      previousBookingId: oldBooking.id,
+    });
+    expect(mocks.rugAssetFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the tag does not exist", async () => {

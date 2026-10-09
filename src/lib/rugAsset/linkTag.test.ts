@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { inCareLinkConflict, normalizeTagCode } from "./linkTag";
+import {
+  inCareLinkConflict,
+  isLinkableTargetStatus,
+  normalizeTagCode,
+  sameRugCustomer,
+} from "./linkTag";
 
 describe("normalizeTagCode", () => {
   it("trims and uppercases", () => {
@@ -39,6 +44,38 @@ describe("inCareLinkConflict", () => {
         currentBookingStatus: "READY",
       })
     ).toBeNull();
+  });
+
+  it("only allows a new link onto BOOKED or SCHEDULED", () => {
+    expect(isLinkableTargetStatus("BOOKED")).toBe(true);
+    expect(isLinkableTargetStatus("SCHEDULED")).toBe(true);
+    for (const status of ["COLLECTED", "READY", "DELIVERED", "CANCELLED"]) {
+      expect(isLinkableTargetStatus(status)).toBe(false);
+    }
+  });
+
+  it("treats two bookings as the same customer by account or guest email", () => {
+    expect(
+      sameRugCustomer(
+        { userId: "user-ada", email: "ada@example.com" },
+        { userId: "user-ada", email: "new@example.com" }
+      )
+    ).toBe(true);
+    expect(
+      sameRugCustomer(
+        { userId: "user-ada", email: "ada@example.com" },
+        { userId: "user-other", email: "ada@example.com" }
+      )
+    ).toBe(false);
+    expect(
+      sameRugCustomer(
+        { email: "Ada@Example.com" },
+        { email: " ada@example.com " }
+      )
+    ).toBe(true);
+    expect(
+      sameRugCustomer({ email: "ada@example.com" }, { email: "other@example.com" })
+    ).toBe(false);
   });
 
   it("allows idempotent link to the same booking", () => {
