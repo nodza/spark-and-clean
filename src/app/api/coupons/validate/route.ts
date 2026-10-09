@@ -8,6 +8,8 @@ import {
   normalizeCouponCode,
 } from "@/lib/coupon";
 import { toPublicApiError } from "@/lib/publicApiError";
+import { getSession } from "@/lib/session";
+import { isPersistedClient } from "@/types/user";
 
 /**
  * Checkout apply check. Public so a guest can try a code.
@@ -41,8 +43,10 @@ export async function POST(request: Request) {
     const city = typeof cityRaw === "string" ? cityRaw : null;
 
     await connectDB();
+    const session = await getSession();
+    const userId = session && isPersistedClient(session) ? session.id : null;
     const doc = await Coupon.findOne({ code }).select(COUPON_APPLY_FIELDS).lean();
-    const applyError = couponApplyError(doc, { city });
+    const applyError = couponApplyError(doc, { city, userId });
     if (applyError) {
       return NextResponse.json(
         { valid: false, error: applyError },

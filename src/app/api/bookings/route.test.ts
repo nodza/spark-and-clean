@@ -4,6 +4,7 @@ import {
   applyCoupon,
   estimateQuoteMidpointCents,
 } from "@/lib/promotion/applyCoupon";
+import { getSession } from "@/lib/session";
 
 const bookingFindOne = vi.fn();
 const bookingCreate = vi.fn();
@@ -90,8 +91,12 @@ function writtenPayload(): Record<string, unknown> {
   return bookingCreate.mock.calls.at(-1)?.[0] as Record<string, unknown>;
 }
 
+const sarahId = "507f1f77bcf86cd799439011";
+
 describe("POST /api/bookings confirm coupon", () => {
   beforeEach(() => {
+    vi.mocked(getSession).mockReset();
+    vi.mocked(getSession).mockResolvedValue(null);
     bookingFindOne.mockReset();
     bookingCreate.mockReset();
     couponFindOne.mockReset();
@@ -149,7 +154,7 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(payload.paymentStatus).toBe("UNPAID");
     expect(payload.promotion).not.toMatchObject({ discountCents: 1 });
     expect(couponFindOneAndUpdate).toHaveBeenCalledWith(
-      { code: "SPARK10", redeemedCount: { $lt: 10 } },
+      { code: "SPARK10", ownerUserId: null, redeemedCount: { $lt: 10 } },
       { $inc: { redeemedCount: 1 } }
     );
     expect(couponUpdateOne).not.toHaveBeenCalled();
@@ -260,7 +265,7 @@ describe("POST /api/bookings confirm coupon", () => {
     );
     expect(res.status).toBe(200);
     expect(couponFindOneAndUpdate).toHaveBeenCalledWith(
-      { code: "SPARK10", redeemedCount: { $lt: 1 } },
+      { code: "SPARK10", ownerUserId: null, redeemedCount: { $lt: 1 } },
       { $inc: { redeemedCount: 1 } }
     );
     expect(writtenPayload().promotion).toMatchObject({
@@ -320,5 +325,64 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(bookingCreate).not.toHaveBeenCalled();
     expect(couponFindOneAndUpdate).not.toHaveBeenCalled();
     expect(paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects another client's booking that uses Sarah's personal code", async () => {
+    vi.mocked(getSession).mockResolvedValue({
+      id: "507f1f77bcf86cd799439012",
+      email: "lee@example.com",
+      role: "client",
+    });
+    couponLookup({
+      _id: "coupon-sarah",
+      code: "RWDSARAH",
+      active: true,
+      type: "FIXED_CENTS",
+      value: 50000,
+      redeemedCount: 0,
+      maxRedemptions: 1,
+      ownerUserId: sarahId,
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(post({ couponCode: "RWDSARAH" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "That coupon code isn't valid" });
+    expect(bookingCreate).not.toHaveBeenCalled();
+  });
+
+  it("claims Sarah's personal code only for Sarah", async () => {
+    vi.mocked(getSession).mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+    couponLookup({
+      _id: "coupon-sarah",
+      code: "RWDSARAH",
+      active: true,
+      type: "FIXED_CENTS",
+      value: 50000,
+      redeemedCount: 0,
+      maxRedemptions: 1,
+      ownerUserId: sarahId,
+    });
+    couponFindOneAndUpdate.mockResolvedValue({
+      code: "RWDSARAH",
+      redeemedCount: 1,
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(post({ couponCode: "RWDSARAH" }));
+    expect(res.status).toBe(200);
+    expect(couponFindOneAndUpdate).toHaveBeenCalledWith(
+      {
+        code: "RWDSARAH",
+        ownerUserId: sarahId,
+        redeemedCount: { $lt: 1 },
+      },
+      { $inc: { redeemedCount: 1 } }
+    );
+    expect(writtenPayload().userId).toBe(sarahId);
   });
 });
