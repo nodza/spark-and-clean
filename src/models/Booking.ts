@@ -94,11 +94,14 @@ const BillingSchema = new Schema(
 );
 
 /**
- * E8 promotion fields (optional). Ledger reads amountDueCents when present.
- * Do not rename couponCode; do not add tagCode here.
+ * E8 promotion snapshot (optional). Ledger reads amountDueCents when present.
+ * Written on confirm from a server coupon re-check. Do not rename couponCode.
  */
 const PromotionSchema = new Schema(
   {
+    couponId: { type: String, trim: true },
+    code: { type: String, trim: true },
+    discountCents: { type: Number, min: 0 },
     amountDueCents: { type: Number, min: 0 },
   },
   { _id: false }

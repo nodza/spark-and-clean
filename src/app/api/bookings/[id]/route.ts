@@ -17,7 +17,7 @@ import {
 } from "@/lib/adminAuth";
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
-import { technicianFieldUpdate } from "@/lib/fieldStatus";
+import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -139,6 +139,21 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
+    const existingRug = existing.rug as
+      | { widthM?: unknown; lengthM?: unknown; tagCode?: unknown }
+      | null
+      | undefined;
+    if (
+      wantsStatus &&
+      body.status === "COLLECTED" &&
+      !hasRugTagCode(existingRug?.tagCode)
+    ) {
+      return NextResponse.json(
+        { error: "Attach a rug tag before marking this job collected." },
+        { status: 409 }
+      );
+    }
+
     const $set: Record<string, unknown> = {};
     const $unset: Record<string, ""> = {};
 
@@ -148,10 +163,6 @@ export async function PATCH(request: Request, { params }: Params) {
         body,
         "lengthM"
       );
-      const existingRug = existing.rug as
-        | { widthM?: unknown; lengthM?: unknown; tagCode?: unknown }
-        | null
-        | undefined;
       const decision = technicianFieldUpdate({
         driverProfileId: session.driverProfileId,
         assignedDriverId: existing.assignedDriverId,

@@ -79,7 +79,7 @@ export default function TechMapPage() {
 
   return (
     <TechAppShell
-      activeTab="today"
+      activeTab="map"
       padded={false}
       contentClassName="overflow-hidden p-0"
     >

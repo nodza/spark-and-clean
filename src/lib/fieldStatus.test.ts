@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bothDimensionsEmpty,
   formatRugSizeLabel,
+  hasRugTagCode,
   isAllowedVanTransition,
   isDepotStatus,
   parseOptionalCollectDimensions,
@@ -31,6 +32,13 @@ function vanUpdate(
 }
 
 describe("van status transitions", () => {
+  it("recognizes only nonblank rug tag codes", () => {
+    expect(hasRugTagCode("SC-RUG-ABC12345")).toBe(true);
+    for (const tagCode of [undefined, null, "", "   "]) {
+      expect(hasRugTagCode(tagCode)).toBe(false);
+    }
+  });
+
   it("allows collect from BOOKED or SCHEDULED and deliver from READY", () => {
     expect(isAllowedVanTransition("BOOKED", "COLLECTED")).toBe(true);
     expect(isAllowedVanTransition("SCHEDULED", "COLLECTED")).toBe(true);
@@ -85,7 +93,11 @@ describe("van status transitions", () => {
   });
 
   it("lets a READY job be marked delivered", () => {
-    const result = vanUpdate({ from: "READY", to: "DELIVERED" });
+    const result = vanUpdate({
+      from: "READY",
+      to: "DELIVERED",
+      tagCode: undefined,
+    });
     expect(result).toEqual({ ok: true, set: { status: "DELIVERED" } });
   });
 });

@@ -5,6 +5,7 @@ import {
   DUPLICATE_COUPON_MESSAGE,
   formatCouponDate,
   formatCouponDiscount,
+  formatCouponUses,
   formatCouponWindow,
   couponApplyError,
   couponFormFieldErrors,
@@ -101,6 +102,8 @@ describe("sanitizeCouponCreate", () => {
 
 describe("coupon display", () => {
   it("formats percent, cents, and the validity window", () => {
+    expect(formatCouponUses(0, null)).toBe("0 used");
+    expect(formatCouponUses(2, 17)).toBe("2/17");
     expect(formatCouponDiscount("PERCENT", 10)).toBe("10%");
     expect(formatCouponDiscount("FIXED_CENTS", 1050)).toBe("R10.50");
     expect(formatCouponDate("2026-09-30T12:00:00.000Z")).toBe("30/09/2026");
@@ -131,7 +134,7 @@ describe("inactive coupons", () => {
         { active: true, validFrom: "2026-11-01T12:00:00.000Z" },
         { now }
       )
-    ).toBe("This coupon isn't valid yet");
+    ).toBe("This coupon isn't valid until 01/11/2026");
     expect(
       couponApplyError(
         { active: true, validTo: "2026-09-30T12:00:00.000Z" },
@@ -143,11 +146,16 @@ describe("inactive coupons", () => {
         { active: true, city: "Cape Town" },
         { now, city: "Johannesburg" }
       )
-    ).toBe("This coupon isn't valid in your city");
+    ).toBe(
+      "This coupon isn't valid in Johannesburg. It only applies in Cape Town."
+    );
+    expect(
+      couponApplyError({ active: true, city: "Cape Town" }, { now, city: "" })
+    ).toBe("This coupon only applies in Cape Town.");
     expect(
       couponApplyError(
         { active: true, city: "Cape Town" },
-        { now, city: "Cape Town" }
+        { now, city: "cape town" }
       )
     ).toBeNull();
     expect(
@@ -155,7 +163,13 @@ describe("inactive coupons", () => {
         { active: true, maxRedemptions: 10, redeemedCount: 10 },
         { now }
       )
-    ).toBe("This coupon has been fully used");
+    ).toBe("This coupon has been fully used (10/10)");
+    expect(
+      couponApplyError(
+        { active: true, maxRedemptions: 1, redeemedCount: 1 },
+        { now }
+      )
+    ).toBe("This coupon has been fully used (1/1)");
   });
 
   it("accepts an active flag on update", () => {
