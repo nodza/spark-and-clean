@@ -39,6 +39,15 @@ const CouponSchema = new Schema(
       enum: [...SERVICE_CITIES, null],
       default: null,
     },
+    /**
+     * Personal loyalty reward. Catalogue codes leave this empty.
+     * Preview and checkout accept the code only for this user.
+     */
+    ownerUserId: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

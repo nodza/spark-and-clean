@@ -19,6 +19,7 @@ export async function requestCouponPreview(input: {
   const res = await fetch("/api/coupons/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       code: input.code,
       estimateMin: input.estimateMin,
