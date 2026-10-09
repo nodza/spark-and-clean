@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   requireTechnicianSession: vi.fn(),
   connectDB: vi.fn(),
+  bookingFind: vi.fn(),
   bookingFindOne: vi.fn(),
   bookingFindOneAndUpdate: vi.fn(),
   rugAssetFindOne: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("@/lib/fieldMessageAuth", () => ({
 vi.mock("@/lib/mongodb", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/models/Booking", () => ({
   Booking: {
+    find: mocks.bookingFind,
     findOne: mocks.bookingFindOne,
     findOneAndUpdate: mocks.bookingFindOneAndUpdate,
   },
@@ -54,6 +56,15 @@ function query(result: unknown) {
   return request;
 }
 
+function findQuery(results: unknown[]) {
+  const request = {
+    select: vi.fn(() => request),
+    sort: vi.fn(() => request),
+    lean: vi.fn().mockResolvedValue(results),
+  };
+  return request;
+}
+
 function post(body: Record<string, unknown>) {
   return POST(
     new Request("http://localhost/api/rugs", {
@@ -76,6 +87,16 @@ beforeEach(() => {
     driverProfileId: "driver_thabo",
   });
   mocks.connectDB.mockResolvedValue(undefined);
+  mocks.bookingFind.mockImplementation(() =>
+    findQuery([
+      {
+        id: "SC-2025-0001",
+        customer: { name: "Ada Lovelace" },
+        rug: { photos: ["/uploads/rug.jpg"], tagCode },
+        status: "READY",
+      },
+    ])
+  );
   mocks.bookingFindOne.mockImplementation((filter) => {
     if (filter?.id === "SC-DEMO-1") {
       return {
@@ -138,9 +159,59 @@ describe("GET /api/rugs", () => {
         bookingId: "SC-2025-0001",
         status: "READY",
         thumbnails: ["/uploads/rug.jpg"],
+        isCurrent: true,
       },
     ]);
     expect(JSON.stringify(payload)).not.toMatch(/payment|coupon/i);
+  });
+
+  it("lists every historically tagged booking for one rug asset", async () => {
+    mocks.rugAssetFindOne.mockReturnValue({
+      lean: () =>
+        Promise.resolve({
+          currentBookingId: "SC-2026-0002",
+          photoUrls: ["/uploads/asset.jpg"],
+        }),
+    });
+    mocks.bookingFind.mockImplementation(() =>
+      findQuery([
+        {
+          id: "SC-2026-0002",
+          customer: { name: "Ada Lovelace" },
+          rug: { photos: ["/uploads/new.jpg"], tagCode },
+          status: "BOOKED",
+        },
+        {
+          id: "SC-2025-0001",
+          customer: { name: "Ada Lovelace" },
+          rug: { photos: ["/uploads/old.jpg"], tagCode },
+          status: "DELIVERED",
+        },
+      ])
+    );
+
+    const response = await search(tagCode);
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.results).toEqual([
+      {
+        tagCode,
+        customer: "Ada Lovelace",
+        bookingId: "SC-2026-0002",
+        status: "BOOKED",
+        thumbnails: ["/uploads/asset.jpg", "/uploads/new.jpg"],
+        isCurrent: true,
+      },
+      {
+        tagCode,
+        customer: "Ada Lovelace",
+        bookingId: "SC-2025-0001",
+        status: "DELIVERED",
+        thumbnails: ["/uploads/old.jpg"],
+        isCurrent: false,
+      },
+    ]);
   });
 
   it("accepts tagCode as an alternative query parameter", async () => {
@@ -152,29 +223,20 @@ describe("GET /api/rugs", () => {
     expect(mocks.rugAssetFindOne).toHaveBeenCalledWith({ tagCode });
   });
 
-  it("ignores a stale currentBookingId and falls back to the newest matching booking", async () => {
+  it("ignores a stale currentBookingId and falls back to tagged bookings", async () => {
     mocks.rugAssetFindOne.mockReturnValue({
       lean: () => Promise.resolve({ currentBookingId: "SC-STALE" }),
     });
-    mocks.bookingFindOne.mockImplementation((filter) => {
-      if (filter?.id === "SC-STALE") {
-        return query({
-          id: "SC-STALE",
-          customer: { name: "Old Job" },
-          rug: { photos: [], tagCode: "SC-RUG-OTHER" },
-          status: "DELIVERED",
-        });
-      }
-      if (filter?.["rug.tagCode"] === tagCode) {
-        return query({
+    mocks.bookingFind.mockImplementation(() =>
+      findQuery([
+        {
           id: "SC-2025-0099",
           customer: { name: "Ada Lovelace" },
           rug: { photos: ["/uploads/new.jpg"], tagCode },
           status: "IN_PLANT",
-        });
-      }
-      return query(null);
-    });
+        },
+      ])
+    );
 
     const response = await search(tagCode);
     const payload = await response.json();
@@ -187,16 +249,17 @@ describe("GET /api/rugs", () => {
         bookingId: "SC-2025-0099",
         status: "IN_PLANT",
         thumbnails: ["/uploads/new.jpg"],
+        isCurrent: false,
       },
     ]);
-    expect(mocks.bookingFindOne).toHaveBeenCalledWith({ "rug.tagCode": tagCode });
+    expect(mocks.bookingFind).toHaveBeenCalledWith({ "rug.tagCode": tagCode });
   });
 
   it("returns an empty result for an unknown tag", async () => {
     mocks.rugAssetFindOne.mockImplementation(() => ({
       lean: () => Promise.resolve(null),
     }));
-    mocks.bookingFindOne.mockReturnValue(query(null));
+    mocks.bookingFind.mockReturnValue(findQuery([]));
 
     const response = await search("SC-RUG-UNKNOWN");
     expect(response.status).toBe(200);

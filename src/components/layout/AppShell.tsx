@@ -6,6 +6,10 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { SupportFab } from "@/components/support/SupportFab";
+import {
+  hidesMarketingFooter,
+  hidesMarketingHeader,
+} from "@/lib/marketingChrome";
 
 function shouldShowSupportFab(pathname: string) {
   if (pathname === "/book" || pathname.startsWith("/book/")) return false;
@@ -22,44 +26,23 @@ function shouldShowSupportFab(pathname: string) {
   return true;
 }
 
-function isBookingFlowPath(pathname: string) {
-  return (
-    pathname === "/book" ||
-    pathname.startsWith("/book/") ||
-    pathname.startsWith("/booking")
-  );
-}
-
-const PORTAL_PATHS = [
-  "/admin",
-  "/dashboard",
-  "/portal",
-  "/tech",
-  "/booking",
-  "/login",
-  "/portal",
-  "/forgot-password",
-  "/reset-password",
-  "/signup",
-];
-
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const isPortal = PORTAL_PATHS.some((p) => pathname.startsWith(p));
-  const showFooter = !isBookingFlowPath(pathname);
+  const pathname = usePathname() ?? "";
+  const showHeader = !hidesMarketingHeader(pathname);
+  const showFooter = !hidesMarketingFooter(pathname);
 
-  // Portal layouts (PortalLayout / AuthLayout / TechLayout) fill the viewport themselves.
+  // Immersive routes (portals, technician app, booking status) fill the viewport themselves.
   return (
     <AuthProvider>
-      {isPortal ? (
-        children
-      ) : (
+      {showHeader ? (
         <>
           <Header />
           <main className="flex-1">{children}</main>
           {shouldShowSupportFab(pathname) && <SupportFab />}
           {showFooter ? <Footer /> : null}
         </>
+      ) : (
+        children
       )}
       <Toaster richColors position="top-right" closeButton />
     </AuthProvider>

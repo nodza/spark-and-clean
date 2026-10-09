@@ -17,6 +17,13 @@ Ops changes persist in MongoDB via `PATCH /api/bookings/[id]`.
 
 Never silently reset a `CLEANING` (etc.) job back to `SCHEDULED`.
 
+## Collection tag rule
+
+The shared booking PATCH rejects any transition to `COLLECTED` with HTTP 409
+when `rug.tagCode` is missing or blank. This applies to technicians and admins;
+the booking status remains unchanged until tag intake succeeds. It does not
+block `BOOKED` or `DELIVERED` updates.
+
 ## Auth
 
 - Technician: may only PATCH `status` on jobs assigned to them

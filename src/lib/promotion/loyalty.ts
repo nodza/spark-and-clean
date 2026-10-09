@@ -42,7 +42,13 @@ export async function punchOnce(booking: LoyaltyPunchTarget): Promise<boolean> {
   if (claim.modifiedCount !== 1) return false;
 
   try {
-    await User.updateOne({ _id: userId }, { $inc: { "loyalty.punches": 1 } });
+    const updated = await User.updateOne(
+      { _id: userId },
+      { $inc: { "loyalty.punches": 1 } }
+    );
+    if (updated.matchedCount !== 1) {
+      throw new Error("Could not award the loyalty punch.");
+    }
   } catch (err) {
     await Booking.updateOne(
       { id: booking.id, userId },
