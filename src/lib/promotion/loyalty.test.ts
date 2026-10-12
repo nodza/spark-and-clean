@@ -24,7 +24,7 @@ describe("punchOnce", () => {
   beforeEach(() => {
     bookingUpdateOne.mockReset();
     userUpdateOne.mockReset();
-    userUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+    userUpdateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
   });
 
   it("adds one punch the first time a user's booking is claimed", async () => {
@@ -78,6 +78,20 @@ describe("punchOnce", () => {
     expect(userUpdateOne).toHaveBeenCalledWith(
       { _id: sarahId },
       { $inc: { "loyalty.punches": 1 } }
+    );
+  });
+
+  it("releases the punch when the customer record is missing", async () => {
+    bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+    userUpdateOne.mockResolvedValue({ matchedCount: 0, modifiedCount: 0 });
+
+    await expect(punchOnce({ id: "SC-SARAH", userId: sarahId })).rejects.toThrow(
+      "Could not award the loyalty punch."
+    );
+
+    expect(bookingUpdateOne).toHaveBeenLastCalledWith(
+      { id: "SC-SARAH", userId: sarahId },
+      { $unset: { "promotion.loyaltyPunchedAt": "" } }
     );
   });
 

@@ -34,41 +34,47 @@ export async function GET(request: Request) {
     await connectDB();
     const asset = await RugAsset.findOne({ tagCode }).lean();
 
-    let booking =
+    // All bookings that historically carry this tag (repeat cleans keep prior tagCode).
+    const taggedBookings = await Booking.find({ "rug.tagCode": tagCode })
+      .select(LOOKUP_FIELDS)
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    let current =
       asset?.currentBookingId
-        ? await Booking.findOne({ id: asset.currentBookingId })
-            .select(LOOKUP_FIELDS)
-            .lean()
+        ? taggedBookings.find((b) => b.id === asset.currentBookingId) ?? null
         : null;
 
-    // Stale currentBookingId (tag moved/reused) — ignore and fall back.
-    if (booking && !bookingHasTag(booking, tagCode)) {
-      booking = null;
+    // Stale currentBookingId (tag moved/reused) — ignore for ordering.
+    if (current && !bookingHasTag(current, tagCode)) {
+      current = null;
     }
 
-    if (!booking) {
-      booking = await Booking.findOne({ "rug.tagCode": tagCode })
-        .select(LOOKUP_FIELDS)
-        .sort({ updatedAt: -1 })
-        .lean();
-    }
-    if (!booking) return NextResponse.json({ results: [] });
+    const ordered = current
+      ? [current, ...taggedBookings.filter((b) => b.id !== current.id)]
+      : taggedBookings;
 
-    const thumbnails = [
-      ...(asset?.photoUrls ?? []),
-      ...(booking.rug?.photos ?? []),
-    ].filter((photo, index, photos) => Boolean(photo) && photos.indexOf(photo) === index);
+    if (ordered.length === 0) return NextResponse.json({ results: [] });
 
+    const assetPhotos = asset?.photoUrls ?? [];
     return NextResponse.json({
-      results: [
-        {
+      results: ordered.map((booking, index) => {
+        const thumbnails = [
+          ...(index === 0 ? assetPhotos : []),
+          ...(booking.rug?.photos ?? []),
+        ].filter(
+          (photo, photoIndex, photos) =>
+            Boolean(photo) && photos.indexOf(photo) === photoIndex
+        );
+        return {
           tagCode,
           customer: booking.customer?.name ?? "",
           bookingId: booking.id,
           status: booking.status,
           thumbnails,
-        },
-      ],
+          isCurrent: Boolean(current && booking.id === current.id),
+        };
+      }),
     });
   } catch (err) {
     if (isHttpError(err)) {

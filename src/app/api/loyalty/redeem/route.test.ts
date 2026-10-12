@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   find: vi.fn(),
 }));
 
+vi.mock("@/lib/promotion/runInTransaction", () => ({
+  runInTransaction: async (work: (session: object) => Promise<unknown>) => work({}),
+}));
+
 vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
 vi.mock("@/lib/mongodb", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/models/User", () => ({
@@ -65,7 +69,7 @@ describe("POST /api/loyalty/redeem", () => {
         loyalty: { punches: 0, rewardsRedeemed: 1 },
       }),
     });
-    mocks.create.mockImplementation(async (doc: { code: string }) => doc);
+    mocks.create.mockImplementation(async (docs: { code: string }[]) => docs[0]);
 
     const res = await redeem();
     expect(res.status).toBe(200);
@@ -81,16 +85,16 @@ describe("POST /api/loyalty/redeem", () => {
           "loyalty.rewardsRedeemed": 1,
         },
       },
-      { new: true }
+      expect.objectContaining({ new: true, session: expect.any(Object) })
     );
 
-    const created = mocks.create.mock.calls[0][0] as {
+    const created = (mocks.create.mock.calls[0][0] as {
       code: string;
       type: string;
       value: number;
       maxRedemptions: number;
       ownerUserId: string;
-    };
+    }[])[0];
     expect(created).toMatchObject({
       type: "FIXED_CENTS",
       value: 50_000,
@@ -122,13 +126,13 @@ describe("POST /api/loyalty/redeem", () => {
         "loyalty.punches": { $gte: 5 },
       },
       expect.any(Object),
-      { new: true }
+      expect.objectContaining({ new: true, session: expect.any(Object) })
     );
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.updateOne).not.toHaveBeenCalled();
   });
 
-  it("puts the punches back when the coupon cannot be saved", async () => {
+  it("rejects the redeem when the coupon cannot be saved", async () => {
     mocks.findOneAndUpdate.mockReturnValue({
       lean: async () => ({
         loyalty: { punches: 0, rewardsRedeemed: 1 },
@@ -138,37 +142,26 @@ describe("POST /api/loyalty/redeem", () => {
 
     const res = await redeem();
     expect(res.status).toBe(500);
-    expect(mocks.updateOne).toHaveBeenCalledWith(
-      {
-        _id: sarahId,
-        "loyalty.rewardsRedeemed": { $gte: 1 },
-      },
-      {
-        $inc: {
-          "loyalty.punches": 5,
-          "loyalty.rewardsRedeemed": -1,
-        },
-      }
-    );
+    expect(mocks.updateOne).not.toHaveBeenCalled();
   });
 
-  it("keeps the punches spent when the coupon was saved despite a write error", async () => {
+  it("tries another code when the first reward code is already taken", async () => {
     mocks.findOneAndUpdate.mockReturnValue({
       lean: async () => ({
         loyalty: { punches: 0, rewardsRedeemed: 1 },
       }),
     });
-    mocks.create.mockRejectedValue(new Error("ack failed"));
-    mocks.findOne.mockReturnValue({
-      select: () => ({ lean: async () => ({ _id: "saved" }) }),
-    });
+    const duplicate = Object.assign(new Error("E11000 duplicate"), { code: 11000 });
+    mocks.create
+      .mockRejectedValueOnce(duplicate)
+      .mockImplementationOnce(async (docs: { code: string }[]) => docs[0]);
 
     const res = await redeem();
     expect(res.status).toBe(200);
-    const payload = await res.json();
-    expect(payload.punches).toBe(0);
-    expect(payload.code).toMatch(/^RWD[A-F0-9]{12}$/);
+    expect(mocks.create).toHaveBeenCalledTimes(2);
     expect(mocks.updateOne).not.toHaveBeenCalled();
+    const payload = await res.json();
+    expect(payload.code).toMatch(/^RWD[A-F0-9]{12}$/);
   });
 
   it("returns only this client's unused codes", async () => {

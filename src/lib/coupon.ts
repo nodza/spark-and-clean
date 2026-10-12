@@ -429,6 +429,10 @@ export type ClientCoupon = {
   validTo: string | null;
   city: ServiceCity | null;
   createdAt: string | null;
+  /** Set only for a personal reward. Public codes such as SPARK10 leave this empty. */
+  ownerUserId: string | null;
+  /** Display name for ownerUserId. Null on public codes. */
+  ownerName: string | null;
 };
 
 export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
@@ -448,6 +452,7 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
     typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
       ? doc.redeemedCount
       : 0;
+  const ownerUserId = readOwnerUserId(doc.ownerUserId) || null;
 
   return {
     id: String(doc._id ?? doc.id ?? ""),
@@ -461,6 +466,8 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
     validTo: toIso(doc.validTo),
     city,
     createdAt: toIso(doc.createdAt),
+    ownerUserId,
+    ownerName: null,
   };
 }
 

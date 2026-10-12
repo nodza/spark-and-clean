@@ -95,6 +95,28 @@ export async function POST(request: Request) {
 
     await connectDB();
 
+    if (bookingId) {
+      const booking = await Booking.findOne({ id: bookingId })
+        .select({ "customer.email": 1 })
+        .lean();
+      if (!booking) {
+        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      }
+      const bookingEmail = String(booking.customer?.email || "")
+        .trim()
+        .toLowerCase();
+      if (!bookingEmail || bookingEmail !== email) {
+        return NextResponse.json(
+          {
+            error:
+              "Use the email on this booking to attach it. No account was created.",
+            code: "BOOKING_EMAIL_MISMATCH",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const existing = await User.findOne({ email }).select("+passwordHash");
     if (existing && normalizeUserRole(existing.role) !== "client") {
       return NextResponse.json(
