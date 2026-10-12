@@ -19,6 +19,13 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   if (userId != null) {
     booking.userId = String(userId);
   }
+  const punchedAt = booking.promotion?.loyaltyPunchedAt as unknown;
+  if (punchedAt instanceof Date) {
+    booking.promotion = {
+      ...booking.promotion,
+      loyaltyPunchedAt: punchedAt.toISOString(),
+    };
+  }
   if (updatedAt instanceof Date) {
     booking.updatedAt = updatedAt.toISOString();
   } else if (typeof updatedAt === "string") {

@@ -18,7 +18,11 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+<<<<<<< HEAD
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
+=======
+import { punchOnce } from "@/lib/promotion/loyalty";
+>>>>>>> develop
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -289,6 +293,21 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if ($set.status === "DELIVERED") {
+      try {
+        await punchOnce({
+          id: String(existing.id),
+          userId: existing.userId,
+        });
+      } catch (err) {
+        await Booking.updateOne(
+          { id: String(existing.id), status: "DELIVERED" },
+          { $set: { status: existing.status } }
+        );
+        throw err;
+      }
     }
 
     return NextResponse.json(toClientBooking(doc as Record<string, unknown>));

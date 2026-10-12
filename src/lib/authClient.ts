@@ -11,6 +11,10 @@ export type AuthUser = {
   driverProfileId?: string;
   guest?: boolean;
   mustChangePassword?: boolean;
+  loyalty?: {
+    punches: number;
+    rewardsRedeemed: number;
+  };
 };
 
 export const AUTH_EVENT = "spark-auth-change";
