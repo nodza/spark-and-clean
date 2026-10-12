@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
   KeyRound,
   Mail,
+  MoreVertical,
+  Pencil,
   Phone,
   Plus,
   ShieldOff,
+  Trash2,
   Truck,
+  UserCheck,
   UserCog,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -25,12 +31,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import { FieldError } from "@/components/booking/FieldError";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { driverService } from "@/services/driverService";
 import { useBookingStore } from "@/store/useBookingStore";
 import {
   sanitizePhoneInput,
@@ -77,6 +85,11 @@ function assignmentBadge(driverIsActive: boolean | null | undefined) {
   };
 }
 
+function technicianLabel(technician: { name?: string; email: string }) {
+  const name = technician.name?.trim();
+  return name || technician.email;
+}
+
 function initials(name?: string, email?: string) {
   const source = (name || email || "?").trim();
   const parts = source.split(/\s+/).filter(Boolean);
@@ -105,6 +118,249 @@ function MetaRow({
       <Icon size={14} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
       <span className="min-w-0 truncate">{children}</span>
     </div>
+  );
+}
+
+function onActionMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  const items = Array.from(
+    event.currentTarget.querySelectorAll<HTMLButtonElement>(
+      '[role="menuitem"]:not(:disabled)'
+    )
+  );
+  if (items.length === 0) return;
+  const current = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    const next = current < 0 ? 0 : (current + 1) % items.length;
+    items[next]?.focus();
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    const next =
+      current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+    items[next]?.focus();
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    items[0]?.focus();
+  } else if (event.key === "End") {
+    event.preventDefault();
+    items[items.length - 1]?.focus();
+  }
+}
+
+function ActionMenuItem({
+  icon: Icon,
+  children,
+  onClick,
+  disabled,
+  destructive,
+  title,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      title={title}
+      className={`flex min-h-10 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13.5px] font-semibold transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+        destructive
+          ? "text-[#b33232] hover:bg-[#fff6f6] focus-visible:bg-[#fff6f6]"
+          : "text-[#000b49] hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb]"
+      }`}
+      onClick={onClick}
+    >
+      <Icon
+        size={15}
+        strokeWidth={2}
+        className={`shrink-0 ${destructive ? "text-[#b33232]" : "text-[#6b7280]"}`}
+        aria-hidden="true"
+      />
+      <span className="min-w-0 truncate">{children}</span>
+    </button>
+  );
+}
+
+function TechnicianActionsMenu({
+  technician,
+  busy,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  technician: TechnicianRow;
+  busy: boolean;
+  onEdit: (technician: TechnicianRow) => void;
+  onToggleActive: (technician: TechnicianRow) => void;
+  onDelete: (technician: TechnicianRow) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const label = technicianLabel(technician);
+  const isActive = technician.driverIsActive === true;
+  const canToggle = Boolean(technician.driverProfileId) && technician.driverIsActive !== null;
+  const StatusIcon = isActive ? UserX : UserCheck;
+
+  const choose = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="-mr-1.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[#9aa0a6] transition-colors hover:bg-[#f0f2f6] hover:text-[#000b49] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49] data-[state=open]:bg-[#f0f2f6] data-[state=open]:text-[#000b49] disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={`Actions for ${label}`}
+          disabled={busy}
+        >
+          <MoreVertical size={16} strokeWidth={2} aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={4}
+        className="w-52 max-w-[calc(100vw-1.5rem)] rounded-[12px] border-[#e3e7ed] bg-white p-1 shadow-[0_12px_32px_rgba(0,11,73,0.12)]"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          menuRef.current
+            ?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
+            ?.focus();
+        }}
+      >
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={`Actions for ${label}`}
+          onKeyDown={onActionMenuKeyDown}
+        >
+          <ActionMenuItem icon={Pencil} onClick={() => choose(() => onEdit(technician))}>
+            Edit
+          </ActionMenuItem>
+          <ActionMenuItem
+            icon={StatusIcon}
+            disabled={!canToggle || busy}
+            title={
+              canToggle
+                ? undefined
+                : "This technician has no driver profile"
+            }
+            onClick={() => choose(() => onToggleActive(technician))}
+          >
+            {busy ? "Updating…" : isActive ? "Deactivate" : "Activate"}
+          </ActionMenuItem>
+          <div className="mx-1.5 my-1 h-px bg-[#f0f2f6]" role="separator" />
+          <ActionMenuItem
+            icon={Trash2}
+            destructive
+            onClick={() => choose(() => onDelete(technician))}
+          >
+            Delete
+          </ActionMenuItem>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TechnicianCard({
+  technician,
+  todayJobs,
+  statusBusy,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  technician: TechnicianRow;
+  todayJobs: number;
+  statusBusy: boolean;
+  onEdit: (technician: TechnicianRow) => void;
+  onToggleActive: (technician: TechnicianRow) => void;
+  onDelete: (technician: TechnicianRow) => void;
+}) {
+  const badge = assignmentBadge(technician.driverIsActive);
+  const label = technicianLabel(technician);
+  const profileHref = `/admin/technicians/${technician.id}`;
+
+  return (
+    <article className="ds-card flex min-w-0 flex-col transition-shadow hover:shadow-[0_8px_24px_rgba(0,11,73,0.06)]">
+      <div className="flex min-w-0 items-center gap-3">
+        <Link
+          href={profileHref}
+          className="flex min-w-0 flex-1 items-center gap-[13px] rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[#000b49]/25 focus-visible:ring-offset-2"
+        >
+          <div
+            className="flex size-[46px] flex-none items-center justify-center rounded-full text-[16px] font-extrabold"
+            style={{ background: "#000b49", color: "#6cf3d5" }}
+          >
+            {initials(technician.name, technician.email)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div
+              className="truncate text-[15px] font-bold"
+              style={{ color: "#000b49" }}
+              title={label}
+            >
+              {label}
+            </div>
+            <div
+              className="text-meta mt-[3px] flex items-center gap-1.5"
+              style={{ color: "#9aa0a6" }}
+            >
+              <Mail size={12} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
+              <span className="truncate" title={technician.email}>
+                {technician.email}
+              </span>
+            </div>
+          </div>
+        </Link>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <span
+            className="rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
+            style={badge.style}
+          >
+            {badge.label}
+          </span>
+          <TechnicianActionsMenu
+            technician={technician}
+            busy={statusBusy}
+            onEdit={onEdit}
+            onToggleActive={onToggleActive}
+            onDelete={onDelete}
+          />
+        </div>
+      </div>
+      <Link
+        href={profileHref}
+        className="mt-[16px] block min-w-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[#000b49]/25 focus-visible:ring-offset-2"
+      >
+        <div className="-mx-[22px] mb-4 h-px bg-[#f0f2f6]" />
+        <MetaRow icon={Phone}>{technician.phone || "No phone"}</MetaRow>
+        <MetaRow icon={Truck} className="mt-[6px]">
+          {technician.vehicle || "No vehicle assigned"}
+        </MetaRow>
+        <MetaRow icon={CalendarDays} className="mt-[6px]">
+          {todayJobs === 1 ? "1 job today" : `${todayJobs} jobs today`}
+        </MetaRow>
+        {technician.disabledAt ? (
+          <MetaRow icon={ShieldOff} className="mt-[10px] font-bold" color="#8a6d00">
+            Login disabled
+          </MetaRow>
+        ) : null}
+        {technician.mustChangePassword ? (
+          <MetaRow icon={KeyRound} className="mt-[10px] font-bold" color="#8a6d00">
+            Must change password on next login
+          </MetaRow>
+        ) : null}
+      </Link>
+    </article>
   );
 }
 
@@ -156,6 +412,21 @@ export default function AdminTechniciansPage() {
   );
   const [password, setPassword] = useState("");
 
+  const [editing, setEditing] = useState<TechnicianRow | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [editFieldErrors, setEditFieldErrors] = useState<FieldErrors>({});
+  const [editTouched, setEditTouched] = useState<
+    Partial<Record<"name" | "phone", boolean>>
+  >({});
+
+  const [removing, setRemoving] = useState<TechnicianRow | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+
   const markTouched = (field: TechFormField) =>
     setTouched((prev) => ({ ...prev, [field]: true }));
 
@@ -177,6 +448,17 @@ export default function AdminTechniciansPage() {
   const nameError = liveError("name", () => validateCustomerName(name));
   const phoneError = liveError("phone", () => validateSaPhone(phone));
   const emailError = liveError("email", () => validateEmail(email));
+
+  const editLiveError = (
+    field: "name" | "phone",
+    validator: () => string | null
+  ) =>
+    editTouched[field] || editFieldErrors[field]
+      ? editFieldErrors[field] || validator()
+      : null;
+
+  const editNameError = editLiveError("name", () => validateCustomerName(editName));
+  const editPhoneError = editLiveError("phone", () => validateSaPhone(editPhone));
 
   const load = async () => {
     setLoadError(null);
@@ -272,6 +554,174 @@ export default function AdminTechniciansPage() {
     }
   };
 
+  const closeEdit = () => {
+    if (editSaving) return;
+    setEditing(null);
+    setEditFormError(null);
+    setEditFieldErrors({});
+    setEditTouched({});
+  };
+
+  const openEdit = (technician: TechnicianRow) => {
+    setEditing(technician);
+    setEditName(technician.name ?? "");
+    setEditPhone(technician.phone ?? "");
+    setEditFormError(null);
+    setEditFieldErrors({});
+    setEditTouched({});
+  };
+
+  const clearEditFieldError = (field: "name" | "phone") => {
+    setEditFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    if (editFormError) setEditFormError(null);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing || editSaving) return;
+    setEditFormError(null);
+
+    const nextErrors: FieldErrors = {};
+    const nameErr = validateCustomerName(editName);
+    if (nameErr) nextErrors.name = nameErr;
+    const phoneErr = validateSaPhone(editPhone);
+    if (phoneErr) nextErrors.phone = phoneErr;
+    setEditFieldErrors(nextErrors);
+    setEditTouched({ name: true, phone: true });
+    if (Object.keys(nextErrors).length > 0) return;
+
+    if (!editing.driverProfileId) {
+      setEditFormError(
+        "This technician has no driver profile, so name and phone cannot be saved."
+      );
+      return;
+    }
+
+    const savedName = editName.trim().replace(/\s+/g, " ");
+    const savedPhone = editPhone.trim();
+    setEditSaving(true);
+    try {
+      const res = await fetch(
+        `/api/drivers/${encodeURIComponent(editing.driverProfileId)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: savedName, phone: savedPhone }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          typeof data.error === "string" ? data.error : "Could not save technician";
+        const lower = message.toLowerCase();
+        if (lower.includes("name")) {
+          setEditFieldErrors({ name: message });
+        } else if (lower.includes("phone") || lower.includes("mobile")) {
+          setEditFieldErrors({ phone: message });
+        } else {
+          setEditFormError(message);
+        }
+        return;
+      }
+      await load();
+      setEditing(null);
+      toast.success("Name and phone saved");
+    } catch {
+      setEditFormError("Could not save technician. Please try again.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (technician: TechnicianRow) => {
+    if (!technician.driverProfileId || technician.driverIsActive == null) return;
+    if (statusBusyId) return;
+    const nextActive = technician.driverIsActive === false;
+    const personName = technicianLabel(technician);
+    setStatusBusyId(technician.id);
+    setTechnicians((rows) =>
+      rows.map((row) =>
+        row.id === technician.id
+          ? {
+              ...row,
+              driverIsActive: nextActive,
+              disabledAt: nextActive ? null : new Date().toISOString(),
+            }
+          : row
+      )
+    );
+    try {
+      await driverService.updateIsActive(technician.driverProfileId, nextActive);
+      toast.success(
+        nextActive ? `${personName} is now active` : `${personName} is now inactive`
+      );
+      await load();
+    } catch (err) {
+      setTechnicians((rows) =>
+        rows.map((row) => (row.id === technician.id ? technician : row))
+      );
+      toast.error(
+        err instanceof Error ? err.message : "Could not update status"
+      );
+    } finally {
+      setStatusBusyId(null);
+    }
+  };
+
+  const openDelete = (technician: TechnicianRow) => {
+    setRemoveError(null);
+    setRemoving(technician);
+  };
+
+  const closeDelete = () => {
+    if (removeBusy) return;
+    setRemoving(null);
+    setRemoveError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!removing || removeBusy) return;
+    const personName = technicianLabel(removing);
+
+    if (!removing.driverProfileId) {
+      setRemoveError(
+        `${personName} has no driver profile, so they cannot be removed from this list.`
+      );
+      return;
+    }
+
+    setRemoveBusy(true);
+    setRemoveError(null);
+    try {
+      const res = await fetch(
+        `/api/drivers/${encodeURIComponent(removing.driverProfileId)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRemoveError(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not delete technician"
+        );
+        return;
+      }
+      await load();
+      setRemoving(null);
+      toast.success(`${personName} was removed`);
+    } catch {
+      setRemoveError("Could not delete technician. Please try again.");
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
   if (ready && user && !isFullAdmin) {
     return (
       <AdminPortalShell pageTitle="Technicians" active="technicians">
@@ -296,8 +746,8 @@ export default function AdminTechniciansPage() {
       topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
-        <div className="flex items-center justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#9aa0a6" }}>
               <UserCog size={14} strokeWidth={1.8} aria-hidden="true" />
               STAFF LOGINS
@@ -306,7 +756,11 @@ export default function AdminTechniciansPage() {
               Technician accounts are created here — there is no public driver signup.
             </p>
           </div>
-          <Button type="button" onClick={() => setFormOpen(true)}>
+          <Button
+            type="button"
+            className="min-h-11 w-full shrink-0 sm:w-auto"
+            onClick={() => setFormOpen(true)}
+          >
             <Plus size={16} strokeWidth={2} aria-hidden="true" />
             Add technician
           </Button>
@@ -355,65 +809,24 @@ export default function AdminTechniciansPage() {
           </p>
         )}
 
-        <div className="grid grid-cols-1 gap-[14px] md:grid-cols-2 xl:grid-cols-3">
-          {technicians.map((t) => {
-            const badge = assignmentBadge(t.driverIsActive);
-            const todayJobs = countTechnicianJobsOnDay(
-              bookings,
-              t.driverProfileId,
-              today
-            );
-            return (
-              <Link
-                key={t.id}
-                href={`/admin/technicians/${t.id}`}
-                className="ds-card block transition-shadow hover:shadow-md"
-              >
-                <div className="flex items-center gap-[13px]">
-                  <div
-                    className="flex size-[46px] flex-none items-center justify-center rounded-full text-[16px] font-extrabold"
-                    style={{ background: "#000b49", color: "#6cf3d5" }}
-                  >
-                    {initials(t.name, t.email)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-bold" style={{ color: "#000b49" }}>
-                      {t.name || t.email}
-                    </div>
-                    <div className="text-meta mt-[3px] flex items-center gap-1.5 truncate" style={{ color: "#9aa0a6" }}>
-                      <Mail size={12} strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
-                      <span className="truncate">{t.email}</span>
-                    </div>
-                  </div>
-                  <span
-                    className="rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
-                    style={badge.style}
-                  >
-                    {badge.label}
-                  </span>
-                </div>
-                <div className="my-[16px] h-px" style={{ background: "#f0f2f6" }} />
-                <MetaRow icon={Phone}>{t.phone || "No phone"}</MetaRow>
-                <MetaRow icon={Truck} className="mt-[6px]">
-                  {t.vehicle || "No vehicle assigned"}
-                </MetaRow>
-                <MetaRow icon={CalendarDays} className="mt-[6px]">
-                  {todayJobs === 1 ? "1 job today" : `${todayJobs} jobs today`}
-                </MetaRow>
-                {t.disabledAt ? (
-                  <MetaRow icon={ShieldOff} className="mt-[10px] font-bold" color="#8a6d00">
-                    Login disabled
-                  </MetaRow>
-                ) : null}
-                {t.mustChangePassword ? (
-                  <MetaRow icon={KeyRound} className="mt-[10px] font-bold" color="#8a6d00">
-                    Must change password on next login
-                  </MetaRow>
-                ) : null}
-              </Link>
-            );
-          })}
-        </div>
+        <ul className="grid list-none grid-cols-1 gap-[14px] p-0 md:grid-cols-2 xl:grid-cols-3">
+          {technicians.map((t) => (
+            <li key={t.id} className="min-w-0">
+              <TechnicianCard
+                technician={t}
+                todayJobs={countTechnicianJobsOnDay(
+                  bookings,
+                  t.driverProfileId,
+                  today
+                )}
+                statusBusy={statusBusyId === t.id}
+                onEdit={openEdit}
+                onToggleActive={(technician) => void handleToggleActive(technician)}
+                onDelete={openDelete}
+              />
+            </li>
+          ))}
+        </ul>
 
         {loading && technicians.length === 0 && !loadError ? (
           <div
@@ -572,6 +985,180 @@ export default function AdminTechniciansPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(editing)}
+        onOpenChange={(open) => {
+          if (!open) closeEdit();
+        }}
+      >
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-md">
+          {editing ? (
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(e) => void handleEdit(e)}
+            >
+              <DialogHeader className="shrink-0 pr-8">
+                <DialogTitle>Edit {technicianLabel(editing)}</DialogTitle>
+                <DialogDescription>
+                  Update the name and phone shown on this card and on the
+                  profile. Email stays the login.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-tech-name">Name</Label>
+                  <Input
+                    id="edit-tech-name"
+                    autoComplete="name"
+                    autoFocus
+                    value={editName}
+                    aria-invalid={Boolean(editNameError) || undefined}
+                    aria-describedby={
+                      editNameError ? "edit-tech-name-error" : undefined
+                    }
+                    onBlur={() =>
+                      setEditTouched((prev) => ({ ...prev, name: true }))
+                    }
+                    onChange={(e) => {
+                      setEditName(e.target.value);
+                      clearEditFieldError("name");
+                    }}
+                    required
+                  />
+                  <FieldError id="edit-tech-name-error" message={editNameError} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-tech-phone">Phone</Label>
+                  <Input
+                    id="edit-tech-phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="082 123 4567"
+                    value={editPhone}
+                    aria-invalid={Boolean(editPhoneError) || undefined}
+                    aria-describedby={
+                      editPhoneError
+                        ? "edit-tech-phone-error"
+                        : "edit-tech-phone-hint"
+                    }
+                    onBlur={() =>
+                      setEditTouched((prev) => ({ ...prev, phone: true }))
+                    }
+                    onChange={(e) => {
+                      setEditPhone(sanitizePhoneInput(e.target.value));
+                      clearEditFieldError("phone");
+                    }}
+                    required
+                  />
+                  {editPhoneError ? (
+                    <FieldError
+                      id="edit-tech-phone-error"
+                      message={editPhoneError}
+                    />
+                  ) : (
+                    <p
+                      id="edit-tech-phone-hint"
+                      className="text-[12px] text-[#9aa0a6]"
+                    >
+                      SA numbers: 060, 071, 082 or +27…
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-tech-email">Email (login)</Label>
+                  <Input
+                    id="edit-tech-email"
+                    type="email"
+                    value={editing.email}
+                    readOnly
+                    aria-readonly="true"
+                    tabIndex={0}
+                    className="cursor-default bg-[#f7f9fb] text-[#6b7280] focus:border-[#dfe2e7] focus:shadow-none"
+                    aria-describedby="edit-tech-email-hint"
+                  />
+                  <p id="edit-tech-email-hint" className="text-[12px] text-[#9aa0a6]">
+                    Email is the login and cannot be changed here.
+                  </p>
+                </div>
+                {editFormError ? (
+                  <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
+                    {editFormError}
+                  </p>
+                ) : null}
+              </div>
+              <DialogFooter className="mt-5 shrink-0">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-11"
+                  disabled={editSaving}
+                  onClick={closeEdit}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="min-h-11" disabled={editSaving}>
+                  {editSaving ? "Saving…" : "Save"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(removing)}
+        onOpenChange={(open) => {
+          if (!open) closeDelete();
+        }}
+      >
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-md">
+          {removing ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <DialogHeader className="pr-8">
+                  <DialogTitle>Delete {technicianLabel(removing)}?</DialogTitle>
+                  <DialogDescription>
+                    This removes the technician login and driver profile for{" "}
+                    {technicianLabel(removing)}. Delivered and cancelled bookings
+                    stay on record. This cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                {removeError ? (
+                  <p
+                    className="mt-4 text-sm break-words"
+                    style={{ color: "#b3261e" }}
+                    role="alert"
+                  >
+                    {removeError}
+                  </p>
+                ) : null}
+              </div>
+              <DialogFooter className="mt-6 shrink-0 flex-col sm:flex-row">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-11"
+                  disabled={removeBusy}
+                  onClick={closeDelete}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="min-h-11"
+                  disabled={removeBusy}
+                  onClick={() => void handleDelete()}
+                >
+                  {removeBusy ? "Deleting…" : "Delete"}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </AdminPortalShell>

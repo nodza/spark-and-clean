@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   CalendarDays,
@@ -11,11 +11,13 @@ import {
   MapPin,
   Phone,
   StickyNote,
+  Trash2,
   Truck,
   User,
   UserCog,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { driverService } from "@/services/driverService";
 import { useBookingStore } from "@/store/useBookingStore";
 import { AdminBackLink } from "@/components/admin/AdminBackLink";
@@ -24,6 +26,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import {
   formatBookingCollection,
@@ -110,6 +120,7 @@ function JobList({ jobs }: { jobs: Booking[] }) {
 
 export default function TechnicianProfilePage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const technicianId = params.id;
   const { bookings, fetchBookings } = useBookingStore();
   const [technician, setTechnician] = useState<Technician | null>(null);
@@ -123,6 +134,9 @@ export default function TechnicianProfilePage() {
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const loadNotes = useCallback(
     async (driverId: string, signal?: AbortSignal) => {
@@ -247,6 +261,49 @@ export default function TechnicianProfilePage() {
       setError(err instanceof Error ? err.message : "Could not update status");
     } finally {
       setSavingStatus(false);
+    }
+  };
+
+  const closeDelete = () => {
+    if (deleteBusy) return;
+    setDeleteOpen(false);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!technician || deleteBusy) return;
+    const personName = technician.name?.trim() || technician.email;
+    const profileId = driver?.id ?? technician.driverProfileId;
+
+    if (!profileId) {
+      setDeleteError(
+        `${personName} has no driver profile, so they cannot be removed from this page.`
+      );
+      return;
+    }
+
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/drivers/${encodeURIComponent(profileId)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleteError(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not delete technician"
+        );
+        return;
+      }
+      toast.success(`${personName} was removed`);
+      router.push("/admin/technicians");
+    } catch {
+      setDeleteError("Could not delete technician. Please try again.");
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -585,9 +642,92 @@ export default function TechnicianProfilePage() {
                 </p>
               </div>
             )}
+
+            <section
+              className="ds-card"
+              style={{ borderColor: "#f3d0d0", background: "#fff8f8" }}
+              aria-labelledby="technician-delete-heading"
+            >
+              <div className="flex items-center gap-2 text-eyebrow" style={{ color: "#b33232" }}>
+                <Trash2 size={14} strokeWidth={1.8} aria-hidden="true" />
+                DELETE
+              </div>
+              <h2
+                id="technician-delete-heading"
+                className="mt-[10px] text-[15px] font-extrabold text-[#000b49]"
+              >
+                Delete this technician
+              </h2>
+              <p className="text-meta mt-[8px]" style={{ color: "#6b7280" }}>
+                Delivered and cancelled bookings stay. Open jobs, and any vehicle that still
+                lists them, have to be cleared first.
+              </p>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mt-[14px] min-h-11 w-full"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                }}
+              >
+                Delete technician
+              </Button>
+            </section>
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDelete();
+        }}
+      >
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-md">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <DialogHeader className="pr-8">
+                <DialogTitle>Delete {title}?</DialogTitle>
+                <DialogDescription>
+                  This removes the technician login and driver profile.
+                  Delivered and cancelled bookings stay on record. This cannot be
+                  undone.
+                </DialogDescription>
+              </DialogHeader>
+              {deleteError ? (
+                <p
+                  className="mt-4 text-sm break-words"
+                  style={{ color: "#b3261e" }}
+                  role="alert"
+                >
+                  {deleteError}
+                </p>
+              ) : null}
+            </div>
+            <DialogFooter className="mt-6 shrink-0 flex-col sm:flex-row">
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-11"
+                disabled={deleteBusy}
+                onClick={closeDelete}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="min-h-11"
+                disabled={deleteBusy}
+                onClick={() => void handleDelete()}
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminPortalShell>
   );
 }
