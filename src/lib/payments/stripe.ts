@@ -29,7 +29,6 @@ export function getStripe(): Stripe {
 
 async function createCheckoutSession(input: {
   bookingId: string;
-  customerEmail: string;
   amountCents: number;
   kind: "DEPOSIT" | "BALANCE";
   productName: string;
@@ -77,7 +76,6 @@ async function createCheckoutSession(input: {
 
 export async function createDepositCheckoutSession(input: {
   bookingId: string;
-  customerEmail: string;
   amountDueCents: number;
 }): Promise<{ clientSecret: string; amountCents: number }> {
   const amountCents = depositAmountCents(input.amountDueCents);
@@ -88,7 +86,6 @@ export async function createDepositCheckoutSession(input: {
   const percent = Math.round(DEPOSIT_FRACTION * 100);
   return createCheckoutSession({
     bookingId: input.bookingId,
-    customerEmail: input.customerEmail,
     amountCents,
     kind: "DEPOSIT",
     productName: `Collection deposit · ${input.bookingId}`,
@@ -98,7 +95,6 @@ export async function createDepositCheckoutSession(input: {
 
 export async function createBalanceCheckoutSession(input: {
   bookingId: string;
-  customerEmail: string;
   amountCents: number;
 }): Promise<{ clientSecret: string; amountCents: number }> {
   const amountCents = Math.max(0, Math.round(input.amountCents));
@@ -108,7 +104,6 @@ export async function createBalanceCheckoutSession(input: {
 
   return createCheckoutSession({
     bookingId: input.bookingId,
-    customerEmail: input.customerEmail,
     amountCents,
     kind: "BALANCE",
     productName: `Remaining balance · ${input.bookingId}`,

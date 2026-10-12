@@ -110,7 +110,6 @@ export async function POST(request: Request) {
       if (kind === "DEPOSIT") {
         const checkout = await createDepositCheckoutSession({
           bookingId: booking.id,
-          customerEmail: booking.customer.email,
           amountDueCents: amountDueCentsForBooking(booking),
         });
         return NextResponse.json({
@@ -122,7 +121,6 @@ export async function POST(request: Request) {
 
       const checkout = await createBalanceCheckoutSession({
         bookingId: booking.id,
-        customerEmail: booking.customer.email,
         amountCents,
       });
       return NextResponse.json({

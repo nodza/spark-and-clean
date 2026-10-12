@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, Loader2, ShieldAlert } from "lucide-react";
@@ -95,12 +95,20 @@ export default function BookingStatusPage() {
   }
 
   return frame(
-    <ClientBookingDetail
-      booking={booking}
-      signedInClient={signedInClient}
-      user={user}
-      error={error}
-      onRefresh={() => void refresh()}
-    />
+    <Suspense
+      fallback={
+        <div className="px-4 py-16 text-center text-sm text-[#6b7280]" role="status">
+          Loading booking…
+        </div>
+      }
+    >
+      <ClientBookingDetail
+        booking={booking}
+        signedInClient={signedInClient}
+        user={user}
+        error={error}
+        onRefresh={() => void refresh()}
+      />
+    </Suspense>
   );
 }

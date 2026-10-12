@@ -18,8 +18,30 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 
 type Params = { params: Promise<{ id: string }> };
+
+const TECHNICIAN_PHONE_STATUSES = new Set<BookingStatus>([
+  "COLLECTED",
+  "CLEANING",
+  "DRYING",
+  "READY",
+  "DELIVERED",
+]);
+
+/**
+ * Staff phone stays off a public tracking link until the rug is collected,
+ * unless the signed-in client owns the booking.
+ */
+function canShareTechnicianPhone(
+  session: Awaited<ReturnType<typeof getSession>>,
+  booking: { status: BookingStatus; userId?: string; customer: { email: string } }
+): boolean {
+  if (session?.role === "admin" || session?.role === "technician") return true;
+  if (clientOwnsBooking(session, booking)) return true;
+  return TECHNICIAN_PHONE_STATUSES.has(booking.status);
+}
 
 /** Name and phone for the customer. Other driver fields stay off this payload. */
 async function customerTechnician(driverId?: string) {
@@ -73,7 +95,18 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     const technician = await customerTechnician(booking.assignedDriverId);
-    return NextResponse.json(technician ? { ...booking, technician } : booking);
+    const sharedTechnician =
+      technician?.phone &&
+      !canShareTechnicianPhone(session, {
+        status: booking.status,
+        userId: booking.userId,
+        customer: booking.customer,
+      })
+        ? { name: technician.name }
+        : technician;
+    return NextResponse.json(
+      sharedTechnician ? { ...booking, technician: sharedTechnician } : booking
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch booking";
     return NextResponse.json({ error: message }, { status: 500 });

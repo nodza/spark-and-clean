@@ -36,7 +36,6 @@ describe("createDepositCheckoutSession", () => {
   it("sends bookingId and kind DEPOSIT and does not describe a paid booking", async () => {
     const result = await createDepositCheckoutSession({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountDueCents: 15000,
     });
 
@@ -79,7 +78,6 @@ describe("createBalanceCheckoutSession", () => {
   it("charges the remaining cents with kind BALANCE", async () => {
     const result = await createBalanceCheckoutSession({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountCents: 7500,
     });
 

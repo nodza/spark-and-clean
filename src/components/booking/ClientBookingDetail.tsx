@@ -346,6 +346,7 @@ export function ClientBookingDetail({
                 name={technicianName || "your technician"}
                 phone={technicianPhone}
                 bookingId={booking.id}
+                phoneReady={alreadyCollected || clientOwnsBooking(user, booking)}
               />
             ) : null}
             <p className="mt-[18px] text-[12px] leading-relaxed text-[#9aa0a6]">
@@ -455,6 +456,7 @@ export function ClientBookingDetail({
             <InvoicePayment
               booking={booking}
               canPay={canPay}
+              signedInClient={signedInClient}
               payKind={payKind}
               payCents={payCents}
               depositPercent={depositPercent}
@@ -475,14 +477,24 @@ function TechnicianContact({
   name,
   phone,
   bookingId,
+  phoneReady,
 }: {
   name: string;
   phone: string;
   bookingId: string;
+  phoneReady: boolean;
 }) {
   const whatsappText = `Hi ${name}, I have a question about booking ${bookingId}.`;
   const buttonClass =
     "flex min-h-11 flex-1 flex-col items-center justify-center gap-[7px] rounded-[10px] py-[13px] text-white no-underline";
+
+  if (!phoneReady) {
+    return (
+      <p className="mt-5 text-[12.5px] leading-relaxed text-[#6b7280]">
+        Call and WhatsApp are available after this rug is collected.
+      </p>
+    );
+  }
 
   if (!phone) {
     return (
@@ -541,6 +553,7 @@ function TechnicianContact({
 function InvoicePayment({
   booking,
   canPay,
+  signedInClient,
   payKind,
   payCents,
   depositPercent,
@@ -551,6 +564,7 @@ function InvoicePayment({
 }: {
   booking: Booking;
   canPay: boolean;
+  signedInClient: boolean;
   payKind: "DEPOSIT" | "BALANCE";
   payCents: number;
   depositPercent: number;
@@ -591,12 +605,20 @@ function InvoicePayment({
     );
   }
 
+  if (payCents < 1) {
+    return (
+      <p className="text-[13px] leading-relaxed text-[#6b7280]">
+        {booking.paymentStatus === "DEPOSIT"
+          ? "There is no remaining balance to collect on this booking."
+          : "There is nothing to collect as a deposit on this booking."}
+      </p>
+    );
+  }
+
   const explanation =
-    payCents < 1
-      ? null
-      : booking.paymentStatus === "DEPOSIT"
-        ? `Deposit received. ${formatRand(outstandingCents)} remains before delivery.`
-        : `A ${depositPercent}% deposit holds the collection slot. The remaining ${formatRand(afterDepositCents)} is due before delivery.`;
+    booking.paymentStatus === "DEPOSIT"
+      ? `Deposit received. ${formatRand(outstandingCents)} remains before delivery.`
+      : `A ${depositPercent}% deposit holds the collection slot. The remaining ${formatRand(afterDepositCents)} is due before delivery.`;
 
   return (
     <div className="space-y-3">
@@ -620,6 +642,10 @@ function InvoicePayment({
           kind={payKind}
           onPaid={onPaid}
         />
+      ) : signedInClient ? (
+        <p className="text-[13px] leading-relaxed text-[#6b7280]">
+          This booking is not linked to this account, so you can&apos;t pay it from here.
+        </p>
       ) : (
         <div className="space-y-3">
           <p className="text-[13px] leading-relaxed text-[#6b7280]">
