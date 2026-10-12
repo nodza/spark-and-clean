@@ -90,6 +90,10 @@ export interface Booking {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
+  technician?: {
+    name: string;
+    phone?: string;
+  };
   updatedAt?: string;
   createdAt: string;
 }
