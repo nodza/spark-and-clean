@@ -18,11 +18,8 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
-<<<<<<< HEAD
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
-=======
 import { punchOnce } from "@/lib/promotion/loyalty";
->>>>>>> develop
 
 type Params = { params: Promise<{ id: string }> };
 
