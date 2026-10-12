@@ -103,6 +103,28 @@ const UserSchema = new Schema(
      * Technician → Driver profile (`drivers.id`) for display name and current bakkie (E5).
      */
     driverProfileId: { type: String, trim: true, index: true, sparse: true },
+    /**
+     * Stable client share code. Absent for technicians and admins.
+     * Sparse so those accounts do not collide on an empty value.
+     */
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      uppercase: true,
+    },
+    /** Client who shared the ref used at signup. Credited on this user's first delivery. */
+    referredByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+    /**
+     * Set when the referrer has received the one referral punch.
+     * A later delivery of this user does not credit them again.
+     */
+    referralRewardedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

@@ -18,6 +18,10 @@ import {
   validatePasswordStrength,
 } from "@/lib/passwordRules";
 import { toPublicApiError } from "@/lib/publicApiError";
+import {
+  ensureClientReferralCode,
+  referrerIdForCode,
+} from "@/lib/referral";
 
 /**
  * Create a password-based **client** account (never admin/technician)
@@ -160,6 +164,32 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = String(user._id);
+    try {
+      await ensureClientReferralCode(userId);
+    } catch (err) {
+      console.error("[api/auth/register] referral code", err);
+    }
+
+    const ref = typeof body.ref === "string" ? body.ref : "";
+    try {
+      const referrerId = await referrerIdForCode(ref, userId);
+      if (referrerId) {
+        await User.updateOne(
+          {
+            _id: user._id,
+            $or: [
+              { referredByUserId: { $exists: false } },
+              { referredByUserId: null },
+            ],
+          },
+          { $set: { referredByUserId: referrerId } }
+        );
+      }
+    } catch (err) {
+      console.error("[api/auth/register] referral", err);
+    }
+
     if (bookingId) {
       await Booking.updateOne(
         { id: bookingId, "customer.email": email },
@@ -167,7 +197,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const userId = String(user._id);
     const attached = await attachUnclaimedBookingsByEmail(userId, email);
 
     const sessionUser = {

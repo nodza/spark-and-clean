@@ -33,8 +33,10 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const ref = searchParams.get("ref");
   const signupParams = new URLSearchParams({
     ...(email.trim() ? { email: email.trim() } : {}),
+    ...(ref?.trim() ? { ref: ref.trim() } : {}),
   });
   const signupHref = signupParams.toString()
     ? `/signup?${signupParams.toString()}`

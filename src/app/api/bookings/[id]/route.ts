@@ -19,6 +19,7 @@ import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { punchOnce } from "@/lib/promotion/loyalty";
+import { creditReferrerOnce } from "@/lib/referral";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -248,10 +249,12 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if ($set.status === "DELIVERED") {
       try {
-        await punchOnce({
+        const delivered = {
           id: String(existing.id),
           userId: existing.userId,
-        });
+        };
+        await punchOnce(delivered);
+        await creditReferrerOnce(delivered);
       } catch (err) {
         await Booking.updateOne(
           { id: String(existing.id), status: "DELIVERED" },

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   punchOnce: vi.fn(),
+  creditReferrerOnce: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
@@ -20,6 +21,9 @@ vi.mock("@/models/Booking", () => ({
 }));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
+}));
+vi.mock("@/lib/referral", () => ({
+  creditReferrerOnce: mocks.creditReferrerOnce,
 }));
 
 import { PATCH } from "./route";
@@ -63,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.punchOnce.mockResolvedValue(true);
+  mocks.creditReferrerOnce.mockResolvedValue(true);
   mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
@@ -87,6 +92,14 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       id: "SC-SARAH",
       userId: sarahId,
     });
+    expect(mocks.creditReferrerOnce).toHaveBeenCalledTimes(1);
+    expect(mocks.creditReferrerOnce).toHaveBeenCalledWith({
+      id: "SC-SARAH",
+      userId: sarahId,
+    });
+    expect(mocks.punchOnce.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.creditReferrerOnce.mock.invocationCallOrder[0]
+    );
   });
 
   it("calls the same punch when a technician marks the job delivered", async () => {
@@ -116,6 +129,7 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+    expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
   });
 
   it("restores the previous status when the punch cannot be saved", async () => {
@@ -126,6 +140,24 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(500);
     expect(payload.error).toBe("Could not award the loyalty punch.");
+    expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+    expect(mocks.bookingUpdateOne).toHaveBeenCalledWith(
+      { id: "SC-SARAH", status: "DELIVERED" },
+      { $set: { status: "READY" } }
+    );
+  });
+
+  it("restores the previous status when the referrer credit cannot be saved", async () => {
+    mocks.creditReferrerOnce.mockRejectedValue(
+      new Error("Could not credit the referrer.")
+    );
+
+    const res = await patch({ status: "DELIVERED" });
+    const payload = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(payload.error).toBe("Could not credit the referrer.");
+    expect(mocks.punchOnce).toHaveBeenCalledTimes(1);
     expect(mocks.bookingUpdateOne).toHaveBeenCalledWith(
       { id: "SC-SARAH", status: "DELIVERED" },
       { $set: { status: "READY" } }
@@ -137,5 +169,6 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+    expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
   });
 });
