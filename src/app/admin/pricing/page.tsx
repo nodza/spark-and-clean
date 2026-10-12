@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Tag } from "lucide-react";
+import { Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,7 +59,7 @@ type CouponFormField = "code" | "value" | "maxRedemptions" | "validFrom" | "vali
 
 const ANY_CITY = "any";
 const TABLE_COLS =
-  "minmax(110px, 1.1fr) minmax(72px, 0.7fr) minmax(110px, 0.9fr) minmax(72px, 0.55fr) minmax(150px, 1.2fr) 88px 108px";
+  "minmax(110px, 1.1fr) minmax(72px, 0.7fr) minmax(110px, 0.9fr) minmax(72px, 0.55fr) minmax(150px, 1.2fr) 88px 240px";
 
 export default function AdminPricingPage() {
   const { user, ready } = useAuth();
@@ -72,6 +72,7 @@ export default function AdminPricingPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<CouponRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -179,7 +180,58 @@ export default function AdminPricingPage() {
     }
   };
 
+  const openEdit = (coupon: CouponRow) => {
+    setEditingCoupon(coupon);
+    setCode(coupon.code);
+    setType(coupon.type);
+    setValue(
+      coupon.type === "PERCENT"
+        ? String(coupon.value)
+        : (coupon.value / 100).toFixed(2)
+    );
+    setCity(coupon.city ?? ANY_CITY);
+    setMaxRedemptions(
+      coupon.maxRedemptions == null ? "" : String(coupon.maxRedemptions)
+    );
+    setValidFrom(coupon.validFrom?.slice(0, 10) ?? "");
+    setValidTo(coupon.validTo?.slice(0, 10) ?? "");
+    setActive(coupon.active);
+    setFormError(null);
+    setFieldErrors({});
+    setTouched({});
+    setFormOpen(true);
+  };
+
+  const deleteCoupon = async (coupon: CouponRow) => {
+    if (coupon.redeemedCount > 0) return;
+    const confirmed = window.confirm(
+      `Delete ${coupon.code}? This coupon has not been used and cannot be restored.`
+    );
+    if (!confirmed) return;
+
+    setBusyId(coupon.id);
+    try {
+      const res = await fetch(`/api/coupons/${coupon.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Could not delete coupon");
+        return;
+      }
+      setCoupons((rows) => rows.filter((row) => row.id !== coupon.id));
+      toast.success(`Coupon ${coupon.code} deleted`);
+    } catch {
+      toast.error("Could not delete coupon");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const resetForm = () => {
+    setEditingCoupon(null);
     setCode("");
     setType("PERCENT");
     setValue("");
@@ -193,7 +245,7 @@ export default function AdminPricingPage() {
     setTouched({});
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -217,27 +269,33 @@ export default function AdminPricingPage() {
 
     setSaving(true);
     const maxRaw = maxRedemptions.trim();
+    const editing = editingCoupon;
     try {
-      const res = await fetch("/api/coupons", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          type,
-          value: couponApiValue(type, value),
-          active,
-          maxRedemptions: maxRaw === "" ? null : Number(maxRaw),
-          validFrom: validFrom || null,
-          validTo: validTo || null,
-          city: city === ANY_CITY ? null : city,
-        }),
-      });
+      const res = await fetch(
+        editing ? `/api/coupons/${editing.id}` : "/api/coupons",
+        {
+          method: editing ? "PATCH" : "POST",
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            type,
+            value: couponApiValue(type, value),
+            ...(editing ? {} : { active }),
+            maxRedemptions: maxRaw === "" ? null : Number(maxRaw),
+            validFrom: validFrom || null,
+            validTo: validTo || null,
+            city: city === ANY_CITY ? null : city,
+          }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message =
-          typeof data.error === "string" ? data.error : "Could not create coupon";
+          typeof data.error === "string"
+            ? data.error
+            : `Could not ${editing ? "update" : "create"} coupon`;
         const lower = message.toLowerCase();
         if (lower.includes("already exists") || lower.includes("code")) {
           setFieldErrors({ code: message });
@@ -261,10 +319,12 @@ export default function AdminPricingPage() {
         typeof data.coupon?.code === "string" ? data.coupon.code : code.trim();
       setFormOpen(false);
       resetForm();
-      toast.success(`Coupon ${createdCode} created`);
+      toast.success(`Coupon ${createdCode} ${editing ? "updated" : "created"}`);
       await load();
     } catch {
-      setFormError("Could not create coupon. Please try again.");
+      setFormError(
+        `Could not ${editing ? "update" : "create"} coupon. Please try again.`
+      );
     } finally {
       setSaving(false);
     }
@@ -326,6 +386,8 @@ export default function AdminPricingPage() {
             query={query}
             totalCount={coupons.length}
             onToggle={(coupon) => void toggleActive(coupon)}
+            onEdit={openEdit}
+            onDelete={(coupon) => void deleteCoupon(coupon)}
           />
         </div>
       </div>
@@ -340,11 +402,13 @@ export default function AdminPricingPage() {
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-lg">
           <form
             className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(e) => void handleCreate(e)}
+            onSubmit={(e) => void handleSave(e)}
             noValidate
           >
             <DialogHeader className="shrink-0 pr-8">
-              <DialogTitle>Add new coupon</DialogTitle>
+              <DialogTitle>
+                {editingCoupon ? "Edit coupon" : "Add new coupon"}
+              </DialogTitle>
               <DialogDescription>
                 Code is case-sensitive. Percent is 1–100. Fixed amounts are in rands.
               </DialogDescription>
@@ -359,6 +423,7 @@ export default function AdminPricingPage() {
                   placeholder="e.g. SPARK10"
                   autoComplete="off"
                   spellCheck={false}
+                  disabled={Boolean(editingCoupon?.redeemedCount)}
                   aria-invalid={Boolean(codeError) || undefined}
                   aria-describedby={
                     codeError ? "coupon-code-error" : "coupon-code-hint"
@@ -373,7 +438,9 @@ export default function AdminPricingPage() {
                   <FieldError id="coupon-code-error" message={codeError} />
                 ) : (
                   <p id="coupon-code-hint" className="text-[12px] text-[#9aa0a6]">
-                    2–32 letters or numbers. Capitals are saved as typed.
+                    {editingCoupon?.redeemedCount
+                      ? "The code cannot be changed after it has been used."
+                      : "2–32 letters or numbers. Capitals are saved as typed."}
                   </p>
                 )}
               </div>
@@ -506,14 +573,16 @@ export default function AdminPricingPage() {
               </div>
               <FieldError id="coupon-window-error" message={windowError} />
 
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="coupon-active"
-                  checked={active}
-                  onCheckedChange={(checked) => setActive(checked === true)}
-                />
-                <Label htmlFor="coupon-active">Active</Label>
-              </div>
+              {!editingCoupon ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="coupon-active"
+                    checked={active}
+                    onCheckedChange={(checked) => setActive(checked === true)}
+                  />
+                  <Label htmlFor="coupon-active">Active</Label>
+                </div>
+              ) : null}
 
               {formError ? (
                 <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
@@ -530,7 +599,13 @@ export default function AdminPricingPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={saving || !isAdmin}>
-                {saving ? "Creating…" : "Create coupon"}
+                {saving
+                  ? editingCoupon
+                    ? "Saving…"
+                    : "Creating…"
+                  : editingCoupon
+                    ? "Save changes"
+                    : "Create coupon"}
               </Button>
             </DialogFooter>
           </form>
@@ -548,6 +623,8 @@ function CouponTable({
   query,
   totalCount,
   onToggle,
+  onEdit,
+  onDelete,
 }: {
   coupons: CouponRow[];
   loading: boolean;
@@ -556,6 +633,8 @@ function CouponTable({
   query: string;
   totalCount: number;
   onToggle: (coupon: CouponRow) => void;
+  onEdit: (coupon: CouponRow) => void;
+  onDelete: (coupon: CouponRow) => void;
 }) {
   const showEmpty = !loading && !loadError && totalCount === 0;
   const showNoMatch =
@@ -564,7 +643,7 @@ function CouponTable({
   return (
     <>
       <div className="hidden overflow-x-auto lg:block">
-        <div className="min-w-[760px]">
+        <div className="min-w-[900px]">
           <div
             className="grid items-center px-[22px] py-[14px]"
             style={{
@@ -616,10 +695,12 @@ function CouponTable({
                 {formatCouponWindow(coupon.validFrom, coupon.validTo)}
               </div>
               <StatusPill active={coupon.active} />
-              <ToggleCoupon
+              <CouponActions
                 coupon={coupon}
                 busy={busyId === coupon.id}
                 onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
               />
             </div>
           ))}
@@ -648,16 +729,18 @@ function CouponTable({
               </div>
               <StatusPill active={coupon.active} />
             </div>
-            <div className="mt-[8px] flex items-center justify-between gap-3">
+            <div className="mt-[8px] flex flex-wrap items-center justify-between gap-3">
               <div className="text-meta" style={{ color: "#9aa0a6" }}>
                 <Uses coupon={coupon} />
                 {" · "}
                 {formatCouponWindow(coupon.validFrom, coupon.validTo)}
               </div>
-              <ToggleCoupon
+              <CouponActions
                 coupon={coupon}
                 busy={busyId === coupon.id}
                 onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
               />
             </div>
           </div>
@@ -700,6 +783,55 @@ function Uses({ coupon }: { coupon: CouponRow }) {
     <span className="text-body" style={{ color: "#32373c" }}>
       {formatCouponUses(coupon.redeemedCount, coupon.maxRedemptions)}
     </span>
+  );
+}
+
+function CouponActions({
+  coupon,
+  busy,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  coupon: CouponRow;
+  busy: boolean;
+  onToggle: (coupon: CouponRow) => void;
+  onEdit: (coupon: CouponRow) => void;
+  onDelete: (coupon: CouponRow) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <ToggleCoupon coupon={coupon} busy={busy} onToggle={onToggle} />
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        aria-label={`Edit ${coupon.code}`}
+        className="h-8 gap-1.5 px-2.5 text-[12px] font-bold"
+        onClick={() => onEdit(coupon)}
+      >
+        <Pencil size={14} aria-hidden="true" />
+        Edit
+      </Button>
+      <Button
+        type="button"
+        variant="destructive"
+        size="sm"
+        disabled={busy || coupon.redeemedCount > 0}
+        title={
+          coupon.redeemedCount > 0
+            ? "Delete is unavailable because this coupon has been used"
+            : undefined
+        }
+        aria-label={`Delete ${coupon.code}`}
+        className="h-8 gap-1.5 bg-[#fff0f0] px-2.5 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
+        onClick={() => onDelete(coupon)}
+      >
+        <Trash2 size={14} aria-hidden="true" />
+        Delete
+      </Button>
+    </div>
   );
 }
 
