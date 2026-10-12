@@ -8,6 +8,7 @@ import {
   formatCouponUses,
   formatCouponWindow,
   couponApplyError,
+  couponClaimOwner,
   couponFormFieldErrors,
   inactiveCouponMessage,
   isDuplicateCouponCode,
@@ -170,6 +171,32 @@ describe("inactive coupons", () => {
         { now }
       )
     ).toBe("This coupon has been fully used (1/1)");
+  });
+
+  it("lets only the owner preview a personal reward code", () => {
+    const sarah = "507f1f77bcf86cd799439011";
+    const other = "507f1f77bcf86cd799439012";
+    const personal = { active: true, ownerUserId: sarah };
+    expect(couponApplyError(personal, { userId: other })).toBe(
+      "That coupon code isn't valid"
+    );
+    expect(couponApplyError(personal)).toBe("That coupon code isn't valid");
+    expect(couponApplyError(personal, { userId: sarah })).toBeNull();
+    expect(couponApplyError({ active: true, ownerUserId: null })).toBeNull();
+    expect(couponApplyError({ active: true })).toBeNull();
+  });
+
+  it("claims a personal code only for its owner and a catalogue code only with no owner", () => {
+    const sarah = "507f1f77bcf86cd799439011";
+    const other = "507f1f77bcf86cd799439012";
+    expect(couponClaimOwner({ active: true }, null)).toEqual({
+      ownerUserId: null,
+    });
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, sarah)).toEqual({
+      ownerUserId: sarah,
+    });
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, other)).toBeNull();
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, null)).toBeNull();
   });
 
   it("accepts an active flag on update", () => {

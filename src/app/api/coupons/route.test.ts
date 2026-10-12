@@ -4,6 +4,7 @@ const getSession = vi.fn();
 const find = vi.fn();
 const findOne = vi.fn();
 const create = vi.fn();
+const userFind = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
@@ -18,6 +19,12 @@ vi.mock("@/models/Coupon", () => ({
     find: (...args: unknown[]) => find(...args),
     findOne: (...args: unknown[]) => findOne(...args),
     create: (...args: unknown[]) => create(...args),
+  },
+}));
+
+vi.mock("@/models/User", () => ({
+  User: {
+    find: (...args: unknown[]) => userFind(...args),
   },
 }));
 
@@ -58,6 +65,10 @@ describe("/api/coupons", () => {
     find.mockReset();
     findOne.mockReset();
     create.mockReset();
+    userFind.mockReset();
+    userFind.mockReturnValue({
+      select: () => ({ lean: async () => [] }),
+    });
     find.mockReturnValue({
       sort: () => ({ lean: async () => [sparkDoc] }),
     });
@@ -103,6 +114,47 @@ describe("/api/coupons", () => {
         type: "PERCENT",
         value: 10,
         active: true,
+        ownerUserId: null,
+        ownerName: null,
+      }),
+    ]);
+    expect(userFind).not.toHaveBeenCalled();
+  });
+
+  it("shows the client name only on a personal reward", async () => {
+    const sarahId = "507f1f77bcf86cd799439011";
+    find.mockReturnValue({
+      sort: () => ({
+        lean: async () => [
+          sparkDoc,
+          {
+            ...sparkDoc,
+            _id: "coupon-rwd",
+            code: "RWDSARAH",
+            type: "FIXED_CENTS",
+            value: 50_000,
+            ownerUserId: sarahId,
+          },
+        ],
+      }),
+    });
+    userFind.mockReturnValue({
+      select: () => ({
+        lean: async () => [{ _id: sarahId, name: "Sarah Jenkins" }],
+      }),
+    });
+
+    const { GET } = await import("./route");
+    getSession.mockResolvedValue(session("admin", "full"));
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.coupons).toEqual([
+      expect.objectContaining({ code: "SPARK10", ownerUserId: null, ownerName: null }),
+      expect.objectContaining({
+        code: "RWDSARAH",
+        ownerUserId: sarahId,
+        ownerName: "Sarah Jenkins",
       }),
     ]);
   });
