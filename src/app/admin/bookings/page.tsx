@@ -321,58 +321,46 @@ function AdminBookingsList() {
     const deleteReason = bookingDeleteBlockReason(booking);
     const deleteAllowed = canDeleteBooking(booking);
     const disabled = busyId === booking.id;
-    const reasonId = `delete-blocked-${booking.id}`;
     return (
       <div
-        className="relative z-[2] flex flex-col items-end gap-1"
+        className="relative z-[2] flex items-center justify-end gap-1.5"
         onPointerDown={stopRowNavigation}
         onKeyDown={stopRowNavigation}
         onClick={stopRowNavigation}
       >
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            disabled={disabled}
-            aria-label={`Edit booking ${booking.id}`}
-            title="Edit booking details"
-            className="rounded-[8px] border-[#e3e7ed] text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
-            onClick={() => openEdit(booking)}
-          >
-            <Pencil size={15} strokeWidth={2} aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon-sm"
-            disabled={disabled || !deleteAllowed}
-            aria-label={
-              deleteAllowed
-                ? `Delete booking ${booking.id}`
-                : `Delete unavailable: ${deleteReason}`
-            }
-            aria-describedby={!deleteAllowed ? reasonId : undefined}
-            title={
-              deleteAllowed ? "Delete booking" : deleteReason || "Cannot delete"
-            }
-            className="rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6]"
-            onClick={() => {
-              if (!deleteAllowed) return;
-              setDeleting(booking);
-            }}
-          >
-            <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
-          </Button>
-        </div>
-        {!deleteAllowed && deleteReason ? (
-          <p
-            id={reasonId}
-            className="max-w-[148px] text-right text-[10px] leading-snug text-[#9aa0a6]"
-          >
-            {deleteReason}
-          </p>
-        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`Edit booking ${booking.id}`}
+          title="Edit booking details"
+          className="rounded-[8px] border-[#e3e7ed] text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
+          onClick={() => openEdit(booking)}
+        >
+          <Pencil size={15} strokeWidth={2} aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon-sm"
+          disabled={disabled || !deleteAllowed}
+          aria-label={
+            deleteAllowed
+              ? `Delete booking ${booking.id}`
+              : `Delete unavailable: ${deleteReason}`
+          }
+          title={
+            deleteAllowed ? "Delete booking" : deleteReason || "Cannot delete"
+          }
+          className="rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6]"
+          onClick={() => {
+            if (!deleteAllowed) return;
+            setDeleting(booking);
+          }}
+        >
+          <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
+        </Button>
       </div>
     );
   }
