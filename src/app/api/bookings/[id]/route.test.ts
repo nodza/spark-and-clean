@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   connectDB: vi.fn(),
   bookingFindOne: vi.fn(),
   bookingFindOneAndUpdate: vi.fn(),
+  bookingUpdateOne: vi.fn(),
   punchOnce: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock("@/models/Booking", () => ({
   Booking: {
     findOne: mocks.bookingFindOne,
     findOneAndUpdate: mocks.bookingFindOneAndUpdate,
+    updateOne: mocks.bookingUpdateOne,
   },
 }));
 vi.mock("@/lib/promotion/loyalty", () => ({
@@ -61,6 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.punchOnce.mockResolvedValue(true);
+  mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
     email: "ops@example.com",
@@ -113,6 +116,20 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+  });
+
+  it("restores the previous status when the punch cannot be saved", async () => {
+    mocks.punchOnce.mockRejectedValue(new Error("Could not award the loyalty punch."));
+
+    const res = await patch({ status: "DELIVERED" });
+    const payload = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(payload.error).toBe("Could not award the loyalty punch.");
+    expect(mocks.bookingUpdateOne).toHaveBeenCalledWith(
+      { id: "SC-SARAH", status: "DELIVERED" },
+      { $set: { status: "READY" } }
+    );
   });
 
   it("does not punch when only paymentStatus becomes PAID", async () => {

@@ -247,10 +247,18 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if ($set.status === "DELIVERED") {
-      await punchOnce({
-        id: String(existing.id),
-        userId: existing.userId,
-      });
+      try {
+        await punchOnce({
+          id: String(existing.id),
+          userId: existing.userId,
+        });
+      } catch (err) {
+        await Booking.updateOne(
+          { id: String(existing.id), status: "DELIVERED" },
+          { $set: { status: existing.status } }
+        );
+        throw err;
+      }
     }
 
     return NextResponse.json(toClientBooking(doc as Record<string, unknown>));
