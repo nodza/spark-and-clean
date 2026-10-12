@@ -47,6 +47,7 @@ import {
   validateSaPhone,
   type FieldErrors,
 } from "@/lib/bookingValidation";
+import { technicianDeletePreview } from "@/lib/driverProfile";
 import { localCalendarDate } from "@/lib/localCalendarDate";
 import { countTechnicianJobsOnDay } from "@/lib/technicianJobs";
 
@@ -162,13 +163,15 @@ function ActionMenuItem({
   destructive?: boolean;
   title?: string;
 }) {
-  return (
+  const item = (
     <button
       type="button"
       role="menuitem"
       disabled={disabled}
-      title={title}
+      title={disabled ? undefined : title}
       className={`flex min-h-10 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13.5px] font-semibold transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+        disabled ? "pointer-events-none" : ""
+      } ${
         destructive
           ? "text-[#b33232] hover:bg-[#fff6f6] focus-visible:bg-[#fff6f6]"
           : "text-[#000b49] hover:bg-[#f7f9fb] focus-visible:bg-[#f7f9fb]"
@@ -184,17 +187,29 @@ function ActionMenuItem({
       <span className="min-w-0 truncate">{children}</span>
     </button>
   );
+
+  if (disabled && title) {
+    return (
+      <span className="block w-full cursor-not-allowed" title={title}>
+        {item}
+      </span>
+    );
+  }
+
+  return item;
 }
 
 function TechnicianActionsMenu({
   technician,
   busy,
+  deleteReason,
   onEdit,
   onToggleActive,
   onDelete,
 }: {
   technician: TechnicianRow;
   busy: boolean;
+  deleteReason: string | null;
   onEdit: (technician: TechnicianRow) => void;
   onToggleActive: (technician: TechnicianRow) => void;
   onDelete: (technician: TechnicianRow) => void;
@@ -260,6 +275,8 @@ function TechnicianActionsMenu({
           <ActionMenuItem
             icon={Trash2}
             destructive
+            disabled={Boolean(deleteReason)}
+            title={deleteReason ?? undefined}
             onClick={() => choose(() => onDelete(technician))}
           >
             Delete
@@ -274,6 +291,7 @@ function TechnicianCard({
   technician,
   todayJobs,
   statusBusy,
+  deleteReason,
   onEdit,
   onToggleActive,
   onDelete,
@@ -281,6 +299,7 @@ function TechnicianCard({
   technician: TechnicianRow;
   todayJobs: number;
   statusBusy: boolean;
+  deleteReason: string | null;
   onEdit: (technician: TechnicianRow) => void;
   onToggleActive: (technician: TechnicianRow) => void;
   onDelete: (technician: TechnicianRow) => void;
@@ -331,6 +350,7 @@ function TechnicianCard({
           <TechnicianActionsMenu
             technician={technician}
             busy={statusBusy}
+            deleteReason={deleteReason}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
             onDelete={onDelete}
@@ -820,6 +840,11 @@ export default function AdminTechniciansPage() {
                   today
                 )}
                 statusBusy={statusBusyId === t.id}
+                deleteReason={technicianDeletePreview({
+                  driverProfileId: t.driverProfileId,
+                  bookings,
+                  hasStandingVehicle: Boolean(t.vehicle),
+                })}
                 onEdit={openEdit}
                 onToggleActive={(technician) => void handleToggleActive(technician)}
                 onDelete={openDelete}
@@ -1123,8 +1148,7 @@ export default function AdminTechniciansPage() {
                   <DialogTitle>Delete {technicianLabel(removing)}?</DialogTitle>
                   <DialogDescription>
                     This removes the technician login and driver profile for{" "}
-                    {technicianLabel(removing)}. Delivered and cancelled bookings
-                    stay on record. This cannot be undone.
+                    {technicianLabel(removing)}. This cannot be undone.
                   </DialogDescription>
                 </DialogHeader>
                 {removeError ? (

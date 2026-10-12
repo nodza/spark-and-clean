@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   sanitizeDriverPatch,
+  technicianDeletePreview,
   technicianDeleteRefusal,
   technicianLoginFields,
 } from "@/lib/driverProfile";
@@ -69,6 +70,54 @@ describe("technicianDeleteRefusal", () => {
     });
     expect(message).toMatch(/2 jobs/);
     expect(message).toMatch(/Vehicles page/);
+  });
+});
+
+describe("technicianDeletePreview", () => {
+  const thabo = "driver_thabo";
+
+  it("allows delete when only delivered jobs remain and no vehicle is assigned", () => {
+    expect(
+      technicianDeletePreview({
+        driverProfileId: thabo,
+        hasStandingVehicle: false,
+        bookings: [
+          { assignedDriverId: thabo, status: "DELIVERED" },
+          { assignedDriverId: thabo, status: "CANCELLED" },
+          { assignedDriverId: "driver_other", status: "BOOKED" },
+        ],
+      })
+    ).toBeNull();
+  });
+
+  it("names the open job that blocks delete", () => {
+    const message = technicianDeletePreview({
+      driverProfileId: thabo,
+      hasStandingVehicle: false,
+      bookings: [{ assignedDriverId: thabo, status: "BOOKED" }],
+    });
+    expect(message).toMatch(/not Delivered or Cancelled/i);
+    expect(message).not.toMatch(/Nothing was removed/);
+  });
+
+  it("names the standing vehicle", () => {
+    expect(
+      technicianDeletePreview({
+        driverProfileId: thabo,
+        hasStandingVehicle: true,
+        bookings: [],
+      })
+    ).toMatch(/Vehicles page/);
+  });
+
+  it("explains a missing driver profile", () => {
+    expect(
+      technicianDeletePreview({
+        driverProfileId: "",
+        hasStandingVehicle: false,
+        bookings: [],
+      })
+    ).toMatch(/no driver profile/i);
   });
 });
 

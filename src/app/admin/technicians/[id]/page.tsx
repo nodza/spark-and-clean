@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { technicianDeletePreview } from "@/lib/driverProfile";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import {
   formatBookingCollection,
@@ -348,6 +349,13 @@ export default function TechnicianProfilePage() {
   };
 
   const title = technician?.name || technician?.email || "Technician";
+  const deleteBlock = technician
+    ? technicianDeletePreview({
+        driverProfileId: driver?.id ?? technician.driverProfileId,
+        bookings,
+        hasStandingVehicle: Boolean(driver?.vehicle || technician.vehicle),
+      })
+    : null;
 
   if (loading) {
     return (
@@ -662,17 +670,23 @@ export default function TechnicianProfilePage() {
                 Delivered and cancelled bookings stay. Open jobs, and any vehicle that still
                 lists them, have to be cleared first.
               </p>
-              <Button
-                type="button"
-                variant="destructive"
-                className="mt-[14px] min-h-11 w-full"
-                onClick={() => {
-                  setDeleteError(null);
-                  setDeleteOpen(true);
-                }}
+              <span
+                className="mt-[14px] block w-full"
+                title={deleteBlock ?? undefined}
               >
-                Delete technician
-              </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className={`min-h-11 w-full ${deleteBlock ? "pointer-events-none" : ""}`}
+                  disabled={Boolean(deleteBlock)}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteOpen(true);
+                  }}
+                >
+                  Delete technician
+                </Button>
+              </span>
             </section>
           </div>
         </div>
@@ -691,8 +705,7 @@ export default function TechnicianProfilePage() {
                 <DialogTitle>Delete {title}?</DialogTitle>
                 <DialogDescription>
                   This removes the technician login and driver profile.
-                  Delivered and cancelled bookings stay on record. This cannot be
-                  undone.
+                  This cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               {deleteError ? (

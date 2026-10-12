@@ -25,7 +25,7 @@ export type DriverPatchUpdates = {
  * Why a technician cannot be removed, or null when deletion is allowed.
  * Callers only read jobs and vehicles. This function does not write them.
  */
-export function technicianDeleteRefusal(input: {
+export function technicianDeleteBlockMessage(input: {
   openJobCount: number;
   hasStandingVehicle: boolean;
 }): string | null {
@@ -46,8 +46,37 @@ export function technicianDeleteRefusal(input: {
       "This technician is still the standing driver on a vehicle. Clear that assignment on the Vehicles page before removing them."
     );
   }
-  parts.push("Nothing was removed.");
   return parts.join(" ");
+}
+
+export function technicianDeleteRefusal(input: {
+  openJobCount: number;
+  hasStandingVehicle: boolean;
+}): string | null {
+  const message = technicianDeleteBlockMessage(input);
+  if (!message) return null;
+  return `${message} Nothing was removed.`;
+}
+
+/** Hover and button state for the admin UI. Null means delete is allowed. */
+export function technicianDeletePreview(input: {
+  driverProfileId?: string | null;
+  bookings: { assignedDriverId?: string | null; status?: string | null }[];
+  hasStandingVehicle: boolean;
+}): string | null {
+  if (!input.driverProfileId) {
+    return "This technician has no driver profile, so they cannot be removed.";
+  }
+  const closed = new Set<string>(TECHNICIAN_DELETE_CLOSED_STATUSES);
+  const openJobCount = input.bookings.filter(
+    (job) =>
+      job.assignedDriverId === input.driverProfileId &&
+      !closed.has(String(job.status ?? ""))
+  ).length;
+  return technicianDeleteBlockMessage({
+    openJobCount,
+    hasStandingVehicle: input.hasStandingVehicle,
+  });
 }
 
 export function sanitizeDriverPatch(
