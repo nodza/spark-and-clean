@@ -22,7 +22,8 @@ function isBookingsPath(pathname: string) {
     pathname === "/portal" ||
     pathname === "/portal/" ||
     pathname === "/dashboard" ||
-    pathname === "/dashboard/"
+    pathname === "/dashboard/" ||
+    pathname.startsWith("/booking/")
   );
 }
 
@@ -218,7 +219,11 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  const pageTitle = isPaymentsPath(pathname) ? "Payments" : "Bookings";
+  const pageTitle = isPaymentsPath(pathname)
+    ? "Payments"
+    : pathname.startsWith("/booking/")
+      ? "Booking"
+      : "Bookings";
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f5f7fa] text-[#32373c]">

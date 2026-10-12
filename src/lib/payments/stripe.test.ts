@@ -36,7 +36,6 @@ describe("createDepositCheckoutSession", () => {
   it("sends bookingId and kind DEPOSIT and does not describe a paid booking", async () => {
     const result = await createDepositCheckoutSession({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountDueCents: 15000,
     });
 
@@ -58,7 +57,7 @@ describe("createDepositCheckoutSession", () => {
     expect(payload.line_items[0].price_data.currency).toBe("zar");
     expect(payload.metadata).toEqual({ bookingId: "SC-1", kind: "DEPOSIT" });
     expect(payload.client_reference_id).toBe("SC-1");
-    expect(payload.customer_email).toBe("sarah@example.com");
+    expect(payload.customer_email).toBeUndefined();
     expect(payload.return_url).toBe(
       "http://localhost:3000/booking/SC-1?checkout=success"
     );
@@ -79,7 +78,6 @@ describe("createBalanceCheckoutSession", () => {
   it("charges the remaining cents with kind BALANCE", async () => {
     const result = await createBalanceCheckoutSession({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountCents: 7500,
     });
 
@@ -90,7 +88,7 @@ describe("createBalanceCheckoutSession", () => {
     const payload = createSession.mock.calls[0][0];
     expect(payload.line_items[0].price_data.unit_amount).toBe(7500);
     expect(payload.metadata).toEqual({ bookingId: "SC-1", kind: "BALANCE" });
-    expect(payload.customer_email).toBe("sarah@example.com");
+    expect(payload.customer_email).toBeUndefined();
     expect(payload.payment_intent_data.metadata).toEqual({
       bookingId: "SC-1",
       kind: "BALANCE",
