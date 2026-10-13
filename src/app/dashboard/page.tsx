@@ -6,6 +6,7 @@ import { ChevronRight, Package, RefreshCw } from "lucide-react";
 import type { Booking, BookingStatus } from "@/types/booking";
 import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 import { LoyaltyRewardCard } from "@/components/portal/LoyaltyRewardCard";
+import { ReferralCard } from "@/components/portal/ReferralCard";
 import { BOOKING_STATUS_STEPS } from "@/components/booking/BookingStatusTimeline";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
@@ -436,6 +437,7 @@ export default function ClientDashboard() {
           </Link>
           <div className="mx-auto mt-5 max-w-[300px] text-left">
             <LoyaltyRewardCard />
+            <ReferralCard />
           </div>
         </div>
       ) : (
@@ -498,6 +500,8 @@ export default function ClientDashboard() {
                 </div>
               </div>
             </div>
+
+            <ReferralCard />
           </aside>
         </div>
       )}

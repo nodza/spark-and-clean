@@ -37,13 +37,13 @@ export function technicianDeleteBlockMessage(input: {
   if (openJobs) {
     parts.push(
       input.openJobCount === 1
-        ? "This technician still has a job that is not Delivered or Cancelled. Finish or cancel that job before removing them."
-        : `This technician still has ${input.openJobCount} jobs that are not Delivered or Cancelled. Finish or cancel those jobs before removing them.`
+        ? "Has 1 job that is not Delivered or Cancelled."
+        : `Has ${input.openJobCount} jobs that are not Delivered or Cancelled.`
     );
   }
   if (standing) {
     parts.push(
-      "This technician is still the standing driver on a vehicle. Clear that assignment on the Vehicles page before removing them."
+      "Still the standing driver on a vehicle."
     );
   }
   return parts.join(" ");

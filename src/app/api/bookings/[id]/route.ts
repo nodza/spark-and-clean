@@ -19,7 +19,8 @@ import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
-import { punchOnce } from "@/lib/promotion/loyalty";
+import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
+import { creditReferrerOnce } from "@/lib/referral";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -121,7 +122,8 @@ export async function GET(_request: Request, { params }: Params) {
  * their status. Full admin for depot moves. Technicians may only
  * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
  * may save width/length when collecting a rug that has no size yet, and
- * cannot collect until a rug tag is attached.
+ * cannot collect until a rug tag is attached. A full admin can mark
+ * collected without a tag.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -191,6 +193,7 @@ export async function PATCH(request: Request, { params }: Params) {
       | null
       | undefined;
     if (
+      session.role === "technician" &&
       wantsStatus &&
       body.status === "COLLECTED" &&
       !hasRugTagCode(existingRug?.tagCode)
@@ -293,17 +296,31 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if ($set.status === "DELIVERED") {
+      const customer = existing.customer as { email?: unknown } | null | undefined;
+      const ownerId = await deliveryClientId({
+        id: String(existing.id),
+        userId: existing.userId,
+        email: customer?.email,
+      });
+      const delivered = {
+        id: String(existing.id),
+        userId: ownerId ?? existing.userId,
+      };
       try {
-        await punchOnce({
-          id: String(existing.id),
-          userId: existing.userId,
-        });
+        await punchOnce(delivered);
       } catch (err) {
         await Booking.updateOne(
           { id: String(existing.id), status: "DELIVERED" },
           { $set: { status: existing.status } }
         );
         throw err;
+      }
+      // The friend's punch already stands. A referral failure must not
+      // un-deliver the job or take that punch back.
+      try {
+        await creditReferrerOnce(delivered);
+      } catch (err) {
+        console.error("[api/bookings] referral credit", err);
       }
     }
 

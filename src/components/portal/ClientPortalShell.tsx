@@ -122,7 +122,7 @@ function SidebarBody({
   onClose?: () => void;
 }) {
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex-none border-b border-white/[0.09] px-[22px] pb-[20px] pt-[24px]">
         <div className="flex items-start justify-between gap-3">
           <Image
@@ -149,7 +149,10 @@ function SidebarBody({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-[14px] py-5" aria-label="Client portal">
+      <nav
+        className="min-h-0 flex-1 overflow-y-auto px-[14px] py-5"
+        aria-label="Client portal"
+      >
         <div className="px-3 pb-[11px] text-[10px] font-extrabold tracking-[0.18em] text-white/40">
           MY ACCOUNT
         </div>
@@ -177,10 +180,10 @@ function SidebarBody({
         </div>
       </nav>
 
-      <div className="flex-none border-t border-white/[0.09] px-5 py-4">
+      <div className="mt-auto flex-none border-t border-white/[0.09] px-5 py-4">
         <ClientUserFooter />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -226,9 +229,9 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
       : "Bookings";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#f5f7fa] text-[#32373c]">
+    <div className="fixed inset-0 z-20 flex h-dvh w-full overflow-hidden overscroll-none bg-[#f5f7fa] text-[#32373c]">
       <aside
-        className="hidden h-full w-[258px] flex-none flex-col overflow-hidden lg:flex"
+        className="hidden h-full min-h-0 w-[258px] flex-none flex-col overflow-hidden lg:flex"
         style={{ background: "#000b49" }}
         aria-label="Primary"
       >
@@ -255,7 +258,7 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
         <aside
           id="client-portal-nav"
           className={cn(
-            "absolute inset-y-0 left-0 flex w-[min(258px,88vw)] flex-col overflow-hidden shadow-2xl transition-transform duration-200 ease-out",
+            "absolute inset-y-0 left-0 flex h-full min-h-0 w-[min(258px,88vw)] flex-col overflow-hidden shadow-2xl transition-transform duration-200 ease-out",
             navOpen ? "translate-x-0" : "-translate-x-full"
           )}
           style={{ background: "#000b49" }}
@@ -268,7 +271,7 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
         </aside>
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-14 flex-none items-center gap-2 border-b border-[#e3e7ed] bg-white px-3 py-2 sm:gap-3 sm:px-4 lg:hidden">
           <button
             type="button"
@@ -290,7 +293,9 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
             New collection
           </Link>
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          {children}
+        </div>
       </main>
     </div>
   );
