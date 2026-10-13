@@ -7,34 +7,55 @@ import { cn } from "@/lib/utils";
 /**
  * Client portal loyalty card. Redeem lives here, not on payment history.
  */
+const LOAD_ERROR = "Loyalty punches could not be loaded.";
+
 export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
   const [punches, setPunches] = useState<number | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingLoyalty, setLoadingLoyalty] = useState(true);
   const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { user?: { loyalty?: { punches?: unknown } } } | null) => {
-        if (cancelled) return;
-        const value = data?.user?.loyalty?.punches;
-        if (typeof value === "number" && Number.isFinite(value)) {
-          setPunches(value);
-        }
-      })
-      .catch(() => undefined);
-    void fetch("/api/loyalty/redeem", {
+    setLoadingLoyalty(true);
+
+    const punchesRequest = fetch("/api/auth/me", {
       credentials: "include",
       cache: "no-store",
     })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { codes?: unknown } | null) => {
-        if (cancelled || !Array.isArray(data?.codes)) return;
-        setCodes(data.codes.filter((code) => typeof code === "string" && code));
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("me failed"))))
+      .then((data: { user?: { loyalty?: { punches?: unknown } } } | null) => {
+        if (cancelled) return false;
+        const value = data?.user?.loyalty?.punches;
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          setPunches(value);
+          return false;
+        }
+        return true;
       })
-      .catch(() => undefined);
+      .catch(() => !cancelled);
+
+    const codesRequest = fetch("/api/loyalty/redeem", {
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("codes failed"))))
+      .then((data: { codes?: unknown } | null) => {
+        if (cancelled) return false;
+        if (!Array.isArray(data?.codes)) return true;
+        setCodes(data.codes.filter((code) => typeof code === "string" && code));
+        return false;
+      })
+      .catch(() => !cancelled);
+
+    void Promise.all([punchesRequest, codesRequest]).then(([punchesFailed, codesFailed]) => {
+      if (cancelled) return;
+      setLoadError(punchesFailed || codesFailed ? LOAD_ERROR : null);
+      setLoadingLoyalty(false);
+    });
+
     return () => {
       cancelled = true;
     };
@@ -81,12 +102,16 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
   const shown = punches ?? 0;
   const filled = Math.min(shown, LOYALTY_PUNCHES_PER_REWARD);
   const canRedeem =
-    punches != null && punches >= LOYALTY_PUNCHES_PER_REWARD && !redeeming;
+    punches != null &&
+    punches >= LOYALTY_PUNCHES_PER_REWARD &&
+    !redeeming &&
+    !loadingLoyalty &&
+    !loadError;
 
   return (
     <div className="mt-3.5 rounded-[14px] border-[1.5px] border-[#6cf3d5] bg-white p-5">
       <div className="mb-3 text-[10.5px] font-extrabold tracking-[0.14em] text-[#0a7a63]">
-        EVERY 5TH CLEAN FREE
+        R500 OFF YOUR NEXT RUG
       </div>
       <div className="flex gap-1.5" aria-hidden>
         {Array.from({ length: LOYALTY_PUNCHES_PER_REWARD }, (_, i) => (
@@ -105,13 +130,14 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
           : `${punches} punch${punches === 1 ? "" : "es"}`}
       </div>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#6b7280]">
-        Each delivered clean earns a punch. Redeem {LOYALTY_PUNCHES_PER_REWARD}, then use your code when you book a rug.
+        Each delivered clean earns a punch. Redeem {LOYALTY_PUNCHES_PER_REWARD} for R500 off one rug, then paste the code when you book.
       </p>
       <button
         type="button"
         onClick={() => void redeem()}
         disabled={!canRedeem}
-        className="mt-3.5 inline-flex rounded-full bg-[#0a7a63] px-4 py-2 text-[13px] font-extrabold text-white disabled:cursor-not-allowed disabled:bg-[#eef1f5] disabled:text-[#9aa0a6]"
+        aria-busy={redeeming}
+        className="mt-3.5 inline-flex cursor-pointer items-center rounded-full border border-[#086350] bg-[#0a7a63] px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-[#086350] hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7a63] active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:border-transparent disabled:bg-[#eef1f5] disabled:text-[#9aa0a6] disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:bg-[#eef1f5] disabled:hover:shadow-none"
       >
         {redeeming ? "Redeeming…" : "Redeem"}
       </button>
@@ -123,6 +149,11 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
             </li>
           ))}
         </ul>
+      ) : null}
+      {loadError ? (
+        <p className="mt-2 text-[12.5px] text-[#b33232]" role="alert">
+          {loadError}
+        </p>
       ) : null}
       {error ? (
         <p className="mt-2 text-[12.5px] text-[#b33232]" role="alert">

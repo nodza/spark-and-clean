@@ -18,10 +18,44 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
 
 type Params = { params: Promise<{ id: string }> };
+
+const TECHNICIAN_PHONE_STATUSES = new Set<BookingStatus>([
+  "COLLECTED",
+  "CLEANING",
+  "DRYING",
+  "READY",
+  "DELIVERED",
+]);
+
+/**
+ * Staff phone stays off a public tracking link until the rug is collected,
+ * unless the signed-in client owns the booking.
+ */
+function canShareTechnicianPhone(
+  session: Awaited<ReturnType<typeof getSession>>,
+  booking: { status: BookingStatus; userId?: string; customer: { email: string } }
+): boolean {
+  if (session?.role === "admin" || session?.role === "technician") return true;
+  if (clientOwnsBooking(session, booking)) return true;
+  return TECHNICIAN_PHONE_STATUSES.has(booking.status);
+}
+
+/** Name and phone for the customer. Other driver fields stay off this payload. */
+async function customerTechnician(driverId?: string) {
+  const id = driverId?.trim();
+  if (!id) return null;
+  const driver = await Driver.findOne({ id }).select({ name: 1, phone: 1 }).lean();
+  if (!driver || typeof driver.name !== "string") return null;
+  const name = driver.name.trim();
+  if (!name) return null;
+  const phone = typeof driver.phone === "string" ? driver.phone.trim() : "";
+  return phone ? { name, phone } : { name };
+}
 
 /**
  * Public tracking by booking reference (the ID is the capability).
@@ -62,7 +96,19 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json(booking);
+    const technician = await customerTechnician(booking.assignedDriverId);
+    const sharedTechnician =
+      technician?.phone &&
+      !canShareTechnicianPhone(session, {
+        status: booking.status,
+        userId: booking.userId,
+        customer: booking.customer,
+      })
+        ? { name: technician.name }
+        : technician;
+    return NextResponse.json(
+      sharedTechnician ? { ...booking, technician: sharedTechnician } : booking
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch booking";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -1,9 +1,10 @@
 import { randomBytes } from "crypto";
-import { Types } from "mongoose";
+import { Types, type ClientSession } from "mongoose";
 import { Booking } from "@/models/Booking";
 import { Coupon } from "@/models/Coupon";
 import { User } from "@/models/User";
 import { isDuplicateCouponCode } from "@/lib/coupon";
+import { runInTransaction } from "@/lib/promotion/runInTransaction";
 import {
   LOYALTY_PUNCHES_PER_REWARD,
   LOYALTY_REDEEM_SHORT_MESSAGE,
@@ -87,21 +88,14 @@ function newRewardCode(): string {
   return `RWD${randomBytes(6).toString("hex").toUpperCase()}`;
 }
 
-async function rewardCodeAlreadySaved(
+async function insertRewardCoupon(
   userId: string,
-  code: string
-): Promise<boolean> {
-  const saved = await Coupon.findOne({ code, ownerUserId: userId })
-    .select("_id")
-    .lean();
-  return Boolean(saved);
-}
-
-async function createPersonalRewardCoupon(userId: string): Promise<string> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = newRewardCode();
-    try {
-      await Coupon.create({
+  code: string,
+  session: ClientSession
+): Promise<void> {
+  await Coupon.create(
+    [
+      {
         code,
         type: LOYALTY_REWARD_TYPE,
         value: LOYALTY_REWARD_VALUE_CENTS,
@@ -109,15 +103,10 @@ async function createPersonalRewardCoupon(userId: string): Promise<string> {
         maxRedemptions: 1,
         redeemedCount: 0,
         ownerUserId: userId,
-      });
-      return code;
-    } catch (err) {
-      if (await rewardCodeAlreadySaved(userId, code)) return code;
-      if (isDuplicateCouponCode(err) && attempt < 4) continue;
-      throw err;
-    }
-  }
-  throw new Error("Could not create a reward coupon");
+      },
+    ],
+    { session }
+  );
 }
 
 /** Unused personal reward codes still belonging to this client. */
@@ -137,49 +126,46 @@ export async function listOpenRewardCodes(userId: string): Promise<string[]> {
 }
 
 /**
- * Spend N punches for a single-use coupon only that client can preview.
- * The spend is conditional on punches >= N, so a short balance is left unchanged.
+ * Spend N punches and create that client's coupon in one transaction.
+ * A short balance commits nothing. A failed coupon insert rolls the spend back.
  */
 export async function redeemLoyaltyReward(
   userId: string
 ): Promise<LoyaltyRedeemResult> {
-  const spent = await User.findOneAndUpdate(
-    {
-      _id: userId,
-      "loyalty.punches": { $gte: LOYALTY_PUNCHES_PER_REWARD },
-    },
-    {
-      $inc: {
-        "loyalty.punches": -LOYALTY_PUNCHES_PER_REWARD,
-        "loyalty.rewardsRedeemed": 1,
-      },
-    },
-    { new: true }
-  ).lean();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = newRewardCode();
+    try {
+      return await runInTransaction(async (session) => {
+        const spent = await User.findOneAndUpdate(
+          {
+            _id: userId,
+            "loyalty.punches": { $gte: LOYALTY_PUNCHES_PER_REWARD },
+          },
+          {
+            $inc: {
+              "loyalty.punches": -LOYALTY_PUNCHES_PER_REWARD,
+              "loyalty.rewardsRedeemed": 1,
+            },
+          },
+          { new: true, session }
+        ).lean();
 
-  if (!spent) {
-    return { ok: false, error: LOYALTY_REDEEM_SHORT_MESSAGE };
+        if (!spent) {
+          return { ok: false, error: LOYALTY_REDEEM_SHORT_MESSAGE } as const;
+        }
+
+        await insertRewardCoupon(userId, code, session);
+        return {
+          ok: true as const,
+          code,
+          punches: loyaltyCount(spent.loyalty?.punches),
+          rewardsRedeemed: loyaltyCount(spent.loyalty?.rewardsRedeemed),
+        };
+      });
+    } catch (err) {
+      if (isDuplicateCouponCode(err) && attempt < 4) continue;
+      throw err;
+    }
   }
-
-  const punches = loyaltyCount(spent.loyalty?.punches);
-  const rewardsRedeemed = loyaltyCount(spent.loyalty?.rewardsRedeemed);
-
-  try {
-    const code = await createPersonalRewardCoupon(userId);
-    return { ok: true, code, punches, rewardsRedeemed };
-  } catch (err) {
-    await User.updateOne(
-      {
-        _id: userId,
-        "loyalty.rewardsRedeemed": { $gte: 1 },
-      },
-      {
-        $inc: {
-          "loyalty.punches": LOYALTY_PUNCHES_PER_REWARD,
-          "loyalty.rewardsRedeemed": -1,
-        },
-      }
-    );
-    throw err;
-  }
+  throw new Error("Could not create a reward coupon");
 }
