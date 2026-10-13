@@ -73,6 +73,7 @@ export default function AdminPricingPage() {
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<CouponRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CouponRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -204,10 +205,12 @@ export default function AdminPricingPage() {
 
   const deleteCoupon = async (coupon: CouponRow) => {
     if (coupon.redeemedCount > 0) return;
-    const confirmed = window.confirm(
-      `Delete ${coupon.code}? This coupon has not been used and cannot be restored.`
-    );
-    if (!confirmed) return;
+    setDeleteTarget(coupon);
+  };
+
+  const confirmDeleteCoupon = async () => {
+    if (!deleteTarget) return;
+    const coupon = deleteTarget;
 
     setBusyId(coupon.id);
     try {
@@ -222,6 +225,7 @@ export default function AdminPricingPage() {
         return;
       }
       setCoupons((rows) => rows.filter((row) => row.id !== coupon.id));
+      setDeleteTarget(null);
       toast.success(`Coupon ${coupon.code} deleted`);
     } catch {
       toast.error("Could not delete coupon");
@@ -391,6 +395,37 @@ export default function AdminPricingPage() {
           />
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete coupon?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `This will remove ${deleteTarget.code}. This coupon has not been used and cannot be restored.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busyId === deleteTarget?.id}
+              onClick={() => void confirmDeleteCoupon()}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={formOpen}
@@ -786,7 +821,7 @@ function Uses({ coupon }: { coupon: CouponRow }) {
   );
 }
 
-function CouponActions({
+export function CouponActions({
   coupon,
   busy,
   onToggle,
@@ -804,32 +839,31 @@ function CouponActions({
       <ToggleCoupon coupon={coupon} busy={busy} onToggle={onToggle} />
       <Button
         type="button"
-        variant="secondary"
-        size="sm"
+        variant="outline"
+        size="icon-sm"
         disabled={busy}
         aria-label={`Edit ${coupon.code}`}
-        className="h-8 gap-1.5 px-2.5 text-[12px] font-bold"
+        title="Edit coupon"
+        className="rounded-[8px] border-[#e3e7ed] bg-white text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
         onClick={() => onEdit(coupon)}
       >
         <Pencil size={14} aria-hidden="true" />
-        Edit
       </Button>
       <Button
         type="button"
-        variant="destructive"
-        size="sm"
+        variant="outline"
+        size="icon-sm"
         disabled={busy || coupon.redeemedCount > 0}
         title={
           coupon.redeemedCount > 0
             ? "Delete is unavailable because this coupon has been used"
-            : undefined
+            : "Delete coupon"
         }
         aria-label={`Delete ${coupon.code}`}
-        className="h-8 gap-1.5 bg-[#fff0f0] px-2.5 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
+        className="rounded-[8px] border-[#f7dada] bg-[#fff0f0] text-[#d64545] hover:border-[#d64545] hover:bg-[#d64545] hover:text-white"
         onClick={() => onDelete(coupon)}
       >
         <Trash2 size={14} aria-hidden="true" />
-        Delete
       </Button>
     </div>
   );
