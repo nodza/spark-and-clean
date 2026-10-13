@@ -18,6 +18,10 @@ import {
   validatePasswordStrength,
 } from "@/lib/passwordRules";
 import { toPublicApiError } from "@/lib/publicApiError";
+import {
+  ensureClientReferralCode,
+  referrerIdForCode,
+} from "@/lib/referral";
 
 /**
  * Create a password-based **client** account (never admin/technician)
@@ -95,6 +99,28 @@ export async function POST(request: Request) {
 
     await connectDB();
 
+    if (bookingId) {
+      const booking = await Booking.findOne({ id: bookingId })
+        .select({ "customer.email": 1 })
+        .lean();
+      if (!booking) {
+        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      }
+      const bookingEmail = String(booking.customer?.email || "")
+        .trim()
+        .toLowerCase();
+      if (!bookingEmail || bookingEmail !== email) {
+        return NextResponse.json(
+          {
+            error:
+              "Use the email on this booking to attach it. No account was created.",
+            code: "BOOKING_EMAIL_MISMATCH",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const existing = await User.findOne({ email }).select("+passwordHash");
     if (existing && normalizeUserRole(existing.role) !== "client") {
       return NextResponse.json(
@@ -160,6 +186,32 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = String(user._id);
+    try {
+      await ensureClientReferralCode(userId);
+    } catch (err) {
+      console.error("[api/auth/register] referral code", err);
+    }
+
+    const ref = typeof body.ref === "string" ? body.ref : "";
+    try {
+      const referrerId = await referrerIdForCode(ref, userId);
+      if (referrerId) {
+        await User.updateOne(
+          {
+            _id: user._id,
+            $or: [
+              { referredByUserId: { $exists: false } },
+              { referredByUserId: null },
+            ],
+          },
+          { $set: { referredByUserId: referrerId } }
+        );
+      }
+    } catch (err) {
+      console.error("[api/auth/register] referral", err);
+    }
+
     if (bookingId) {
       await Booking.updateOne(
         { id: bookingId, "customer.email": email },
@@ -167,7 +219,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const userId = String(user._id);
     const attached = await attachUnclaimedBookingsByEmail(userId, email);
 
     const sessionUser = {

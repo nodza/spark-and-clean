@@ -53,6 +53,7 @@ type CouponRow = {
   validFrom: string | null;
   validTo: string | null;
   city: string | null;
+  ownerName: string | null;
 };
 
 type CouponFormField = "code" | "value" | "maxRedemptions" | "validFrom" | "validTo";
@@ -145,7 +146,10 @@ export default function AdminPricingPage() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return coupons;
-    return coupons.filter((coupon) => coupon.code.toLowerCase().includes(needle));
+    return coupons.filter((coupon) => {
+      const owner = coupon.ownerName?.toLowerCase() ?? "";
+      return coupon.code.toLowerCase().includes(needle) || owner.includes(needle);
+    });
   }, [coupons, query]);
 
   const toggleActive = async (coupon: CouponRow) => {
@@ -709,13 +713,7 @@ function CouponTable({
                 columnGap: 16,
               }}
             >
-              <div
-                className="min-w-0 truncate text-body font-bold"
-                style={{ color: "#000b49" }}
-                title={coupon.code}
-              >
-                {coupon.code}
-              </div>
+              <CouponCode coupon={coupon} />
               <div className="text-body" style={{ color: "#32373c" }}>
                 {formatCouponDiscount(coupon.type, coupon.value)}
               </div>
@@ -750,12 +748,7 @@ function CouponTable({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div
-                  className="truncate text-[15px] font-bold"
-                  style={{ color: "#000b49" }}
-                >
-                  {coupon.code}
-                </div>
+                <CouponCode coupon={coupon} compact />
                 <div className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                   {formatCouponDiscount(coupon.type, coupon.value)}
                   {" · "}
@@ -810,6 +803,34 @@ function CouponTable({
         </div>
       ) : null}
     </>
+  );
+}
+
+function CouponCode({
+  coupon,
+  compact = false,
+}: {
+  coupon: CouponRow;
+  compact?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <div
+        className={compact ? "truncate text-[15px] font-bold" : "truncate text-body font-bold"}
+        style={{ color: "#000b49" }}
+        title={coupon.code}
+      >
+        {coupon.code}
+      </div>
+      {coupon.ownerName ? (
+        <div
+          className="mt-0.5 truncate text-[11px] leading-tight font-medium text-[#9aa0a6]"
+          title={coupon.ownerName}
+        >
+          {coupon.ownerName}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

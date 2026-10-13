@@ -11,6 +11,11 @@ export type AuthUser = {
   driverProfileId?: string;
   guest?: boolean;
   mustChangePassword?: boolean;
+  loyalty?: {
+    punches: number;
+    rewardsRedeemed: number;
+  };
+  referralCode?: string;
 };
 
 export const AUTH_EVENT = "spark-auth-change";
@@ -75,6 +80,7 @@ export async function registerUser(input: {
   name?: string;
   phone?: string;
   bookingId?: string;
+  ref?: string;
 }): Promise<{
   user?: AuthUser;
   error?: string;
