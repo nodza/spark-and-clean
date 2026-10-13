@@ -284,15 +284,15 @@ function PastBookingRow({ booking }: { booking: Booking }) {
         <span className="whitespace-nowrap text-[14px] font-extrabold text-[#000b49]">
           {total}
         </span>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
               "whitespace-nowrap rounded-full border px-[11px] py-1 text-[10.5px] font-extrabold tracking-[0.04em]",
               chip.className
-            )}
-          >
+                )}
+              >
             {chip.label}
-          </span>
+              </span>
           <span
             className={cn(
               "whitespace-nowrap rounded-full border px-[11px] py-1 text-[10.5px] font-extrabold tracking-[0.04em]",
@@ -300,7 +300,7 @@ function PastBookingRow({ booking }: { booking: Booking }) {
             )}
           >
             {pay.label}
-          </span>
+            </span>
         </div>
       </div>
     </Link>
@@ -328,24 +328,24 @@ export default function ClientDashboard() {
           deliveredCount: 0,
           outstandingCents: 0,
         };
-      }
+    }
 
-      const myBookings = bookings.filter(
-        (b) => b.customer.email.toLowerCase() === email.toLowerCase()
+    const myBookings = bookings.filter(
+      (b) => b.customer.email.toLowerCase() === email.toLowerCase()
+    );
+    const active = myBookings
+      .filter((b) => !PAST_STATUSES.has(b.status))
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-      const active = myBookings
-        .filter((b) => !PAST_STATUSES.has(b.status))
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      const past = myBookings
-        .filter((b) => PAST_STATUSES.has(b.status))
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    const past = myBookings
+      .filter((b) => PAST_STATUSES.has(b.status))
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
       const deliveredCount = myBookings.filter((b) => b.status === "DELIVERED")
         .length;
@@ -360,7 +360,7 @@ export default function ClientDashboard() {
         deliveredCount,
         outstandingCents,
       };
-    }, [bookings, email]);
+  }, [bookings, email]);
 
   const featured = activeBookings[0];
   const nextUp = featured ? nextUpCopy(featured) : null;
@@ -386,13 +386,13 @@ export default function ClientDashboard() {
         </div>
         <div className="flex shrink-0 items-center gap-2 self-start">
           <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={isRefreshing}
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
             className="inline-flex size-10 items-center justify-center rounded-full text-[#9aa0a6] hover:bg-white hover:text-[#000b49] disabled:opacity-60"
-            aria-label="Refresh bookings"
-          >
-            <RefreshCw
+              aria-label="Refresh bookings"
+            >
+              <RefreshCw
               className={cn("size-4", isRefreshing && "animate-spin")}
               aria-hidden
             />
@@ -443,15 +443,15 @@ export default function ClientDashboard() {
       ) : (
         <div className="mt-[26px] flex flex-col items-start gap-5 lg:flex-row">
           <div className="min-w-0 w-full flex-1">
-            {activeBookings.map((booking) => (
+                {activeBookings.map((booking) => (
               <LiveBookingCard key={booking.id} booking={booking} />
-            ))}
+                ))}
 
             {pastBookings.length > 0 ? (
               <>
                 <div className="mb-3 mt-[30px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
                   PAST BOOKINGS
-                </div>
+              </div>
                 {pastBookings.map((booking) => (
                   <PastBookingRow key={booking.id} booking={booking} />
                 ))}

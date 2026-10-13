@@ -364,8 +364,8 @@ function AdminBookingsList() {
                     style={{
                       background:
                         highlightUnassigned && unassigned
-                          ? "rgba(255, 220, 57, 0.18)"
-                          : undefined,
+                        ? "rgba(255, 220, 57, 0.18)"
+                        : undefined,
                     }}
                   >
                     <Link
@@ -378,17 +378,17 @@ function AdminBookingsList() {
                       style={{
                         gridTemplateColumns: TABLE_COLS,
                         columnGap: 12,
-                      }}
-                    >
+                    }}
+                  >
                     <div className="flex items-center justify-between gap-3 lg:contents">
                       <div className="flex min-w-0 items-center gap-[6px]">
                         <CopyBookingLinkButton bookingId={booking.id} />
-                        <div
+                      <div
                           className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums underline-offset-2 group-hover:underline"
-                          style={{ color: "#0a7a63" }}
-                          title={booking.id}
-                        >
-                          {booking.id}
+                        style={{ color: "#0a7a63" }}
+                        title={booking.id}
+                      >
+                        {booking.id}
                         </div>
                       </div>
                       <div className="lg:hidden">
@@ -442,22 +442,22 @@ function AdminBookingsList() {
                               style={{
                                 color: unassigned ? "#b3261e" : "#000b49",
                               }}
-                              title={driverLabel}
-                            >
+                      title={driverLabel}
+                    >
                               {driverLabel}
-                            </span>
+                      </span>
                             {!unassigned ? (
-                              <CallAction
+                      <CallAction
                                 compact
-                                label="Call driver"
+                        label="Call driver"
                                 phone={driverPhone(booking.assignedDriverId)}
                                 disabledReason="No number on profile"
-                                profileHref={
+                        profileHref={
                                   booking.assignedDriverId
                                     ? driverProfileHref(booking.assignedDriverId)
-                                    : undefined
-                                }
-                              />
+                            : undefined
+                        }
+                      />
                             ) : null}
                           </div>
                           {vehicleLabel ? (

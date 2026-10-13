@@ -14,6 +14,7 @@ import {
   isDuplicateCouponCode,
   sanitizeCouponActivePatch,
   sanitizeCouponCreate,
+  sanitizeCouponEditPatch,
 } from "@/lib/coupon";
 
 describe("sanitizeCouponCreate", () => {
@@ -205,6 +206,41 @@ describe("inactive coupons", () => {
       active: false,
     });
     expect(sanitizeCouponActivePatch({ active: "no" }).ok).toBe(false);
+  });
+});
+
+describe("sanitizeCouponEditPatch", () => {
+  it("validates edit fields without returning an active flag", () => {
+    const parsed = sanitizeCouponEditPatch({
+      code: " SPARK15 ",
+      type: "PERCENT",
+      value: 15,
+      city: "Cape Town",
+      validFrom: "2026-10-01",
+      validTo: "2026-10-31",
+      maxRedemptions: 25,
+      active: false,
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.coupon).toMatchObject({
+      code: "SPARK15",
+      type: "PERCENT",
+      value: 15,
+      city: "Cape Town",
+      maxRedemptions: 25,
+    });
+    expect(parsed.coupon).not.toHaveProperty("active");
+  });
+
+  it("rejects invalid edit fields", () => {
+    expect(
+      sanitizeCouponEditPatch({
+        code: "SPARK10",
+        type: "PERCENT",
+        value: 101,
+      })
+    ).toEqual({ ok: false, error: "Percent must be a whole number from 1 to 100" });
   });
 });
 

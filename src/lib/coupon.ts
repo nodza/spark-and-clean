@@ -153,6 +153,21 @@ export function sanitizeCouponActivePatch(
   return { ok: true, active };
 }
 
+export type CouponEditInput = Omit<CouponCreateInput, "active">;
+
+export function sanitizeCouponEditPatch(
+  body: unknown
+): { ok: true; coupon: CouponEditInput } | { ok: false; error: string } {
+  const parsed = sanitizeCouponCreate(body);
+  if (!parsed.ok) return parsed;
+  const { code, type, value, maxRedemptions, validFrom, validTo, city } =
+    parsed.coupon;
+  return {
+    ok: true,
+    coupon: { code, type, value, maxRedemptions, validFrom, validTo, city },
+  };
+}
+
 export type CouponCreateInput = {
   code: string;
   type: CouponType;

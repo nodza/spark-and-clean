@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Tag } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,10 +23,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AdminListPagination } from "@/components/admin/AdminListPagination";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import {
+  applyListPaginationParams,
+  paginateList,
+  parseListPagination,
+  type ListPagination,
+  type PageSize,
+} from "@/lib/listPagination";
 import { FieldError } from "@/components/booking/FieldError";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -59,10 +68,35 @@ type CouponRow = {
 type CouponFormField = "code" | "value" | "maxRedemptions" | "validFrom" | "validTo";
 
 const ANY_CITY = "any";
+const DELETE_BLOCKED_MESSAGE = "This coupon has been used";
 const TABLE_COLS =
-  "minmax(110px, 1.1fr) minmax(72px, 0.7fr) minmax(110px, 0.9fr) minmax(72px, 0.55fr) minmax(150px, 1.2fr) 88px 108px";
+  "11rem 5.5rem 7.25rem 3.75rem 11rem 5.25rem 13rem";
 
 export default function AdminPricingPage() {
+  return (
+    <Suspense fallback={<PricingShellFallback />}>
+      <AdminPricingList />
+    </Suspense>
+  );
+}
+
+function PricingShellFallback() {
+  return (
+    <AdminPortalShell
+      pageTitle="Pricing & coupons"
+      active="pricing"
+      topbarActions={<AdminSearchTopbar searchPlaceholder="Search by code" />}
+    >
+      <div className="portal-page text-meta" style={{ color: "#9aa0a6" }}>
+        Loading coupons…
+      </div>
+    </AdminPortalShell>
+  );
+}
+
+function AdminPricingList() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, ready } = useAuth();
   const isAdmin =
     user?.role === "admin" &&
@@ -73,6 +107,8 @@ export default function AdminPricingPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<CouponRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CouponRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -141,6 +177,11 @@ export default function AdminPricingPage() {
     if (ready && !isAdmin) setLoading(false);
   }, [ready, isAdmin, load]);
 
+  const pagination = useMemo(
+    () => parseListPagination(searchParams),
+    [searchParams]
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return coupons;
@@ -149,6 +190,34 @@ export default function AdminPricingPage() {
       return coupon.code.toLowerCase().includes(needle) || owner.includes(needle);
     });
   }, [coupons, query]);
+
+  const paged = useMemo(
+    () => paginateList(filtered, pagination),
+    [filtered, pagination]
+  );
+
+  function writeListUrl(next: ListPagination) {
+    const params = applyListPaginationParams(new URLSearchParams(), next);
+    const qs = params.toString();
+    router.replace(qs ? `/admin/pricing?${qs}` : "/admin/pricing", {
+      scroll: false,
+    });
+  }
+
+  function setSearch(next: string) {
+    setQuery(next);
+    if (pagination.page !== 1) {
+      writeListUrl({ page: 1, limit: pagination.limit });
+    }
+  }
+
+  function setPage(page: number) {
+    writeListUrl({ page, limit: pagination.limit });
+  }
+
+  function setLimit(limit: PageSize) {
+    writeListUrl({ page: 1, limit });
+  }
 
   const toggleActive = async (coupon: CouponRow) => {
     const nextActive = !coupon.active;
@@ -183,7 +252,61 @@ export default function AdminPricingPage() {
     }
   };
 
+  const openEdit = (coupon: CouponRow) => {
+    setEditingCoupon(coupon);
+    setCode(coupon.code);
+    setType(coupon.type);
+    setValue(
+      coupon.type === "PERCENT"
+        ? String(coupon.value)
+        : (coupon.value / 100).toFixed(2)
+    );
+    setCity(coupon.city ?? ANY_CITY);
+    setMaxRedemptions(
+      coupon.maxRedemptions == null ? "" : String(coupon.maxRedemptions)
+    );
+    setValidFrom(coupon.validFrom?.slice(0, 10) ?? "");
+    setValidTo(coupon.validTo?.slice(0, 10) ?? "");
+    setActive(coupon.active);
+    setFormError(null);
+    setFieldErrors({});
+    setTouched({});
+    setFormOpen(true);
+  };
+
+  const deleteCoupon = async (coupon: CouponRow) => {
+    if (coupon.redeemedCount > 0) return;
+    setDeleteTarget(coupon);
+  };
+
+  const confirmDeleteCoupon = async () => {
+    if (!deleteTarget) return;
+    const coupon = deleteTarget;
+
+    setBusyId(coupon.id);
+    try {
+      const res = await fetch(`/api/coupons/${coupon.id}`, {
+        method: "DELETE",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Could not delete coupon");
+        return;
+      }
+      setCoupons((rows) => rows.filter((row) => row.id !== coupon.id));
+      setDeleteTarget(null);
+      toast.success(`Coupon ${coupon.code} deleted`);
+    } catch {
+      toast.error("Could not delete coupon");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const resetForm = () => {
+    setEditingCoupon(null);
     setCode("");
     setType("PERCENT");
     setValue("");
@@ -197,7 +320,7 @@ export default function AdminPricingPage() {
     setTouched({});
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -221,27 +344,33 @@ export default function AdminPricingPage() {
 
     setSaving(true);
     const maxRaw = maxRedemptions.trim();
+    const editing = editingCoupon;
     try {
-      const res = await fetch("/api/coupons", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          type,
-          value: couponApiValue(type, value),
-          active,
-          maxRedemptions: maxRaw === "" ? null : Number(maxRaw),
-          validFrom: validFrom || null,
-          validTo: validTo || null,
-          city: city === ANY_CITY ? null : city,
-        }),
-      });
+      const res = await fetch(
+        editing ? `/api/coupons/${editing.id}` : "/api/coupons",
+        {
+          method: editing ? "PATCH" : "POST",
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            type,
+            value: couponApiValue(type, value),
+            ...(editing ? {} : { active }),
+            maxRedemptions: maxRaw === "" ? null : Number(maxRaw),
+            validFrom: validFrom || null,
+            validTo: validTo || null,
+            city: city === ANY_CITY ? null : city,
+          }),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message =
-          typeof data.error === "string" ? data.error : "Could not create coupon";
+          typeof data.error === "string"
+            ? data.error
+            : `Could not ${editing ? "update" : "create"} coupon`;
         const lower = message.toLowerCase();
         if (lower.includes("already exists") || lower.includes("code")) {
           setFieldErrors({ code: message });
@@ -265,10 +394,12 @@ export default function AdminPricingPage() {
         typeof data.coupon?.code === "string" ? data.coupon.code : code.trim();
       setFormOpen(false);
       resetForm();
-      toast.success(`Coupon ${createdCode} created`);
+      toast.success(`Coupon ${createdCode} ${editing ? "updated" : "created"}`);
       await load();
     } catch {
-      setFormError("Could not create coupon. Please try again.");
+      setFormError(
+        `Could not ${editing ? "update" : "create"} coupon. Please try again.`
+      );
     } finally {
       setSaving(false);
     }
@@ -281,7 +412,7 @@ export default function AdminPricingPage() {
       topbarActions={
         <AdminSearchTopbar
           searchValue={query}
-          onSearchChange={setQuery}
+          onSearchChange={setSearch}
           searchPlaceholder="Search by code"
           primaryAction={
             <Button
@@ -323,16 +454,58 @@ export default function AdminPricingPage() {
 
         <div className="ds-card overflow-hidden p-0">
           <CouponTable
-            coupons={filtered}
+            coupons={paged.items}
             loading={loading}
             loadError={loadError}
             busyId={busyId}
             query={query}
             totalCount={coupons.length}
             onToggle={(coupon) => void toggleActive(coupon)}
+            onEdit={openEdit}
+            onDelete={(coupon) => void deleteCoupon(coupon)}
+          />
+          <AdminListPagination
+            total={paged.total}
+            page={paged.page}
+            limit={paged.limit}
+            shownCount={paged.items.length}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            pageSizeLabel="Per page"
           />
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete coupon?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `This will remove ${deleteTarget.code}. This coupon has not been used and cannot be restored.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="secondary" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busyId === deleteTarget?.id}
+              onClick={() => void confirmDeleteCoupon()}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={formOpen}
@@ -344,11 +517,13 @@ export default function AdminPricingPage() {
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col gap-0 overflow-hidden sm:max-w-lg">
           <form
             className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(e) => void handleCreate(e)}
+            onSubmit={(e) => void handleSave(e)}
             noValidate
           >
             <DialogHeader className="shrink-0 pr-8">
-              <DialogTitle>Add new coupon</DialogTitle>
+              <DialogTitle>
+                {editingCoupon ? "Edit coupon" : "Add new coupon"}
+              </DialogTitle>
               <DialogDescription>
                 Code is case-sensitive. Percent is 1–100. Fixed amounts are in rands.
               </DialogDescription>
@@ -363,6 +538,7 @@ export default function AdminPricingPage() {
                   placeholder="e.g. SPARK10"
                   autoComplete="off"
                   spellCheck={false}
+                  disabled={Boolean(editingCoupon?.redeemedCount)}
                   aria-invalid={Boolean(codeError) || undefined}
                   aria-describedby={
                     codeError ? "coupon-code-error" : "coupon-code-hint"
@@ -377,7 +553,9 @@ export default function AdminPricingPage() {
                   <FieldError id="coupon-code-error" message={codeError} />
                 ) : (
                   <p id="coupon-code-hint" className="text-[12px] text-[#9aa0a6]">
-                    2–32 letters or numbers. Capitals are saved as typed.
+                    {editingCoupon?.redeemedCount
+                      ? "The code cannot be changed after it has been used."
+                      : "2–32 letters or numbers. Capitals are saved as typed."}
                   </p>
                 )}
               </div>
@@ -510,14 +688,16 @@ export default function AdminPricingPage() {
               </div>
               <FieldError id="coupon-window-error" message={windowError} />
 
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="coupon-active"
-                  checked={active}
-                  onCheckedChange={(checked) => setActive(checked === true)}
-                />
-                <Label htmlFor="coupon-active">Active</Label>
-              </div>
+              {!editingCoupon ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="coupon-active"
+                    checked={active}
+                    onCheckedChange={(checked) => setActive(checked === true)}
+                  />
+                  <Label htmlFor="coupon-active">Active</Label>
+                </div>
+              ) : null}
 
               {formError ? (
                 <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
@@ -534,7 +714,13 @@ export default function AdminPricingPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={saving || !isAdmin}>
-                {saving ? "Creating…" : "Create coupon"}
+                {saving
+                  ? editingCoupon
+                    ? "Saving…"
+                    : "Creating…"
+                  : editingCoupon
+                    ? "Save changes"
+                    : "Create coupon"}
               </Button>
             </DialogFooter>
           </form>
@@ -552,6 +738,8 @@ function CouponTable({
   query,
   totalCount,
   onToggle,
+  onEdit,
+  onDelete,
 }: {
   coupons: CouponRow[];
   loading: boolean;
@@ -560,6 +748,8 @@ function CouponTable({
   query: string;
   totalCount: number;
   onToggle: (coupon: CouponRow) => void;
+  onEdit: (coupon: CouponRow) => void;
+  onDelete: (coupon: CouponRow) => void;
 }) {
   const showEmpty = !loading && !loadError && totalCount === 0;
   const showNoMatch =
@@ -567,23 +757,20 @@ function CouponTable({
 
   return (
     <>
-      <div className="hidden overflow-x-auto lg:block">
-        <div className="min-w-[760px]">
+      <div className="hidden lg:block">
+        <div className="w-full min-w-0">
           <div
             className="grid items-center px-[22px] py-[14px]"
             style={{
               gridTemplateColumns: TABLE_COLS,
               background: "#f7f9fb",
               borderBottom: "1px solid #f0f2f6",
-              columnGap: 16,
+              columnGap: 10,
             }}
           >
             {["Code", "Discount", "City", "Uses", "Dates", "Status", "Actions"].map(
               (heading) => (
-                <div
-                  key={heading}
-                  className={heading === "Actions" ? "text-th text-right" : "text-th"}
-                >
+                <div key={heading} className="text-th whitespace-nowrap">
                   {heading}
                 </div>
               )
@@ -596,11 +783,11 @@ function CouponTable({
               style={{
                 gridTemplateColumns: TABLE_COLS,
                 borderBottom: "1px solid #f0f2f6",
-                columnGap: 16,
+                columnGap: 10,
               }}
             >
               <CouponCode coupon={coupon} />
-              <div className="text-body" style={{ color: "#32373c" }}>
+              <div className="whitespace-nowrap text-body" style={{ color: "#32373c" }}>
                 {formatCouponDiscount(coupon.type, coupon.value)}
               </div>
               <div
@@ -610,14 +797,20 @@ function CouponTable({
                 {coupon.city ?? "All cities"}
               </div>
               <Uses coupon={coupon} />
-              <div className="text-body" style={{ color: "#32373c" }}>
+              <div
+                className="min-w-0 truncate text-body"
+                style={{ color: "#32373c" }}
+                title={formatCouponWindow(coupon.validFrom, coupon.validTo)}
+              >
                 {formatCouponWindow(coupon.validFrom, coupon.validTo)}
               </div>
               <StatusPill active={coupon.active} />
-              <ToggleCoupon
+              <CouponActions
                 coupon={coupon}
                 busy={busyId === coupon.id}
                 onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
               />
             </div>
           ))}
@@ -641,16 +834,18 @@ function CouponTable({
               </div>
               <StatusPill active={coupon.active} />
             </div>
-            <div className="mt-[8px] flex items-center justify-between gap-3">
+            <div className="mt-[8px] flex flex-wrap items-center justify-between gap-3">
               <div className="text-meta" style={{ color: "#9aa0a6" }}>
                 <Uses coupon={coupon} />
                 {" · "}
                 {formatCouponWindow(coupon.validFrom, coupon.validTo)}
               </div>
-              <ToggleCoupon
+              <CouponActions
                 coupon={coupon}
                 busy={busyId === coupon.id}
                 onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
               />
             </div>
           </div>
@@ -718,8 +913,79 @@ function CouponCode({
 
 function Uses({ coupon }: { coupon: CouponRow }) {
   return (
-    <span className="text-body" style={{ color: "#32373c" }}>
+    <span className="whitespace-nowrap text-body" style={{ color: "#32373c" }}>
       {formatCouponUses(coupon.redeemedCount, coupon.maxRedemptions)}
+    </span>
+  );
+}
+
+export function CouponActions({
+  coupon,
+  busy,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  coupon: CouponRow;
+  busy: boolean;
+  onToggle: (coupon: CouponRow) => void;
+  onEdit: (coupon: CouponRow) => void;
+  onDelete: (coupon: CouponRow) => void;
+}) {
+  return (
+    <div className="flex flex-nowrap items-center justify-start gap-1.5">
+      <ToggleCoupon coupon={coupon} busy={busy} onToggle={onToggle} />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        disabled={busy}
+        aria-label={`Edit ${coupon.code}`}
+        title="Edit coupon"
+        className="size-8 shrink-0 rounded-[8px] border-[#e3e7ed] bg-white text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
+        onClick={() => onEdit(coupon)}
+      >
+        <Pencil size={14} aria-hidden="true" />
+      </Button>
+      <DeleteCouponButton coupon={coupon} busy={busy} onDelete={onDelete} />
+    </div>
+  );
+}
+
+function DeleteCouponButton({
+  coupon,
+  busy,
+  onDelete,
+}: {
+  coupon: CouponRow;
+  busy: boolean;
+  onDelete: (coupon: CouponRow) => void;
+}) {
+  const blocked = coupon.redeemedCount > 0;
+  const button = (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      disabled={busy || blocked}
+      title={blocked ? undefined : "Delete coupon"}
+      aria-label={
+        blocked ? `Delete ${coupon.code}. ${DELETE_BLOCKED_MESSAGE}` : `Delete ${coupon.code}`
+      }
+      className={`size-8 shrink-0 rounded-[8px] border-[#f7dada] bg-[#fff0f0] text-[#d64545] hover:border-[#d64545] hover:bg-[#d64545] hover:text-white ${
+        blocked ? "pointer-events-none" : ""
+      }`}
+      onClick={() => onDelete(coupon)}
+    >
+      <Trash2 size={14} aria-hidden="true" />
+    </Button>
+  );
+
+  if (!blocked) return button;
+
+  return (
+    <span className="inline-flex size-8 shrink-0 cursor-not-allowed" title={DELETE_BLOCKED_MESSAGE}>
+      {button}
     </span>
   );
 }
@@ -741,7 +1007,7 @@ function ToggleCoupon({
         size="sm"
         disabled={busy}
         aria-label={`Deactivate ${coupon.code}`}
-        className="h-8 justify-self-end rounded-[8px] bg-[#fff0f0] px-3 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
+        className="h-8 w-[6.75rem] shrink-0 justify-center rounded-[8px] bg-[#fff0f0] px-0 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
         onClick={() => onToggle(coupon)}
       >
         {busy ? "Saving…" : "Deactivate"}
@@ -755,7 +1021,7 @@ function ToggleCoupon({
       size="sm"
       disabled={busy}
       aria-label={`Activate ${coupon.code}`}
-      className="h-8 justify-self-end rounded-[8px] bg-[#eafaf5] px-3 text-[12px] font-bold text-[#0a7a63] hover:bg-[#0a7a63] hover:text-white"
+      className="h-8 w-[6.75rem] shrink-0 justify-center rounded-[8px] bg-[#eafaf5] px-0 text-[12px] font-bold text-[#0a7a63] hover:bg-[#0a7a63] hover:text-white"
       onClick={() => onToggle(coupon)}
     >
       {busy ? "Saving…" : "Activate"}
@@ -766,7 +1032,7 @@ function ToggleCoupon({
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
-      className="inline-flex w-fit rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
+      className="inline-flex w-fit whitespace-nowrap rounded-full px-2 py-[5px] text-[10px] font-extrabold tracking-normal"
       style={
         active
           ? { background: "#eafaf5", color: "#0a7a63" }
