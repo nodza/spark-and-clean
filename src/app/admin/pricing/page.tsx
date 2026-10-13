@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AdminListPagination } from "@/components/admin/AdminListPagination";
 import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import {
+  applyListPaginationParams,
+  paginateList,
+  parseListPagination,
+  type ListPagination,
+  type PageSize,
+} from "@/lib/listPagination";
 import { FieldError } from "@/components/booking/FieldError";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -59,10 +68,35 @@ type CouponRow = {
 type CouponFormField = "code" | "value" | "maxRedemptions" | "validFrom" | "validTo";
 
 const ANY_CITY = "any";
+const DELETE_BLOCKED_MESSAGE = "This coupon has been used";
 const TABLE_COLS =
-  "minmax(110px, 1.1fr) minmax(72px, 0.7fr) minmax(110px, 0.9fr) minmax(72px, 0.55fr) minmax(150px, 1.2fr) 88px 240px";
+  "11rem 5.5rem 7.25rem 3.75rem 11rem 5.25rem 13rem";
 
 export default function AdminPricingPage() {
+  return (
+    <Suspense fallback={<PricingShellFallback />}>
+      <AdminPricingList />
+    </Suspense>
+  );
+}
+
+function PricingShellFallback() {
+  return (
+    <AdminPortalShell
+      pageTitle="Pricing & coupons"
+      active="pricing"
+      topbarActions={<AdminSearchTopbar searchPlaceholder="Search by code" />}
+    >
+      <div className="portal-page text-meta" style={{ color: "#9aa0a6" }}>
+        Loading coupons…
+      </div>
+    </AdminPortalShell>
+  );
+}
+
+function AdminPricingList() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, ready } = useAuth();
   const isAdmin =
     user?.role === "admin" &&
@@ -143,6 +177,11 @@ export default function AdminPricingPage() {
     if (ready && !isAdmin) setLoading(false);
   }, [ready, isAdmin, load]);
 
+  const pagination = useMemo(
+    () => parseListPagination(searchParams),
+    [searchParams]
+  );
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return coupons;
@@ -151,6 +190,34 @@ export default function AdminPricingPage() {
       return coupon.code.toLowerCase().includes(needle) || owner.includes(needle);
     });
   }, [coupons, query]);
+
+  const paged = useMemo(
+    () => paginateList(filtered, pagination),
+    [filtered, pagination]
+  );
+
+  function writeListUrl(next: ListPagination) {
+    const params = applyListPaginationParams(new URLSearchParams(), next);
+    const qs = params.toString();
+    router.replace(qs ? `/admin/pricing?${qs}` : "/admin/pricing", {
+      scroll: false,
+    });
+  }
+
+  function setSearch(next: string) {
+    setQuery(next);
+    if (pagination.page !== 1) {
+      writeListUrl({ page: 1, limit: pagination.limit });
+    }
+  }
+
+  function setPage(page: number) {
+    writeListUrl({ page, limit: pagination.limit });
+  }
+
+  function setLimit(limit: PageSize) {
+    writeListUrl({ page: 1, limit });
+  }
 
   const toggleActive = async (coupon: CouponRow) => {
     const nextActive = !coupon.active;
@@ -345,7 +412,7 @@ export default function AdminPricingPage() {
       topbarActions={
         <AdminSearchTopbar
           searchValue={query}
-          onSearchChange={setQuery}
+          onSearchChange={setSearch}
           searchPlaceholder="Search by code"
           primaryAction={
             <Button
@@ -387,7 +454,7 @@ export default function AdminPricingPage() {
 
         <div className="ds-card overflow-hidden p-0">
           <CouponTable
-            coupons={filtered}
+            coupons={paged.items}
             loading={loading}
             loadError={loadError}
             busyId={busyId}
@@ -396,6 +463,15 @@ export default function AdminPricingPage() {
             onToggle={(coupon) => void toggleActive(coupon)}
             onEdit={openEdit}
             onDelete={(coupon) => void deleteCoupon(coupon)}
+          />
+          <AdminListPagination
+            total={paged.total}
+            page={paged.page}
+            limit={paged.limit}
+            shownCount={paged.items.length}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            pageSizeLabel="Per page"
           />
         </div>
       </div>
@@ -681,23 +757,20 @@ function CouponTable({
 
   return (
     <>
-      <div className="hidden overflow-x-auto lg:block">
-        <div className="min-w-[900px]">
+      <div className="hidden lg:block">
+        <div className="w-full min-w-0">
           <div
             className="grid items-center px-[22px] py-[14px]"
             style={{
               gridTemplateColumns: TABLE_COLS,
               background: "#f7f9fb",
               borderBottom: "1px solid #f0f2f6",
-              columnGap: 16,
+              columnGap: 10,
             }}
           >
             {["Code", "Discount", "City", "Uses", "Dates", "Status", "Actions"].map(
               (heading) => (
-                <div
-                  key={heading}
-                  className={heading === "Actions" ? "text-th text-right" : "text-th"}
-                >
+                <div key={heading} className="text-th whitespace-nowrap">
                   {heading}
                 </div>
               )
@@ -710,11 +783,11 @@ function CouponTable({
               style={{
                 gridTemplateColumns: TABLE_COLS,
                 borderBottom: "1px solid #f0f2f6",
-                columnGap: 16,
+                columnGap: 10,
               }}
             >
               <CouponCode coupon={coupon} />
-              <div className="text-body" style={{ color: "#32373c" }}>
+              <div className="whitespace-nowrap text-body" style={{ color: "#32373c" }}>
                 {formatCouponDiscount(coupon.type, coupon.value)}
               </div>
               <div
@@ -724,7 +797,11 @@ function CouponTable({
                 {coupon.city ?? "All cities"}
               </div>
               <Uses coupon={coupon} />
-              <div className="text-body" style={{ color: "#32373c" }}>
+              <div
+                className="min-w-0 truncate text-body"
+                style={{ color: "#32373c" }}
+                title={formatCouponWindow(coupon.validFrom, coupon.validTo)}
+              >
                 {formatCouponWindow(coupon.validFrom, coupon.validTo)}
               </div>
               <StatusPill active={coupon.active} />
@@ -836,7 +913,7 @@ function CouponCode({
 
 function Uses({ coupon }: { coupon: CouponRow }) {
   return (
-    <span className="text-body" style={{ color: "#32373c" }}>
+    <span className="whitespace-nowrap text-body" style={{ color: "#32373c" }}>
       {formatCouponUses(coupon.redeemedCount, coupon.maxRedemptions)}
     </span>
   );
@@ -856,7 +933,7 @@ export function CouponActions({
   onDelete: (coupon: CouponRow) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
+    <div className="flex flex-nowrap items-center justify-start gap-1.5">
       <ToggleCoupon coupon={coupon} busy={busy} onToggle={onToggle} />
       <Button
         type="button"
@@ -865,28 +942,51 @@ export function CouponActions({
         disabled={busy}
         aria-label={`Edit ${coupon.code}`}
         title="Edit coupon"
-        className="rounded-[8px] border-[#e3e7ed] bg-white text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
+        className="size-8 shrink-0 rounded-[8px] border-[#e3e7ed] bg-white text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
         onClick={() => onEdit(coupon)}
       >
         <Pencil size={14} aria-hidden="true" />
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        disabled={busy || coupon.redeemedCount > 0}
-        title={
-          coupon.redeemedCount > 0
-            ? "Delete is unavailable because this coupon has been used"
-            : "Delete coupon"
-        }
-        aria-label={`Delete ${coupon.code}`}
-        className="rounded-[8px] border-[#f7dada] bg-[#fff0f0] text-[#d64545] hover:border-[#d64545] hover:bg-[#d64545] hover:text-white"
-        onClick={() => onDelete(coupon)}
-      >
-        <Trash2 size={14} aria-hidden="true" />
-      </Button>
+      <DeleteCouponButton coupon={coupon} busy={busy} onDelete={onDelete} />
     </div>
+  );
+}
+
+function DeleteCouponButton({
+  coupon,
+  busy,
+  onDelete,
+}: {
+  coupon: CouponRow;
+  busy: boolean;
+  onDelete: (coupon: CouponRow) => void;
+}) {
+  const blocked = coupon.redeemedCount > 0;
+  const button = (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      disabled={busy || blocked}
+      title={blocked ? undefined : "Delete coupon"}
+      aria-label={
+        blocked ? `Delete ${coupon.code}. ${DELETE_BLOCKED_MESSAGE}` : `Delete ${coupon.code}`
+      }
+      className={`size-8 shrink-0 rounded-[8px] border-[#f7dada] bg-[#fff0f0] text-[#d64545] hover:border-[#d64545] hover:bg-[#d64545] hover:text-white ${
+        blocked ? "pointer-events-none" : ""
+      }`}
+      onClick={() => onDelete(coupon)}
+    >
+      <Trash2 size={14} aria-hidden="true" />
+    </Button>
+  );
+
+  if (!blocked) return button;
+
+  return (
+    <span className="inline-flex size-8 shrink-0 cursor-not-allowed" title={DELETE_BLOCKED_MESSAGE}>
+      {button}
+    </span>
   );
 }
 
@@ -907,7 +1007,7 @@ function ToggleCoupon({
         size="sm"
         disabled={busy}
         aria-label={`Deactivate ${coupon.code}`}
-        className="h-8 justify-self-end rounded-[8px] bg-[#fff0f0] px-3 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
+        className="h-8 w-[6.75rem] shrink-0 justify-center rounded-[8px] bg-[#fff0f0] px-0 text-[12px] font-bold text-[#d64545] hover:bg-[#d64545] hover:text-white"
         onClick={() => onToggle(coupon)}
       >
         {busy ? "Saving…" : "Deactivate"}
@@ -921,7 +1021,7 @@ function ToggleCoupon({
       size="sm"
       disabled={busy}
       aria-label={`Activate ${coupon.code}`}
-      className="h-8 justify-self-end rounded-[8px] bg-[#eafaf5] px-3 text-[12px] font-bold text-[#0a7a63] hover:bg-[#0a7a63] hover:text-white"
+      className="h-8 w-[6.75rem] shrink-0 justify-center rounded-[8px] bg-[#eafaf5] px-0 text-[12px] font-bold text-[#0a7a63] hover:bg-[#0a7a63] hover:text-white"
       onClick={() => onToggle(coupon)}
     >
       {busy ? "Saving…" : "Activate"}
@@ -932,7 +1032,7 @@ function ToggleCoupon({
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
-      className="inline-flex w-fit rounded-full px-[10px] py-[5px] text-[10px] font-extrabold tracking-wide"
+      className="inline-flex w-fit whitespace-nowrap rounded-full px-2 py-[5px] text-[10px] font-extrabold tracking-normal"
       style={
         active
           ? { background: "#eafaf5", color: "#0a7a63" }
