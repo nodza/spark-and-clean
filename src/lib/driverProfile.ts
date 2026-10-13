@@ -1,3 +1,5 @@
+import { validateCustomerName } from "@/lib/bookingValidation";
+
 /** Keep User.disabledAt / User.isActive in lockstep with Driver.isActive. */
 export function technicianLoginFields(isActive: boolean, at: Date = new Date()) {
   return isActive
@@ -5,12 +7,77 @@ export function technicianLoginFields(isActive: boolean, at: Date = new Date()) 
     : { disabledAt: at, isActive: false as const };
 }
 
+/**
+ * Assigned bookings in these statuses may stay when the technician login
+ * is removed. Anything else still blocks deletion.
+ */
+export const TECHNICIAN_DELETE_CLOSED_STATUSES = ["DELIVERED", "CANCELLED"] as const;
+
 export type DriverPatchUpdates = {
   isActive?: boolean;
+  name?: string;
   phone?: string;
   email?: string;
   city?: string;
 };
+
+/**
+ * Why a technician cannot be removed, or null when deletion is allowed.
+ * Callers only read jobs and vehicles. This function does not write them.
+ */
+export function technicianDeleteBlockMessage(input: {
+  openJobCount: number;
+  hasStandingVehicle: boolean;
+}): string | null {
+  const openJobs = input.openJobCount > 0;
+  const standing = input.hasStandingVehicle;
+  if (!openJobs && !standing) return null;
+
+  const parts: string[] = [];
+  if (openJobs) {
+    parts.push(
+      input.openJobCount === 1
+        ? "This technician still has a job that is not Delivered or Cancelled. Finish or cancel that job before removing them."
+        : `This technician still has ${input.openJobCount} jobs that are not Delivered or Cancelled. Finish or cancel those jobs before removing them.`
+    );
+  }
+  if (standing) {
+    parts.push(
+      "This technician is still the standing driver on a vehicle. Clear that assignment on the Vehicles page before removing them."
+    );
+  }
+  return parts.join(" ");
+}
+
+export function technicianDeleteRefusal(input: {
+  openJobCount: number;
+  hasStandingVehicle: boolean;
+}): string | null {
+  const message = technicianDeleteBlockMessage(input);
+  if (!message) return null;
+  return `${message} Nothing was removed.`;
+}
+
+/** Hover and button state for the admin UI. Null means delete is allowed. */
+export function technicianDeletePreview(input: {
+  driverProfileId?: string | null;
+  bookings: { assignedDriverId?: string | null; status?: string | null }[];
+  hasStandingVehicle: boolean;
+}): string | null {
+  if (!input.driverProfileId) {
+    return "This technician has no driver profile, so they cannot be removed.";
+  }
+  const closed = new Set<string>(TECHNICIAN_DELETE_CLOSED_STATUSES);
+  const openJobCount = input.bookings.filter(
+    (job) =>
+      job.assignedDriverId === input.driverProfileId &&
+      !closed.has(String(job.status ?? ""))
+  ).length;
+  return technicianDeleteBlockMessage({
+    openJobCount,
+    hasStandingVehicle: input.hasStandingVehicle,
+  });
+}
 
 export function sanitizeDriverPatch(
   body: unknown
@@ -33,6 +100,18 @@ export function sanitizeDriverPatch(
       ok: false,
       error: "Use POST /api/drivers/[id]/notes to add notes",
     };
+  }
+
+  if ("name" in raw) {
+    if (typeof raw.name !== "string") {
+      return { ok: false, error: "name must be a string" };
+    }
+    const name = raw.name.trim().replace(/\s+/g, " ");
+    const nameError = validateCustomerName(name);
+    if (nameError) {
+      return { ok: false, error: nameError };
+    }
+    updates.name = name;
   }
 
   if ("phone" in raw) {

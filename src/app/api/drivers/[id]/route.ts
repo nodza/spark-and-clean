@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
+import { Booking } from "@/models/Booking";
 import { Driver } from "@/models/Driver";
 import { User } from "@/models/User";
+import { Vehicle } from "@/models/Vehicle";
 import { toClientDriver } from "@/lib/serialize";
 import { isHttpError, requireFullAdmin } from "@/lib/adminAuth";
-import { sanitizeDriverPatch, technicianLoginFields } from "@/lib/driverProfile";
+import {
+  sanitizeDriverPatch,
+  TECHNICIAN_DELETE_CLOSED_STATUSES,
+  technicianDeleteRefusal,
+  technicianLoginFields,
+} from "@/lib/driverProfile";
 import { overlayDriverVehicle, vehiclesByDriverId } from "@/lib/vehicleStore";
 
 type Params = { params: Promise<{ id: string }> };
@@ -78,10 +85,20 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
+    const userSet: Record<string, unknown> = {};
     if (typeof parsed.updates.isActive === "boolean") {
+      Object.assign(userSet, technicianLoginFields(parsed.updates.isActive));
+    }
+    if (typeof parsed.updates.name === "string") {
+      userSet.name = parsed.updates.name;
+    }
+    if (typeof parsed.updates.phone === "string") {
+      userSet.phone = parsed.updates.phone;
+    }
+    if (Object.keys(userSet).length > 0) {
       await User.updateMany(
         { role: "technician", driverProfileId: id },
-        { $set: technicianLoginFields(parsed.updates.isActive) }
+        { $set: userSet }
       );
     }
 
@@ -94,5 +111,46 @@ export async function PATCH(request: Request, { params }: Params) {
     );
   } catch (err) {
     return jsonError(err, "Failed to update driver");
+  }
+}
+
+/**
+ * Full admin only. Removes the technician login and driver profile.
+ * Refuses while any assigned booking is still open, or a vehicle lists
+ * them as the standing driver. Delivered and cancelled bookings stay.
+ */
+export async function DELETE(_request: Request, { params }: Params) {
+  try {
+    await requireFullAdmin();
+    const { id } = await params;
+    await connectDB();
+
+    const driver = await Driver.findOne({ id }).select("id").lean();
+    if (!driver) {
+      return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    }
+
+    const [openJobCount, standingVehicle] = await Promise.all([
+      Booking.countDocuments({
+        assignedDriverId: id,
+        status: { $nin: [...TECHNICIAN_DELETE_CLOSED_STATUSES] },
+      }),
+      Vehicle.exists({ assignedDriverId: id }),
+    ]);
+
+    const refusal = technicianDeleteRefusal({
+      openJobCount,
+      hasStandingVehicle: Boolean(standingVehicle),
+    });
+    if (refusal) {
+      return NextResponse.json({ error: refusal }, { status: 409 });
+    }
+
+    await User.deleteMany({ role: "technician", driverProfileId: id });
+    await Driver.deleteOne({ id });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return jsonError(err, "Failed to delete driver");
   }
 }
