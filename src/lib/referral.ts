@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
-import { Types } from "mongoose";
+import { Types, type ClientSession } from "mongoose";
 import { User } from "@/models/User";
+import { runInTransaction } from "@/lib/promotion/runInTransaction";
 import {
   REFERRAL_CODE_ALPHABET,
   REFERRAL_CODE_LENGTH,
@@ -114,10 +115,26 @@ export type ReferralCreditTarget = {
   userId?: unknown;
 };
 
+/** Claim filter for the one referral punch. Shared so tests can cast it. */
+export function referralRewardClaimFilter(friendId: Types.ObjectId) {
+  return {
+    _id: friendId,
+    referredByUserId: { $exists: true, $type: "objectId" },
+    $expr: { $ne: ["$referredByUserId", "$_id"] },
+    $or: [
+      { referralRewardedAt: { $exists: false } },
+      { referralRewardedAt: null },
+    ],
+  };
+}
+
 /**
  * Credit the referrer once, when the referred client is first delivered.
  * The reward is one extra loyalty punch. It is not a coupon and not a Stripe payout.
  * referralRewardedAt on the friend blocks a second credit.
+ * The claim and the punch commit together. A missing referrer releases the claim
+ * and returns false. A write error aborts both, so a later delivery can retry
+ * without paying twice.
  * A delivery does not credit someone as their own referrer.
  */
 export async function creditReferrerOnce(
@@ -127,47 +144,45 @@ export async function creditReferrerOnce(
   if (!friendId) return false;
 
   const friendObjectId = new Types.ObjectId(friendId);
-  const claimed = await User.findOneAndUpdate(
-    {
-      _id: friendObjectId,
-      referredByUserId: { $exists: true, $type: "objectId" },
-      $expr: { $ne: ["$referredByUserId", "$_id"] },
-      $or: [
-        { referralRewardedAt: { $exists: false } },
-        { referralRewardedAt: null },
-      ],
-    },
-    { $set: { referralRewardedAt: new Date() } },
-    { returnDocument: "after" }
-  )
-    .select("referredByUserId")
-    .lean();
 
-  if (!claimed) return false;
+  return runInTransaction(async (session) => {
+    const claimed = await User.findOneAndUpdate(
+      referralRewardClaimFilter(friendObjectId),
+      { $set: { referralRewardedAt: new Date() } },
+      { returnDocument: "after", session }
+    )
+      .select("referredByUserId")
+      .lean();
 
-  const referrerId = userIdString(claimed.referredByUserId);
-  if (!referrerId || referrerId === friendId) {
-    await User.updateOne(
-      { _id: friendObjectId },
-      { $unset: { referralRewardedAt: "" } }
-    );
-    return false;
-  }
+    if (!claimed) return false;
 
-  try {
+    const referrerId = userIdString(claimed.referredByUserId);
+    if (!referrerId || referrerId === friendId) {
+      await releaseReferralClaim(friendObjectId, session);
+      return false;
+    }
+
     const updated = await User.updateOne(
       { _id: referrerId },
-      { $inc: { "loyalty.punches": 1 } }
+      { $inc: { "loyalty.punches": 1 } },
+      { session }
     );
     if (updated.matchedCount !== 1) {
-      throw new Error("Could not credit the referrer.");
+      await releaseReferralClaim(friendObjectId, session);
+      return false;
     }
-  } catch (err) {
-    await User.updateOne(
-      { _id: friendObjectId },
-      { $unset: { referralRewardedAt: "" } }
-    );
-    throw err;
-  }
-  return true;
+    return true;
+  });
+}
+
+/** Drop a claim only when this transaction knows the punch did not apply. */
+async function releaseReferralClaim(
+  friendId: Types.ObjectId,
+  session: ClientSession
+) {
+  await User.updateOne(
+    { _id: friendId },
+    { $unset: { referralRewardedAt: "" } },
+    { session }
+  );
 }

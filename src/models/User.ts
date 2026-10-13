@@ -105,7 +105,10 @@ const UserSchema = new Schema(
     driverProfileId: { type: String, trim: true, index: true, sparse: true },
     /**
      * Stable client share code. Absent for technicians and admins.
-     * Sparse so those accounts do not collide on an empty value.
+     * The unique sparse index is created when Mongoose connects (autoIndex),
+     * the same way the email index is. Writing a user does not create it.
+     * Confirm `referralCode_1` is unique and sparse in the target database
+     * after deploy. Without that index, two clients can share one code.
      */
     referralCode: {
       type: String,

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const bookingUpdateOne = vi.fn();
 const userUpdateOne = vi.fn();
+const userFindOne = vi.fn();
 
 vi.mock("@/models/Booking", () => ({
   Booking: {
@@ -13,10 +14,11 @@ vi.mock("@/models/Booking", () => ({
 vi.mock("@/models/User", () => ({
   User: {
     updateOne: (...args: unknown[]) => userUpdateOne(...args),
+    findOne: (...args: unknown[]) => userFindOne(...args),
   },
 }));
 
-import { punchOnce } from "@/lib/promotion/loyalty";
+import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 
 const sarahId = "507f1f77bcf86cd799439011";
 
@@ -24,6 +26,7 @@ describe("punchOnce", () => {
   beforeEach(() => {
     bookingUpdateOne.mockReset();
     userUpdateOne.mockReset();
+    userFindOne.mockReset();
     userUpdateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
   });
 
@@ -117,5 +120,60 @@ describe("punchOnce", () => {
 
     expect(bookingUpdateOne).not.toHaveBeenCalled();
     expect(userUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+function found(value: unknown) {
+  return {
+    select: () => ({
+      lean: async () => value,
+    }),
+  };
+}
+
+describe("deliveryClientId", () => {
+  const nomsaId = "507f1f77bcf86cd799439099";
+
+  beforeEach(() => {
+    bookingUpdateOne.mockReset();
+    userFindOne.mockReset();
+    bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  });
+
+  it("keeps the client already linked to the booking", async () => {
+    userFindOne.mockReturnValue(found({ _id: sarahId }));
+
+    await expect(
+      deliveryClientId({
+        id: "SC-NOMSA",
+        userId: sarahId,
+        email: "nomsa@gmail.com",
+      })
+    ).resolves.toBe(sarahId);
+
+    expect(bookingUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it("relinks a booking whose user was deleted to the client with that email", async () => {
+    userFindOne
+      .mockReturnValueOnce(found(null))
+      .mockReturnValueOnce(found({ _id: nomsaId }));
+
+    await expect(
+      deliveryClientId({
+        id: "SC-NOMSA",
+        userId: "507f1f77bcf86cd799439012",
+        email: "Nomsa@gmail.com",
+      })
+    ).resolves.toBe(nomsaId);
+
+    expect(userFindOne).toHaveBeenLastCalledWith({
+      email: "nomsa@gmail.com",
+      role: "client",
+    });
+    expect(bookingUpdateOne).toHaveBeenCalledWith(
+      { id: "SC-NOMSA" },
+      { $set: { userId: nomsaId, "customer.id": nomsaId } }
+    );
   });
 });

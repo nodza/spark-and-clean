@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { LOYALTY_PUNCHES_PER_REWARD } from "@/lib/promotion/loyaltyReward";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,8 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingLoyalty, setLoadingLoyalty] = useState(true);
   const [redeeming, setRedeeming] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +63,23 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
       cancelled = true;
     };
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (!copiedCode) return;
+    const timer = window.setTimeout(() => setCopiedCode(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copiedCode]);
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setCopyError(null);
+    } catch {
+      setCopiedCode(null);
+      setCopyError("Could not copy. Select the coupon code above.");
+    }
+  }
 
   async function redeem() {
     setRedeeming(true);
@@ -109,46 +129,98 @@ export function LoyaltyRewardCard({ refreshKey = 0 }: { refreshKey?: number }) {
     !loadError;
 
   return (
-    <div className="mt-3.5 rounded-[14px] border-[1.5px] border-[#6cf3d5] bg-white p-5">
-      <div className="mb-3 text-[10.5px] font-extrabold tracking-[0.14em] text-[#0a7a63]">
-        R500 OFF YOUR NEXT RUG
+    <div className="mt-3.5 rounded-[14px] border border-[#e3e7ed] bg-white p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#0a7a63]">
+          R500 OFF YOUR NEXT RUG
+        </div>
+        {punches != null ? (
+          <div className="shrink-0 text-[11px] font-bold text-[#9aa0a6]">
+            {filled}/{LOYALTY_PUNCHES_PER_REWARD}
+          </div>
+        ) : null}
       </div>
-      <div className="flex gap-1.5" aria-hidden>
+      <div
+        className="mt-2 flex gap-1"
+        role="img"
+        aria-label={
+          punches == null
+            ? "Loyalty punches"
+            : `${filled} of ${LOYALTY_PUNCHES_PER_REWARD} punches filled`
+        }
+      >
         {Array.from({ length: LOYALTY_PUNCHES_PER_REWARD }, (_, i) => (
           <div
             key={i}
             className={cn(
-              "h-[9px] flex-1 rounded-full",
+              "h-1.5 flex-1 rounded-full",
               i < filled ? "bg-[#0a7a63]" : "bg-[#eef1f5]"
             )}
           />
         ))}
       </div>
-      <div className="mt-3.5 text-[15px] font-extrabold text-[#000b49]">
+      <div className="mt-2 text-[13px] font-extrabold text-[#000b49]">
         {punches == null
           ? "Loyalty punches"
           : `${punches} punch${punches === 1 ? "" : "es"}`}
       </div>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#6b7280]">
-        Each delivered clean earns a punch. Redeem {LOYALTY_PUNCHES_PER_REWARD} for R500 off one rug, then paste the code when you book.
+        A delivered clean earns a punch, and so does a friend&apos;s first
+        delivery from your referral link. Redeem {LOYALTY_PUNCHES_PER_REWARD} for
+        R500 off one rug, then paste the code when you book.
       </p>
       <button
         type="button"
         onClick={() => void redeem()}
         disabled={!canRedeem}
         aria-busy={redeeming}
-        className="mt-3.5 inline-flex cursor-pointer items-center rounded-full border border-[#086350] bg-[#0a7a63] px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition hover:-translate-y-px hover:bg-[#086350] hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7a63] active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:border-transparent disabled:bg-[#eef1f5] disabled:text-[#9aa0a6] disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:bg-[#eef1f5] disabled:hover:shadow-none"
+        className="mt-2.5 inline-flex cursor-pointer items-center rounded-full border border-[#086350] bg-[#0a7a63] px-3 py-1 text-[12px] font-extrabold text-white transition hover:bg-[#086350] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0a7a63] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-[#eef1f5] disabled:text-[#9aa0a6] disabled:hover:bg-[#eef1f5]"
       >
         {redeeming ? "Redeeming…" : "Redeem"}
       </button>
       {codes.length > 0 ? (
-        <ul className="mt-3 space-y-1 text-[13px] font-extrabold text-[#000b49]">
-          {codes.map((code) => (
-            <li key={code}>
-              Your code: <span className="tracking-wide">{code}</span>
-            </li>
-          ))}
+        <ul className="mt-2.5 space-y-1.5">
+          {codes.map((code) => {
+            const copied = copiedCode === code;
+            return (
+              <li
+                key={code}
+                className="flex items-center gap-2 rounded-[10px] bg-[#f4f6f8] py-1 pl-2.5 pr-1"
+              >
+                <span className="shrink-0 text-[10px] font-extrabold tracking-[0.08em] text-[#9aa0a6]">
+                  COUPON
+                </span>
+                <p
+                  title={code}
+                  className="min-w-0 flex-1 select-all truncate font-mono text-[12px] font-bold tracking-wide text-[#000b49]"
+                >
+                  {code}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void copyCode(code)}
+                  aria-label={copied ? "Coupon code copied" : "Copy coupon code"}
+                  title={copied ? "Copied" : "Copy coupon code"}
+                  className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#000b49] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000b49]"
+                >
+                  {copied ? (
+                    <Check aria-hidden className="size-3.5" />
+                  ) : (
+                    <Copy aria-hidden className="size-3.5" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
         </ul>
+      ) : null}
+      <span className="sr-only" aria-live="polite">
+        {copiedCode ? "Coupon code copied" : ""}
+      </span>
+      {copyError ? (
+        <p className="mt-2 text-[12.5px] text-[#b33232]" role="alert">
+          {copyError}
+        </p>
       ) : null}
       {loadError ? (
         <p className="mt-2 text-[12.5px] text-[#b33232]" role="alert">

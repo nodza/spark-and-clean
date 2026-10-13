@@ -33,6 +33,41 @@ function userIdString(userId: unknown): string | null {
  * Guests (no userId) are skipped. A later call for the same booking does not
  * increment again — the claim is the booking's promotion.loyaltyPunchedAt flag.
  */
+/**
+ * Client who should receive the delivery punch.
+ * A booking left on a deleted user id is relinked to the client with the same email,
+ * so the referral stored on that account can be paid.
+ */
+export async function deliveryClientId(booking: {
+  id: string;
+  userId?: unknown;
+  email?: unknown;
+}): Promise<string | null> {
+  const linked = userIdString(booking.userId);
+  if (linked) {
+    const owner = await User.findOne({ _id: linked, role: "client" })
+      .select("_id")
+      .lean();
+    if (owner?._id) return linked;
+  }
+
+  const email =
+    typeof booking.email === "string" ? booking.email.trim().toLowerCase() : "";
+  if (!email) return null;
+
+  const byEmail = await User.findOne({ email, role: "client" })
+    .select("_id")
+    .lean();
+  if (!byEmail?._id) return null;
+
+  const id = String(byEmail._id);
+  await Booking.updateOne(
+    { id: booking.id },
+    { $set: { userId: byEmail._id, "customer.id": id } }
+  );
+  return id;
+}
+
 export async function punchOnce(booking: LoyaltyPunchTarget): Promise<boolean> {
   const userId = userIdString(booking.userId);
   if (!userId) return false;

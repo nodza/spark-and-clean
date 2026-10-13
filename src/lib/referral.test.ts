@@ -16,6 +16,11 @@ vi.mock("@/models/User", () => ({
   },
 }));
 
+vi.mock("@/lib/promotion/runInTransaction", () => ({
+  runInTransaction: async (work: (session: object) => Promise<unknown>) =>
+    work({}),
+}));
+
 import {
   creditReferrerOnce,
   ensureClientReferralCode,
@@ -159,8 +164,13 @@ describe("referrer credit on first delivery", () => {
     expect(mocks.updateOne).toHaveBeenCalledTimes(1);
     expect(mocks.updateOne).toHaveBeenCalledWith(
       { _id: sarahId },
-      { $inc: { "loyalty.punches": 1 } }
+      { $inc: { "loyalty.punches": 1 } },
+      { session: {} }
     );
+    expect(mocks.findOneAndUpdate.mock.calls[0][2]).toMatchObject({
+      returnDocument: "after",
+      session: {},
+    });
   });
 
   it("does not credit Sarah again when Jane is delivered a second time", async () => {
@@ -193,19 +203,30 @@ describe("referrer credit on first delivery", () => {
     expect(mocks.updateOne.mock.calls[0][1]).toEqual({
       $unset: { referralRewardedAt: "" },
     });
+    expect(mocks.updateOne.mock.calls[0][2]).toEqual({ session: {} });
   });
 
-  it("releases the claim when the referrer punch cannot be saved", async () => {
+  it("releases the claim when the referrer cannot be updated", async () => {
     mocks.findOneAndUpdate.mockReturnValue(query({ referredByUserId: sarahId }));
     mocks.updateOne.mockResolvedValueOnce({ matchedCount: 0 });
 
-    await expect(creditReferrerOnce(janeBooking)).rejects.toThrow(
-      "Could not credit the referrer."
-    );
+    await expect(creditReferrerOnce(janeBooking)).resolves.toBe(false);
     expect(mocks.updateOne).toHaveBeenLastCalledWith(
       { _id: expect.anything() },
-      { $unset: { referralRewardedAt: "" } }
+      { $unset: { referralRewardedAt: "" } },
+      { session: {} }
     );
+  });
+
+  it("leaves the claim for the transaction to abort when the referrer write throws", async () => {
+    mocks.findOneAndUpdate.mockReturnValue(query({ referredByUserId: sarahId }));
+    mocks.updateOne.mockRejectedValueOnce(new Error("timed out"));
+
+    await expect(creditReferrerOnce(janeBooking)).rejects.toThrow("timed out");
+    expect(mocks.updateOne).toHaveBeenCalledTimes(1);
+    expect(mocks.updateOne.mock.calls[0][1]).toEqual({
+      $inc: { "loyalty.punches": 1 },
+    });
   });
 
   it("skips a guest booking", async () => {
