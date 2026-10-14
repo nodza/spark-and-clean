@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Copy, Pencil, Trash2 } from "lucide-react";
+import { Ban, Check, Copy, Pencil } from "lucide-react";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import {
   bookingCalendarDate,
@@ -54,8 +54,8 @@ import {
   type AdminBookingFilters,
 } from "@/lib/adminBookingQuery";
 import {
-  bookingDeleteBlockReason,
-  canDeleteBooking,
+  bookingDeactivateBlockReason,
+  canDeactivateBooking,
 } from "@/lib/adminBookingDetails";
 import { isUnassignedDriver } from "@/lib/bookingAttention";
 import {
@@ -238,7 +238,7 @@ function AdminBookingsList() {
   const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm);
   const [editError, setEditError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<Booking | null>(null);
+  const [deactivating, setDeactivating] = useState<Booking | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   function openEdit(booking: Booking) {
@@ -291,26 +291,26 @@ function AdminBookingsList() {
     }
   }
 
-  async function confirmDelete() {
-    if (!deleting) return;
-    setBusyId(deleting.id);
+  async function confirmDeactivate() {
+    if (!deactivating) return;
+    setBusyId(deactivating.id);
     try {
       const response = await fetch(
-        `/api/admin/bookings/${encodeURIComponent(deleting.id)}`,
+        `/api/admin/bookings/${encodeURIComponent(deactivating.id)}`,
         { method: "DELETE", credentials: "include" }
       );
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
       };
       if (!response.ok) {
-        throw new Error(data.error || "Could not delete booking");
+        throw new Error(data.error || "Could not deactivate booking");
       }
-      toast.success(`Deleted ${deleting.id}`);
-      setDeleting(null);
+      toast.success(`Deactivated ${deactivating.id}`);
+      setDeactivating(null);
       await refresh();
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not delete booking"
+        err instanceof Error ? err.message : "Could not deactivate booking"
       );
     } finally {
       setBusyId(null);
@@ -318,8 +318,8 @@ function AdminBookingsList() {
   }
 
   function rowActions(booking: Booking) {
-    const deleteReason = bookingDeleteBlockReason(booking);
-    const deleteAllowed = canDeleteBooking(booking);
+    const deactivateReason = bookingDeactivateBlockReason(booking);
+    const deactivateAllowed = canDeactivateBooking(booking);
     const disabled = busyId === booking.id;
     return (
       <div
@@ -344,22 +344,24 @@ function AdminBookingsList() {
           type="button"
           variant="destructive"
           size="icon-sm"
-          disabled={disabled || !deleteAllowed}
+          disabled={disabled || !deactivateAllowed}
           aria-label={
-            deleteAllowed
-              ? `Delete booking ${booking.id}`
-              : `Delete unavailable: ${deleteReason}`
+            deactivateAllowed
+              ? `Deactivate booking ${booking.id}`
+              : `Deactivate unavailable: ${deactivateReason}`
           }
           title={
-            deleteAllowed ? "Delete booking" : deleteReason || "Cannot delete"
+            deactivateAllowed
+              ? "Deactivate booking"
+              : deactivateReason || "Cannot deactivate"
           }
           className="rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6]"
           onClick={() => {
-            if (!deleteAllowed) return;
-            setDeleting(booking);
+            if (!deactivateAllowed) return;
+            setDeactivating(booking);
           }}
         >
-          <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
+          <Ban size={15} strokeWidth={2} aria-hidden="true" />
         </Button>
       </div>
     );
@@ -470,7 +472,7 @@ function AdminBookingsList() {
     <AdminPortalShell
       pageTitle="Bookings"
       active="bookings"
-      bookingsBadge={bookings.length || undefined}
+      bookingsBadge={statusCounts.all || undefined}
       topbarActions={
         <AdminSearchTopbar
           searchValue={filters.q}
@@ -483,7 +485,15 @@ function AdminBookingsList() {
         <BookingsFilterPanel
           filters={filters}
           matchedCount={rows.length}
-          totalCount={bookings.length}
+          totalCount={
+            filters.deactivated === "1"
+              ? statusCounts.deactivated
+              : filters.status
+                ? (statusCounts.byStatus[
+                    filters.status as keyof typeof statusCounts.byStatus
+                  ] ?? rows.length)
+                : statusCounts.all
+          }
           statusCounts={statusCounts}
           cities={cities}
           suburbs={suburbs}
@@ -914,17 +924,17 @@ function AdminBookingsList() {
       </Dialog>
 
       <Dialog
-        open={Boolean(deleting)}
+        open={Boolean(deactivating)}
         onOpenChange={(open) => {
-          if (!open) setDeleting(null);
+          if (!open) setDeactivating(null);
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete booking?</DialogTitle>
+            <DialogTitle>Deactivate booking?</DialogTitle>
             <DialogDescription>
-              {deleting
-                ? `Remove ${deleting.id}? This only works for unpaid bookings that have not been collected and have no rug tag.`
+              {deactivating
+                ? `Deactivate ${deactivating.id}? It will no longer show on the main bookings board, but the record stays (find it under Deactivated).`
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -932,18 +942,18 @@ function AdminBookingsList() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setDeleting(null)}
-              disabled={busyId === deleting?.id}
+              onClick={() => setDeactivating(null)}
+              disabled={busyId === deactivating?.id}
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              disabled={busyId === deleting?.id}
-              onClick={() => void confirmDelete()}
+              disabled={busyId === deactivating?.id}
+              onClick={() => void confirmDeactivate()}
             >
-              Delete
+              Deactivate
             </Button>
           </DialogFooter>
         </DialogContent>

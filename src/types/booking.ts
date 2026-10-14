@@ -90,6 +90,11 @@ export interface Booking {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
+  /**
+   * Soft-removed from the active admin list. Distinct from status CANCELLED —
+   * original status/price/location stay for analytics.
+   */
+  deactivatedAt?: string | null;
   updatedAt?: string;
   createdAt: string;
 }

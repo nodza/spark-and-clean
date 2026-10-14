@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  bookingDeleteBlockReason,
-  canDeleteBooking,
+  bookingDeactivateBlockReason,
+  canDeactivateBooking,
   sanitizeBookingDetailsPatch,
 } from "@/lib/adminBookingDetails";
 
@@ -63,17 +63,17 @@ describe("sanitizeBookingDetailsPatch", () => {
   });
 });
 
-describe("bookingDeleteBlockReason", () => {
+describe("bookingDeactivateBlockReason", () => {
   it("allows BOOKED or SCHEDULED unpaid bookings with no tag", () => {
     expect(
-      canDeleteBooking({
+      canDeactivateBooking({
         status: "BOOKED",
         paymentStatus: "UNPAID",
         rug: {},
       })
     ).toBe(true);
     expect(
-      canDeleteBooking({
+      canDeactivateBooking({
         status: "SCHEDULED",
         paymentStatus: "UNPAID",
         rug: { tagCode: "" },
@@ -81,27 +81,35 @@ describe("bookingDeleteBlockReason", () => {
     ).toBe(true);
   });
 
-  it("blocks paid, collected, or tagged bookings with a clear reason", () => {
+  it("blocks paid, collected, tagged, or already-deactivated bookings", () => {
     expect(
-      bookingDeleteBlockReason({
+      bookingDeactivateBlockReason({
         status: "BOOKED",
         paymentStatus: "DEPOSIT",
         rug: {},
       })
     ).toMatch(/payment/i);
     expect(
-      bookingDeleteBlockReason({
+      bookingDeactivateBlockReason({
         status: "COLLECTED",
         paymentStatus: "UNPAID",
         rug: {},
       })
     ).toMatch(/collected/i);
     expect(
-      bookingDeleteBlockReason({
+      bookingDeactivateBlockReason({
         status: "BOOKED",
         paymentStatus: "UNPAID",
         rug: { tagCode: "SC-RUG-1" },
       })
     ).toMatch(/tag/i);
+    expect(
+      bookingDeactivateBlockReason({
+        status: "BOOKED",
+        paymentStatus: "UNPAID",
+        rug: {},
+        deactivatedAt: "2026-10-14T08:00:00.000Z",
+      })
+    ).toMatch(/deactivated/i);
   });
 });

@@ -22,16 +22,26 @@ export type BookingDetailsPatch = {
   collectionSlot: "MORNING" | "AFTERNOON";
 };
 
-export type BookingDeleteCheck = {
+export type BookingDeactivateCheck = {
   status: BookingStatus | string;
   paymentStatus: PaymentStatus | string;
   rug?: { tagCode?: string | null } | null;
+  deactivatedAt?: string | Date | null;
 };
 
-/** Why Delete is blocked — null when delete is allowed. */
-export function bookingDeleteBlockReason(
-  booking: BookingDeleteCheck
+export function isBookingDeactivated(booking: {
+  deactivatedAt?: string | Date | null;
+}): boolean {
+  return booking.deactivatedAt != null && booking.deactivatedAt !== "";
+}
+
+/** Why Deactivate is blocked — null when deactivate is allowed. */
+export function bookingDeactivateBlockReason(
+  booking: BookingDeactivateCheck
 ): string | null {
+  if (isBookingDeactivated(booking)) {
+    return "Already deactivated";
+  }
   if (booking.paymentStatus !== "UNPAID") {
     return "A payment has been recorded";
   }
@@ -44,8 +54,8 @@ export function bookingDeleteBlockReason(
   return null;
 }
 
-export function canDeleteBooking(booking: BookingDeleteCheck): boolean {
-  return bookingDeleteBlockReason(booking) == null;
+export function canDeactivateBooking(booking: BookingDeactivateCheck): boolean {
+  return bookingDeactivateBlockReason(booking) == null;
 }
 
 function readString(value: unknown): string {

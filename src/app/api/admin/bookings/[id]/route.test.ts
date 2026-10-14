@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   requireFullAdmin: vi.fn(),
   connectDB: vi.fn(),
   bookingFindOne: vi.fn(),
-  bookingDeleteOne: vi.fn(),
+  bookingFindOneAndUpdate: vi.fn(),
 }));
 
 vi.mock("@/lib/adminAuth", () => ({
@@ -16,8 +16,11 @@ vi.mock("@/lib/mongodb", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/models/Booking", () => ({
   Booking: {
     findOne: mocks.bookingFindOne,
-    deleteOne: mocks.bookingDeleteOne,
+    findOneAndUpdate: mocks.bookingFindOneAndUpdate,
   },
+}));
+vi.mock("@/lib/serialize", () => ({
+  toClientBooking: (doc: Record<string, unknown>) => doc,
 }));
 
 import { DELETE } from "./route";
@@ -41,27 +44,43 @@ beforeEach(() => {
         status: "SCHEDULED",
         paymentStatus: "UNPAID",
         rug: { type: "Wool", areaSqM: 4 },
+        deactivatedAt: null,
       }),
     }),
   });
-  mocks.bookingDeleteOne.mockResolvedValue({ deletedCount: 1 });
+  mocks.bookingFindOneAndUpdate.mockReturnValue({
+    lean: async () => ({
+      id: bookingId,
+      status: "SCHEDULED",
+      paymentStatus: "UNPAID",
+      deactivatedAt: new Date("2026-10-14T08:00:00.000Z"),
+    }),
+  });
 });
 
 describe("DELETE /api/admin/bookings/[id]", () => {
-  it("deletes a SCHEDULED unpaid booking with no tag", async () => {
+  it("deactivates a SCHEDULED unpaid booking without changing status", async () => {
     const res = await remove();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
-    expect(mocks.bookingDeleteOne).toHaveBeenCalledWith(
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.booking.status).toBe("SCHEDULED");
+    expect(body.booking.deactivatedAt).toBe("2026-10-14T08:00:00.000Z");
+    expect(mocks.bookingFindOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: bookingId,
         status: { $in: ["BOOKED", "SCHEDULED"] },
         paymentStatus: "UNPAID",
-      })
+      }),
+      {
+        $set: { deactivatedAt: expect.any(Date) },
+        $unset: { assignedDriverId: "" },
+      },
+      { new: true, runValidators: true }
     );
   });
 
-  it("rejects delete when a deposit was recorded", async () => {
+  it("rejects deactivate when a deposit was recorded", async () => {
     mocks.bookingFindOne.mockReturnValue({
       select: () => ({
         lean: async () => ({
@@ -69,6 +88,7 @@ describe("DELETE /api/admin/bookings/[id]", () => {
           status: "BOOKED",
           paymentStatus: "DEPOSIT",
           rug: {},
+          deactivatedAt: null,
         }),
       }),
     });
@@ -78,10 +98,10 @@ describe("DELETE /api/admin/bookings/[id]", () => {
     expect(await res.json()).toEqual({
       error: "A payment has been recorded",
     });
-    expect(mocks.bookingDeleteOne).not.toHaveBeenCalled();
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects delete when a rug tag is attached", async () => {
+  it("rejects deactivate when a rug tag is attached", async () => {
     mocks.bookingFindOne.mockReturnValue({
       select: () => ({
         lean: async () => ({
@@ -89,6 +109,7 @@ describe("DELETE /api/admin/bookings/[id]", () => {
           status: "BOOKED",
           paymentStatus: "UNPAID",
           rug: { tagCode: "SC-RUG-1" },
+          deactivatedAt: null,
         }),
       }),
     });
@@ -96,6 +117,6 @@ describe("DELETE /api/admin/bookings/[id]", () => {
     const res = await remove();
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/tag/i);
-    expect(mocks.bookingDeleteOne).not.toHaveBeenCalled();
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
   });
 });
