@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   punchOnce: vi.fn(),
+  sendBookingStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
@@ -20,6 +21,10 @@ vi.mock("@/models/Booking", () => ({
 }));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
+}));
+vi.mock("@/lib/whatsapp/sendBookingStatus", () => ({
+  NOTIFIABLE_BOOKING_STATUSES: ["SCHEDULED", "COLLECTED", "READY", "DELIVERED"],
+  sendBookingStatus: mocks.sendBookingStatus,
 }));
 
 import { PATCH } from "./route";
@@ -63,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.punchOnce.mockResolvedValue(true);
+  mocks.sendBookingStatus.mockResolvedValue({ result: "sent" });
   mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
@@ -87,6 +93,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       id: "SC-SARAH",
       userId: sarahId,
     });
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "DELIVERED"
+    );
   });
 
   it("calls the same punch when a technician marks the job delivered", async () => {
@@ -105,6 +118,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       id: "SC-SARAH",
       userId: sarahId,
     });
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "DELIVERED"
+    );
   });
 
   it("does not punch when status becomes COLLECTED", async () => {
@@ -116,6 +136,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "COLLECTED"
+    );
   });
 
   it("restores the previous status when the punch cannot be saved", async () => {
@@ -130,6 +157,7 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       { id: "SC-SARAH", status: "DELIVERED" },
       { $set: { status: "READY" } }
     );
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
   });
 
   it("does not punch when only paymentStatus becomes PAID", async () => {
@@ -137,5 +165,32 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
+  });
+
+  it("sends the SCHEDULED status after an admin marks a booking scheduled", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "BOOKED" }))
+    );
+
+    const res = await patch({ status: "SCHEDULED" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "SCHEDULED"
+    );
+  });
+
+  it("does not fail the status update when WhatsApp notification persistence fails", async () => {
+    mocks.sendBookingStatus.mockRejectedValue(new Error("attempt storage down"));
+
+    const res = await patch({ status: "DELIVERED" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledTimes(1);
   });
 });

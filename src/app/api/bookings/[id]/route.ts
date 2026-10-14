@@ -19,6 +19,10 @@ import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { punchOnce } from "@/lib/promotion/loyalty";
+import {
+  NOTIFIABLE_BOOKING_STATUSES,
+  sendBookingStatus,
+} from "@/lib/whatsapp/sendBookingStatus";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -258,6 +262,26 @@ export async function PATCH(request: Request, { params }: Params) {
           { $set: { status: existing.status } }
         );
         throw err;
+      }
+    }
+
+    if (
+      doc.status !== existing.status &&
+      NOTIFIABLE_BOOKING_STATUSES.includes(doc.status as (typeof NOTIFIABLE_BOOKING_STATUSES)[number])
+    ) {
+      try {
+        await sendBookingStatus(
+          {
+            id: String(doc.id),
+            customer: {
+              phone: (doc.customer as { phone?: string | null } | undefined)
+                ?.phone,
+            },
+          },
+          doc.status as BookingStatus
+        );
+      } catch (err) {
+        console.error("[api/bookings PATCH] WhatsApp notification failed", err);
       }
     }
 
