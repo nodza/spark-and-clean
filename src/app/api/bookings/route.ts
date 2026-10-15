@@ -8,6 +8,7 @@ import {
   COUPON_CODE_PATTERN,
   UNKNOWN_COUPON_MESSAGE,
   couponApplyError,
+  couponClaimOwner,
   normalizeCouponCode,
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
       typeof body.couponCode === "string" ? body.couponCode.trim() : "";
     let couponCode = "";
     let couponMax: number | null = null;
+    let claimOwner: { ownerUserId: string | null } | null = null;
     let couponForQuote: {
       couponId: string;
       code: string;
@@ -105,13 +107,22 @@ export async function POST(request: Request) {
         .select(`${COUPON_APPLY_FIELDS} type value`)
         .lean();
       const city = typeof body.city === "string" ? body.city : null;
-      const applyError = couponApplyError(coupon, { city });
+      const userId = session && isPersistedClient(session) ? session.id : null;
+      const applyError = couponApplyError(coupon, { city, userId });
       if (applyError || !coupon) {
         return NextResponse.json(
           { error: applyError ?? UNKNOWN_COUPON_MESSAGE },
           { status: 400 }
         );
       }
+      const ownerClaim = couponClaimOwner(coupon, userId);
+      if (!ownerClaim) {
+        return NextResponse.json(
+          { error: UNKNOWN_COUPON_MESSAGE },
+          { status: 400 }
+        );
+      }
+      claimOwner = ownerClaim;
       const type =
         coupon.type === "PERCENT" || coupon.type === "FIXED_CENTS"
           ? coupon.type
@@ -204,7 +215,16 @@ export async function POST(request: Request) {
 
     let claimedCode: string | null = null;
     if (couponCode) {
-      const claimFilter: Record<string, unknown> = { code: couponCode };
+      if (!claimOwner) {
+        return NextResponse.json(
+          { error: UNKNOWN_COUPON_MESSAGE },
+          { status: 400 }
+        );
+      }
+      const claimFilter: Record<string, unknown> = {
+        code: couponCode,
+        ownerUserId: claimOwner.ownerUserId,
+      };
       if (couponMax != null) claimFilter.redeemedCount = { $lt: couponMax };
       const claimed = await Coupon.findOneAndUpdate(claimFilter, {
         $inc: { redeemedCount: 1 },

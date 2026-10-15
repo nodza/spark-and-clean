@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { AuthLayout } from "@/components/layout/AuthLayout";
 import { FieldError } from "@/components/booking/FieldError";
 import { Button } from "@/components/ui/button";
@@ -57,8 +57,10 @@ function validateSignupForm(form: {
   return errors;
 }
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("ref")?.trim() ?? "";
   const { refresh } = useAuth();
   const [form, setForm] = useState({
     name: "",
@@ -131,6 +133,7 @@ export default function SignupPage() {
       phone: form.phone.trim(),
       password: form.password,
       confirmPassword: form.confirmPassword,
+      ...(ref ? { ref } : {}),
     });
     if (result.error || !result.user) {
       setLoading(false);
@@ -336,12 +339,30 @@ export default function SignupPage() {
       <p className="mt-[16px] text-center text-[13.5px] text-grey-600">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={
+            ref
+              ? `/login?${new URLSearchParams({ ref }).toString()}`
+              : "/login"
+          }
           className="font-extrabold text-green hover:text-navy"
         >
           Log in
         </Link>
       </p>
     </AuthLayout>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-grey-600">
+          Loading…
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }

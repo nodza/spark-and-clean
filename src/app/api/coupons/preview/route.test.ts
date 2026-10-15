@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findOne = vi.fn();
+const getSession = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/session", () => ({
+  getSession: (...args: unknown[]) => getSession(...args),
 }));
 
 vi.mock("@/models/Coupon", () => ({
@@ -22,6 +27,8 @@ function post(body: unknown) {
 
 describe("POST /api/coupons/preview", () => {
   beforeEach(() => {
+    getSession.mockReset();
+    getSession.mockResolvedValue(null);
     findOne.mockReset();
     findOne.mockReturnValue({
       select: () => ({ lean: async () => null }),
@@ -193,6 +200,49 @@ describe("POST /api/coupons/preview", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       error: "This coupon has been fully used (1/1)",
+    });
+  });
+
+  it("quotes Sarah's personal code for Sarah and rejects another client", async () => {
+    const sarahId = "507f1f77bcf86cd799439011";
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          active: true,
+          type: "FIXED_CENTS",
+          value: 50000,
+          ownerUserId: sarahId,
+        }),
+      }),
+    });
+    const { POST } = await import("./route");
+
+    getSession.mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+    const owned = await POST(
+      post({ code: "RWDSARAH", estimateMin: 1000, estimateMax: 1200 })
+    );
+    expect(owned.status).toBe(200);
+    expect(await owned.json()).toMatchObject({
+      code: "RWDSARAH",
+      type: "FIXED_CENTS",
+      value: 50000,
+    });
+
+    getSession.mockResolvedValue({
+      id: "507f1f77bcf86cd799439012",
+      email: "lee@example.com",
+      role: "client",
+    });
+    const other = await POST(
+      post({ code: "RWDSARAH", estimateMin: 1000, estimateMax: 1200 })
+    );
+    expect(other.status).toBe(400);
+    expect(await other.json()).toEqual({
+      error: "That coupon code isn't valid",
     });
   });
 });

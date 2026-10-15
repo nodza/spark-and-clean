@@ -10,6 +10,8 @@ import {
 } from "@/lib/coupon";
 import { applyCoupon } from "@/lib/promotion/applyCoupon";
 import { toPublicApiError } from "@/lib/publicApiError";
+import { getSession } from "@/lib/session";
+import { isPersistedClient } from "@/types/user";
 
 function readEstimate(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
@@ -19,8 +21,9 @@ function readEstimate(value: unknown): number | null {
 }
 
 /**
- * Quote a catalogue coupon against an estimate that already includes add-ons.
- * Public so a guest can see the discounted price before booking.
+ * Quote a coupon against an estimate that already includes add-ons.
+ * Catalogue codes stay public so a guest can see the discounted price before booking.
+ * A personal loyalty code is quoted only for the client who owns it.
  * This does not count a redemption. A use is counted only when a booking is saved.
  * Usage counts are not returned (admin-only via the catalogue API).
  */
@@ -54,10 +57,12 @@ export async function POST(request: Request) {
     const city = typeof raw.city === "string" ? raw.city : null;
 
     await connectDB();
+    const session = await getSession();
+    const userId = session && isPersistedClient(session) ? session.id : null;
     const doc = await Coupon.findOne({ code })
       .select(`${COUPON_APPLY_FIELDS} type value`)
       .lean();
-    const applyError = couponApplyError(doc, { city });
+    const applyError = couponApplyError(doc, { city, userId });
     if (applyError || !doc) {
       return NextResponse.json(
         { error: applyError ?? "That coupon code isn't valid" },

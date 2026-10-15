@@ -321,6 +321,29 @@ function AdminBookingsList() {
     const deactivateReason = bookingDeactivateBlockReason(booking);
     const deactivateAllowed = canDeactivateBooking(booking);
     const disabled = busyId === booking.id;
+    const deactivateButton = (
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon-sm"
+        disabled={disabled || !deactivateAllowed}
+        aria-label={
+          deactivateAllowed
+            ? `Deactivate booking ${booking.id}`
+            : `Deactivate unavailable: ${deactivateReason}`
+        }
+        title={deactivateAllowed ? "Deactivate booking" : undefined}
+        className={`rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6] ${
+          deactivateAllowed ? "" : "pointer-events-none"
+        }`}
+        onClick={() => {
+          if (!deactivateAllowed) return;
+          setDeactivating(booking);
+        }}
+      >
+        <Ban size={15} strokeWidth={2} aria-hidden="true" />
+      </Button>
+    );
     return (
       <div
         className="relative z-[2] flex items-center justify-end gap-1.5"
@@ -340,29 +363,16 @@ function AdminBookingsList() {
         >
           <Pencil size={15} strokeWidth={2} aria-hidden="true" />
         </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon-sm"
-          disabled={disabled || !deactivateAllowed}
-          aria-label={
-            deactivateAllowed
-              ? `Deactivate booking ${booking.id}`
-              : `Deactivate unavailable: ${deactivateReason}`
-          }
-          title={
-            deactivateAllowed
-              ? "Deactivate booking"
-              : deactivateReason || "Cannot deactivate"
-          }
-          className="rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6]"
-          onClick={() => {
-            if (!deactivateAllowed) return;
-            setDeactivating(booking);
-          }}
-        >
-          <Ban size={15} strokeWidth={2} aria-hidden="true" />
-        </Button>
+        {deactivateAllowed ? (
+          deactivateButton
+        ) : (
+          <span
+            className="inline-flex cursor-not-allowed"
+            title={deactivateReason || "Cannot deactivate"}
+          >
+            {deactivateButton}
+          </span>
+        )}
       </div>
     );
   }
@@ -597,8 +607,8 @@ function AdminBookingsList() {
                     style={{
                       background:
                         highlightUnassigned && unassigned
-                          ? "rgba(255, 220, 57, 0.18)"
-                          : undefined,
+                        ? "rgba(255, 220, 57, 0.18)"
+                        : undefined,
                     }}
                   >
                     <Link
@@ -611,17 +621,17 @@ function AdminBookingsList() {
                       style={{
                         gridTemplateColumns: tableCols,
                         columnGap: 12,
-                      }}
-                    >
+                    }}
+                  >
                     <div className="flex items-center justify-between gap-3 lg:contents">
                       <div className="flex min-w-0 items-center gap-[6px]">
                         <CopyBookingLinkButton bookingId={booking.id} />
-                        <div
+                      <div
                           className="min-w-0 truncate text-[11px] font-bold leading-none tracking-[0.02em] tabular-nums underline-offset-2 group-hover:underline"
-                          style={{ color: "#0a7a63" }}
-                          title={booking.id}
-                        >
-                          {booking.id}
+                        style={{ color: "#0a7a63" }}
+                        title={booking.id}
+                      >
+                        {booking.id}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 lg:hidden">
@@ -676,22 +686,22 @@ function AdminBookingsList() {
                               style={{
                                 color: unassigned ? "#b3261e" : "#000b49",
                               }}
-                              title={driverLabel}
-                            >
+                      title={driverLabel}
+                    >
                               {driverLabel}
-                            </span>
+                      </span>
                             {!unassigned ? (
-                              <CallAction
+                      <CallAction
                                 compact
-                                label="Call driver"
+                        label="Call driver"
                                 phone={driverPhone(booking.assignedDriverId)}
                                 disabledReason="No number on profile"
-                                profileHref={
+                        profileHref={
                                   booking.assignedDriverId
                                     ? driverProfileHref(booking.assignedDriverId)
-                                    : undefined
-                                }
-                              />
+                            : undefined
+                        }
+                      />
                             ) : null}
                           </div>
                           {vehicleLabel ? (

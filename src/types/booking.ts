@@ -95,6 +95,10 @@ export interface Booking {
    * original status/price/location stay for analytics.
    */
   deactivatedAt?: string | null;
+  technician?: {
+    name: string;
+    phone?: string;
+  };
   updatedAt?: string;
   createdAt: string;
 }

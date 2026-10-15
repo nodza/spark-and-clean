@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Coupon } from "@/models/Coupon";
+import { User } from "@/models/User";
 import { isHttpError, requireAdmin } from "@/lib/adminAuth";
 import { toPublicApiError } from "@/lib/publicApiError";
 import {
@@ -8,6 +9,7 @@ import {
   isDuplicateCouponCode,
   sanitizeCouponCreate,
   toClientCoupon,
+  type ClientCoupon,
 } from "@/lib/coupon";
 
 function jsonError(err: unknown, fallback: string) {
@@ -34,18 +36,42 @@ function jsonError(err: unknown, fallback: string) {
   );
 }
 
+/** Names for personal rewards. Public codes stay unnamed. */
+async function withOwnerNames(coupons: ClientCoupon[]): Promise<ClientCoupon[]> {
+  const ownerIds = [
+    ...new Set(
+      coupons.flatMap((coupon) => (coupon.ownerUserId ? [coupon.ownerUserId] : []))
+    ),
+  ];
+  if (ownerIds.length === 0) return coupons;
+
+  const users = await User.find({ _id: { $in: ownerIds } })
+    .select("name")
+    .lean();
+  const names = new Map(
+    users.map((user) => [
+      String(user._id),
+      typeof user.name === "string" ? user.name.trim() : "",
+    ])
+  );
+
+  return coupons.map((coupon) => {
+    if (!coupon.ownerUserId) return coupon;
+    return { ...coupon, ownerName: names.get(coupon.ownerUserId) || "Unknown client" };
+  });
+}
+
 /** Full and marketing-only admins. Clients and technicians receive 403. */
 export async function GET() {
   try {
     await requireAdmin();
     await connectDB();
     const docs = await Coupon.find().sort({ createdAt: -1, code: 1 }).lean();
+    const coupons = await withOwnerNames(
+      docs.map((doc) => toClientCoupon(doc as Record<string, unknown>))
+    );
     return NextResponse.json(
-      {
-        coupons: docs.map((doc) =>
-          toClientCoupon(doc as Record<string, unknown>)
-        ),
-      },
+      { coupons },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {

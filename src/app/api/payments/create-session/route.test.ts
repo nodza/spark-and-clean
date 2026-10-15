@@ -116,7 +116,6 @@ describe("POST /api/payments/create-session", () => {
     expect(sarahBooking.billing.amountPaidCents).toBe(0);
     expect(createDepositCheckoutSession).toHaveBeenCalledWith({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountDueCents: 15000,
     });
     expect(createOzowHostedPayment).not.toHaveBeenCalled();
@@ -168,7 +167,6 @@ describe("POST /api/payments/create-session", () => {
     });
     expect(createBalanceCheckoutSession).toHaveBeenCalledWith({
       bookingId: "SC-1",
-      customerEmail: "sarah@example.com",
       amountCents: 7500,
     });
     expect(createDepositCheckoutSession).not.toHaveBeenCalled();

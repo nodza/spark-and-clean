@@ -8,11 +8,13 @@ import {
   formatCouponUses,
   formatCouponWindow,
   couponApplyError,
+  couponClaimOwner,
   couponFormFieldErrors,
   inactiveCouponMessage,
   isDuplicateCouponCode,
   sanitizeCouponActivePatch,
   sanitizeCouponCreate,
+  sanitizeCouponEditPatch,
 } from "@/lib/coupon";
 
 describe("sanitizeCouponCreate", () => {
@@ -172,12 +174,73 @@ describe("inactive coupons", () => {
     ).toBe("This coupon has been fully used (1/1)");
   });
 
+  it("lets only the owner preview a personal reward code", () => {
+    const sarah = "507f1f77bcf86cd799439011";
+    const other = "507f1f77bcf86cd799439012";
+    const personal = { active: true, ownerUserId: sarah };
+    expect(couponApplyError(personal, { userId: other })).toBe(
+      "That coupon code isn't valid"
+    );
+    expect(couponApplyError(personal)).toBe("That coupon code isn't valid");
+    expect(couponApplyError(personal, { userId: sarah })).toBeNull();
+    expect(couponApplyError({ active: true, ownerUserId: null })).toBeNull();
+    expect(couponApplyError({ active: true })).toBeNull();
+  });
+
+  it("claims a personal code only for its owner and a catalogue code only with no owner", () => {
+    const sarah = "507f1f77bcf86cd799439011";
+    const other = "507f1f77bcf86cd799439012";
+    expect(couponClaimOwner({ active: true }, null)).toEqual({
+      ownerUserId: null,
+    });
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, sarah)).toEqual({
+      ownerUserId: sarah,
+    });
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, other)).toBeNull();
+    expect(couponClaimOwner({ active: true, ownerUserId: sarah }, null)).toBeNull();
+  });
+
   it("accepts an active flag on update", () => {
     expect(sanitizeCouponActivePatch({ active: false })).toEqual({
       ok: true,
       active: false,
     });
     expect(sanitizeCouponActivePatch({ active: "no" }).ok).toBe(false);
+  });
+});
+
+describe("sanitizeCouponEditPatch", () => {
+  it("validates edit fields without returning an active flag", () => {
+    const parsed = sanitizeCouponEditPatch({
+      code: " SPARK15 ",
+      type: "PERCENT",
+      value: 15,
+      city: "Cape Town",
+      validFrom: "2026-10-01",
+      validTo: "2026-10-31",
+      maxRedemptions: 25,
+      active: false,
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.coupon).toMatchObject({
+      code: "SPARK15",
+      type: "PERCENT",
+      value: 15,
+      city: "Cape Town",
+      maxRedemptions: 25,
+    });
+    expect(parsed.coupon).not.toHaveProperty("active");
+  });
+
+  it("rejects invalid edit fields", () => {
+    expect(
+      sanitizeCouponEditPatch({
+        code: "SPARK10",
+        type: "PERCENT",
+        value: 101,
+      })
+    ).toEqual({ ok: false, error: "Percent must be a whole number from 1 to 100" });
   });
 });
 
