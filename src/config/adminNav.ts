@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  CalendarClock,
   CalendarDays,
   ContactRound,
   LayoutGrid,
@@ -25,7 +26,8 @@ export type AdminNavKey =
   | "rugs"
   | "pricing"
   | "vehicles"
-  | "analytics";
+  | "analytics"
+  | "vehicle-days";
 
 export type AdminNavItem = {
   key: AdminNavKey;
@@ -122,6 +124,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     icon: BarChart3,
     match: (p) => p.startsWith("/admin/analytics"),
   },
+  {
+    key: "vehicle-days",
+    label: "Day sheet",
+    href: "/admin/vehicle-days",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: CalendarClock,
+    match: (p) => p.startsWith("/admin/vehicle-days"),
+  },
 ];
 
 export const ADMIN_PAGE_TITLES: Record<string, string> = {
@@ -134,6 +145,7 @@ export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin/pricing": "Pricing & coupons",
   "/admin/vehicles": "Vehicles",
   "/admin/analytics": "Analytics",
+  "/admin/vehicle-days": "Day sheet",
 };
 
 export function resolveAdminNavKey(pathname: string): AdminNavKey | null {
