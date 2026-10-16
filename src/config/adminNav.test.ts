@@ -27,6 +27,7 @@ describe("visibleAdminNavItems", () => {
       "pricing",
       "vehicles",
       "analytics",
+      "vehicle-days",
     ]);
   });
 });
