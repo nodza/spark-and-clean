@@ -97,6 +97,57 @@ export function pickupPosition(
 }
 
 /**
+ * A named suburb in the centroid table is one place. City Bowl equals the Cape
+ * Town default, so it is recognised by name.
+ */
+function namedSuburbCentroid(
+  booking: Pick<PickupZoneBooking, "suburb" | "city">
+): LatLngTuple | null {
+  const suburb = booking.suburb.trim().toLowerCase();
+  if (!suburb) return null;
+  const named = suburbOrCityCentroid(booking.suburb, "");
+  const unnamed = suburbOrCityCentroid("\u0000", "");
+  const hasFixedPlace =
+    suburb === "city bowl" ||
+    named[0] !== unnamed[0] ||
+    named[1] !== unnamed[1];
+  if (!hasFixedPlace) return null;
+  const [lat, lng] = suburbOrCityCentroid(booking.suburb, booking.city);
+  return [lat, lng];
+}
+
+/**
+ * Bookings that share a suburb name share one anchor. Known suburbs use the
+ * fixed centroid. An unknown suburb uses the earliest stored pin in that
+ * suburb, so scattered mock pins cannot split one place into single-booking
+ * zones. A suburb with no pin falls through to the city centroid.
+ */
+function unknownSuburbAnchors(
+  ordered: readonly PickupZoneBooking[]
+): Map<string, LatLngTuple> {
+  const anchors = new Map<string, LatLngTuple>();
+  for (const booking of ordered) {
+    const key = booking.suburb.trim().toLowerCase();
+    if (!key || anchors.has(key) || namedSuburbCentroid(booking)) continue;
+    if (hasValidCoordinates(booking.coordinates)) {
+      anchors.set(key, [booking.coordinates.lat, booking.coordinates.lng]);
+    }
+  }
+  return anchors;
+}
+
+function zoneAnchor(
+  booking: PickupZoneBooking,
+  unknownAnchors: Map<string, LatLngTuple>
+): LatLngTuple {
+  const named = namedSuburbCentroid(booking);
+  if (named) return named;
+  const shared = unknownAnchors.get(booking.suburb.trim().toLowerCase());
+  if (shared) return shared;
+  return pickupPosition(booking);
+}
+
+/**
  * Cape Town and Johannesburg are different zones even when two pins are close.
  * An explicit city wins. A known Johannesburg suburb is next. Latitude is only
  * the fallback for a booking that names neither.
@@ -153,9 +204,12 @@ function inScope(booking: PickupZoneBooking, scope: PickupZoneScope): boolean {
  * Group one collection day's pickups in one slot into place zones.
  *
  * Bookings are considered in id order, so the same list always yields the same
- * zones. The earliest booking in a zone is its first stop. A later pickup joins
- * that zone when it is in the same metro and within 8 km of that first stop.
- * This does not assign a driver.
+ * zones. The customer is ignored. Every booking in one suburb shares one
+ * place, even when stored pins are far apart. The earliest booking in a zone
+ * is its first stop. A later pickup joins that zone when it is in the same
+ * metro and within 8 km of that first stop. A pickup with no neighbour in
+ * range is still returned; the screen decides whether a single booking is
+ * offered as a zone. This does not assign a driver.
  */
 export function groupPickupsIntoZones<T extends PickupZoneBooking>(
   bookings: readonly T[],
@@ -163,11 +217,12 @@ export function groupPickupsIntoZones<T extends PickupZoneBooking>(
 ): PickupZone[] {
   const ordered = bookings.filter((booking) => inScope(booking, scope));
   ordered.sort((a, b) => compareIds(a.id, b.id));
+  const unknownAnchors = unknownSuburbAnchors(ordered);
 
   const zones: DraftZone[] = [];
 
   for (const booking of ordered) {
-    const position = pickupPosition(booking);
+    const position = zoneAnchor(booking, unknownAnchors);
     const metro = serviceMetro(booking);
     const zone = zones.find(
       (candidate) =>
