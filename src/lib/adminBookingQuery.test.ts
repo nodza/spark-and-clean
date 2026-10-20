@@ -156,6 +156,63 @@ describe("admin booking query", () => {
     expect(unpaid.byStatus.BOOKED).toBe(1);
   });
 
+  it("hides CANCELLED from the active All list but keeps them under the Cancelled filter", () => {
+    const withCancelled = [
+      ...seed,
+      booking({
+        id: "SC-2025-0099",
+        status: "CANCELLED",
+        paymentStatus: "UNPAID",
+        createdAt: "2025-12-03T09:00:00Z",
+        collectionDate: "2025-12-07",
+      }),
+    ];
+
+    const active = applyBookingListQuery(withCancelled, EMPTY_BOOKING_FILTERS);
+    expect(active.map((b) => b.id)).not.toContain("SC-2025-0099");
+    expect(active).toHaveLength(3);
+
+    const cancelled = applyBookingListQuery(withCancelled, {
+      ...EMPTY_BOOKING_FILTERS,
+      status: "CANCELLED",
+    });
+    expect(cancelled.map((b) => b.id)).toEqual(["SC-2025-0099"]);
+
+    const counts = countBookingsByStatus(withCancelled, EMPTY_BOOKING_FILTERS);
+    expect(counts.all).toBe(3);
+    expect(counts.byStatus.CANCELLED).toBe(1);
+    expect(counts.deactivated).toBe(0);
+  });
+
+  it("hides deactivated bookings from the active list and exposes them via deactivated=1", () => {
+    const withDeactivated = [
+      ...seed,
+      booking({
+        id: "SC-2025-0088",
+        status: "BOOKED",
+        paymentStatus: "UNPAID",
+        deactivatedAt: "2025-12-03T12:00:00Z",
+        createdAt: "2025-12-03T09:00:00Z",
+        collectionDate: "2025-12-07",
+      }),
+    ];
+
+    const active = applyBookingListQuery(withDeactivated, EMPTY_BOOKING_FILTERS);
+    expect(active.map((b) => b.id)).not.toContain("SC-2025-0088");
+
+    const archived = applyBookingListQuery(withDeactivated, {
+      ...EMPTY_BOOKING_FILTERS,
+      deactivated: "1",
+    });
+    expect(archived.map((b) => b.id)).toEqual(["SC-2025-0088"]);
+    expect(archived[0]?.status).toBe("BOOKED");
+
+    const counts = countBookingsByStatus(withDeactivated, EMPTY_BOOKING_FILTERS);
+    expect(counts.all).toBe(3);
+    expect(counts.deactivated).toBe(1);
+    expect(counts.byStatus.BOOKED).toBe(3);
+  });
+
   it("toggles to soonest collectionDate", () => {
     const rows = applyBookingListQuery(seed, {
       ...EMPTY_BOOKING_FILTERS,

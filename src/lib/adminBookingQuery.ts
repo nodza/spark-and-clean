@@ -1,4 +1,5 @@
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
+import { isBookingDeactivated } from "@/lib/adminBookingDetails";
 import { localCalendarDate, bookingCalendarDate } from "@/lib/localCalendarDate";
 
 /** Default list sort: newest `createdAt` first. Toggle to soonest `collectionDate`. */
@@ -15,6 +16,8 @@ export type AdminBookingFilters = {
   suburb: string;
   city: string;
   assigned: "" | "0" | "1";
+  /** Admin archive of soft-removed bookings (`1` = deactivated only). */
+  deactivated: "" | "1";
   q: string;
   sort: BookingListSort;
 };
@@ -28,6 +31,7 @@ export const EMPTY_BOOKING_FILTERS: AdminBookingFilters = {
   suburb: "",
   city: "",
   assigned: "",
+  deactivated: "",
   q: "",
   sort: DEFAULT_BOOKING_SORT,
 };
@@ -50,6 +54,7 @@ export function parseBookingListQuery(
 ): AdminBookingFilters {
   const sortRaw = (params.get("sort") || "").trim();
   const assignedRaw = (params.get("assigned") || "").trim();
+  const deactivatedRaw = (params.get("deactivated") || "").trim();
   const status = (params.get("status") || "").trim().toUpperCase();
   const payment = (params.get("payment") || "").trim().toUpperCase();
   const onRaw = (params.get("on") || "").trim();
@@ -71,6 +76,7 @@ export function parseBookingListQuery(
     suburb: (params.get("suburb") || "").trim(),
     city: (params.get("city") || "").trim(),
     assigned: assignedRaw === "0" || assignedRaw === "1" ? assignedRaw : "",
+    deactivated: deactivatedRaw === "1" ? "1" : "",
     q: (params.get("q") || "").trim(),
     sort: sortRaw === "collection" ? "collection" : DEFAULT_BOOKING_SORT,
   };
@@ -88,6 +94,7 @@ export function bookingFiltersToSearchParams(
   if (filters.suburb) params.set("suburb", filters.suburb);
   if (filters.city) params.set("city", filters.city);
   if (filters.assigned) params.set("assigned", filters.assigned);
+  if (filters.deactivated) params.set("deactivated", filters.deactivated);
   if (filters.q) params.set("q", filters.q);
   if (filters.sort !== DEFAULT_BOOKING_SORT) params.set("sort", filters.sort);
   return params;
@@ -140,12 +147,31 @@ function matchesQuery(booking: Booking, q: string): boolean {
   return false;
 }
 
+/**
+ * Apply list filters.
+ * - Active board: hides deactivated rows and (when no status chip) CANCELLED.
+ * - `deactivated=1`: admin archive of soft-removed bookings only.
+ */
 export function filterBookings(
   bookings: Booking[],
-  filters: AdminBookingFilters
+  filters: AdminBookingFilters,
+  options?: { includeCancelled?: boolean }
 ): Booking[] {
+  const includeCancelled = options?.includeCancelled === true;
+  const archiveOnly = filters.deactivated === "1";
   return bookings.filter((booking) => {
-    if (filters.status && booking.status !== filters.status) return false;
+    const deactivated = isBookingDeactivated(booking);
+    if (archiveOnly) {
+      if (!deactivated) return false;
+    } else if (deactivated) {
+      return false;
+    }
+
+    if (filters.status) {
+      if (booking.status !== filters.status) return false;
+    } else if (!includeCancelled && !archiveOnly && booking.status === "CANCELLED") {
+      return false;
+    }
     if (filters.payment && booking.paymentStatus !== filters.payment) return false;
     if (filters.suburb && booking.suburb.toLowerCase() !== filters.suburb.toLowerCase()) {
       return false;
@@ -171,17 +197,30 @@ export function filterBookings(
 export function countBookingsByStatus(
   bookings: Booking[],
   filters: AdminBookingFilters
-): { all: number; byStatus: Record<BookingStatus, number> } {
-  const scoped = filterBookings(bookings, { ...filters, status: "" });
+): {
+  all: number;
+  deactivated: number;
+  byStatus: Record<BookingStatus, number>;
+} {
+  const otherFilters = { ...filters, status: "", deactivated: "" as const };
+  const activeScoped = filterBookings(bookings, otherFilters, {
+    includeCancelled: true,
+  });
+  const deactivated = filterBookings(bookings, {
+    ...otherFilters,
+    deactivated: "1",
+  }).length;
+
   const byStatus = Object.fromEntries(
     BOOKING_STATUSES.map((status) => [status, 0])
   ) as Record<BookingStatus, number>;
 
-  for (const booking of scoped) {
+  for (const booking of activeScoped) {
     byStatus[booking.status] += 1;
   }
 
-  return { all: scoped.length, byStatus };
+  const all = activeScoped.filter((b) => b.status !== "CANCELLED").length;
+  return { all, deactivated, byStatus };
 }
 
 export function sortBookings(

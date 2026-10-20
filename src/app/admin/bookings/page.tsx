@@ -4,10 +4,31 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Copy } from "lucide-react";
+import { Ban, Check, Copy, Pencil } from "lucide-react";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
-import { formatBookingCollection } from "@/lib/localCalendarDate";
+import {
+  bookingCalendarDate,
+  formatBookingCollection,
+} from "@/lib/localCalendarDate";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CallAction,
   driverProfileHref,
@@ -23,6 +44,7 @@ import {
   bookingStatusVariant,
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   applyBookingListQuery,
   bookingFiltersToSearchParams,
@@ -31,6 +53,10 @@ import {
   parseBookingListQuery,
   type AdminBookingFilters,
 } from "@/lib/adminBookingQuery";
+import {
+  bookingDeactivateBlockReason,
+  canDeactivateBooking,
+} from "@/lib/adminBookingDetails";
 import { isUnassignedDriver } from "@/lib/bookingAttention";
 import {
   applyListPaginationParams,
@@ -40,11 +66,66 @@ import {
   type ListPagination,
   type PageSize,
 } from "@/lib/listPagination";
+import { SERVICE_CITIES } from "@/types/user";
 import type { Booking, Driver } from "@/types/booking";
 import { compactVehicleFromDisplay } from "@/lib/vehicle";
 
-const TABLE_COLS =
-  "minmax(150px, 1.1fr) minmax(160px, 1.6fr) minmax(64px, 0.45fr) minmax(92px, 0.7fr) minmax(118px, 0.85fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr)";
+const TABLE_COLS_BASE =
+  "minmax(140px, 1.05fr) minmax(150px, 1.45fr) minmax(60px, 0.4fr) minmax(88px, 0.65fr) minmax(110px, 0.8fr) minmax(72px, 0.5fr) minmax(84px, 0.6fr)";
+const TABLE_COLS_WITH_ACTIONS = `${TABLE_COLS_BASE} 88px`;
+
+type EditFormState = {
+  name: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  suburb: string;
+  city: string;
+  collectionDate: string;
+  collectionSlot: "MORNING" | "AFTERNOON";
+};
+
+function emptyEditForm(): EditFormState {
+  return {
+    name: "",
+    phone: "",
+    email: "",
+    addressLine1: "",
+    suburb: "",
+    city: SERVICE_CITIES[0],
+    collectionDate: "",
+    collectionSlot: "MORNING",
+  };
+}
+
+function editFormFromBooking(booking: Booking): EditFormState {
+  const city = SERVICE_CITIES.includes(
+    booking.city as (typeof SERVICE_CITIES)[number]
+  )
+    ? booking.city
+    : SERVICE_CITIES[0];
+  return {
+    name: booking.customer.name || "",
+    phone: booking.customer.phone || "",
+    email: booking.customer.email || "",
+    addressLine1: booking.addressLine1 || "",
+    suburb: booking.suburb || "",
+    city,
+    collectionDate:
+      bookingCalendarDate(booking.collectionDate) ||
+      booking.collectionDate.slice(0, 10),
+    collectionSlot:
+      booking.collectionSlot === "AFTERNOON" ? "AFTERNOON" : "MORNING",
+  };
+}
+
+function stopRowNavigation(event: React.SyntheticEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  if ("nativeEvent" in event && event.nativeEvent instanceof Event) {
+    event.nativeEvent.stopImmediatePropagation();
+  }
+}
 
 function formatRand(amount: number) {
   const rounded = Math.round(amount);
@@ -144,8 +225,157 @@ function BookingsShellFallback() {
 function AdminBookingsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, loading: isLoading, error } = useBookingsLiveList(true);
+  const { user } = useAuth();
+  const isFullAdmin = user?.role === "admin" && user.adminTier === "full";
+  const {
+    bookings,
+    loading: isLoading,
+    error,
+    refresh,
+  } = useBookingsLiveList(true);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [editing, setEditing] = useState<Booking | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState<Booking | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function openEdit(booking: Booking) {
+    setEditing(booking);
+    setEditForm(editFormFromBooking(booking));
+    setEditError(null);
+  }
+
+  async function saveEdit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editing) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/bookings/${encodeURIComponent(editing.id)}/details`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customer: {
+              name: editForm.name,
+              phone: editForm.phone,
+              email: editForm.email,
+            },
+            addressLine1: editForm.addressLine1,
+            suburb: editForm.suburb,
+            city: editForm.city,
+            collectionDate: editForm.collectionDate,
+            collectionSlot: editForm.collectionSlot,
+          }),
+        }
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not save booking details");
+      }
+      toast.success("Booking details updated");
+      setEditing(null);
+      await refresh();
+    } catch (err) {
+      setEditError(
+        err instanceof Error ? err.message : "Could not save booking details"
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDeactivate() {
+    if (!deactivating) return;
+    setBusyId(deactivating.id);
+    try {
+      const response = await fetch(
+        `/api/admin/bookings/${encodeURIComponent(deactivating.id)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not deactivate booking");
+      }
+      toast.success(`Deactivated ${deactivating.id}`);
+      setDeactivating(null);
+      await refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not deactivate booking"
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function rowActions(booking: Booking) {
+    const deactivateReason = bookingDeactivateBlockReason(booking);
+    const deactivateAllowed = canDeactivateBooking(booking);
+    const disabled = busyId === booking.id;
+    const deactivateButton = (
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon-sm"
+        disabled={disabled || !deactivateAllowed}
+        aria-label={
+          deactivateAllowed
+            ? `Deactivate booking ${booking.id}`
+            : `Deactivate unavailable: ${deactivateReason}`
+        }
+        title={deactivateAllowed ? "Deactivate booking" : undefined}
+        className={`rounded-[8px] bg-[#fff0f0] text-[#d64545] hover:bg-[#d64545] hover:text-white disabled:bg-[#f5f7fa] disabled:text-[#9aa0a6] ${
+          deactivateAllowed ? "" : "pointer-events-none"
+        }`}
+        onClick={() => {
+          if (!deactivateAllowed) return;
+          setDeactivating(booking);
+        }}
+      >
+        <Ban size={15} strokeWidth={2} aria-hidden="true" />
+      </Button>
+    );
+    return (
+      <div
+        className="relative z-[2] flex items-center justify-end gap-1.5"
+        onPointerDown={stopRowNavigation}
+        onKeyDown={stopRowNavigation}
+        onClick={stopRowNavigation}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`Edit booking ${booking.id}`}
+          title="Edit booking details"
+          className="rounded-[8px] border-[#e3e7ed] text-[#000b49] hover:border-[#000b49] hover:bg-[#f7f9fb]"
+          onClick={() => openEdit(booking)}
+        >
+          <Pencil size={15} strokeWidth={2} aria-hidden="true" />
+        </Button>
+        {deactivateAllowed ? (
+          deactivateButton
+        ) : (
+          <span
+            className="inline-flex cursor-not-allowed"
+            title={deactivateReason || "Cannot deactivate"}
+          >
+            {deactivateButton}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   const filters = useMemo(
     () => parseBookingListQuery(searchParams),
@@ -246,12 +476,13 @@ function AdminBookingsList() {
   }
 
   const highlightUnassigned = filters.assigned === "0";
+  const tableCols = isFullAdmin ? TABLE_COLS_WITH_ACTIONS : TABLE_COLS_BASE;
 
   return (
     <AdminPortalShell
       pageTitle="Bookings"
       active="bookings"
-      bookingsBadge={bookings.length || undefined}
+      bookingsBadge={statusCounts.all || undefined}
       topbarActions={
         <AdminSearchTopbar
           searchValue={filters.q}
@@ -264,7 +495,15 @@ function AdminBookingsList() {
         <BookingsFilterPanel
           filters={filters}
           matchedCount={rows.length}
-          totalCount={bookings.length}
+          totalCount={
+            filters.deactivated === "1"
+              ? statusCounts.deactivated
+              : filters.status
+                ? (statusCounts.byStatus[
+                    filters.status as keyof typeof statusCounts.byStatus
+                  ] ?? rows.length)
+                : statusCounts.all
+          }
           statusCounts={statusCounts}
           cities={cities}
           suburbs={suburbs}
@@ -280,7 +519,7 @@ function AdminBookingsList() {
               <div
                 className="hidden px-[16px] py-[11px] lg:grid lg:items-center xl:px-[18px]"
                 style={{
-                  gridTemplateColumns: TABLE_COLS,
+                  gridTemplateColumns: tableCols,
                   background: "#f7f9fb",
                   borderBottom: "1px solid #f0f2f6",
                   columnGap: 13,
@@ -294,9 +533,13 @@ function AdminBookingsList() {
                   "DRIVER",
                   "PAYMENT",
                   "STATUS",
+                  ...(isFullAdmin ? ["ACTIONS"] : []),
                 ].map((h) => (
-                  <div key={h} className="text-th">
-                    {h}
+                  <div
+                    key={h}
+                    className={`text-th${h === "ACTIONS" ? " text-right" : ""}`}
+                  >
+                    {h === "ACTIONS" ? "Actions" : h}
                   </div>
                 ))}
               </div>
@@ -376,7 +619,7 @@ function AdminBookingsList() {
                     <div
                       className="flex w-full flex-col gap-3 px-[16px] py-[14px] sm:px-[18px] lg:grid lg:items-center lg:gap-0 lg:py-[16px]"
                       style={{
-                        gridTemplateColumns: TABLE_COLS,
+                        gridTemplateColumns: tableCols,
                         columnGap: 12,
                     }}
                   >
@@ -391,10 +634,11 @@ function AdminBookingsList() {
                         {booking.id}
                         </div>
                       </div>
-                      <div className="lg:hidden">
+                      <div className="flex items-center gap-2 lg:hidden">
                         <Badge variant={bookingStatusVariant(booking.status)}>
                           {booking.status}
                         </Badge>
+                        {isFullAdmin ? rowActions(booking) : null}
                       </div>
                     </div>
 
@@ -490,6 +734,10 @@ function AdminBookingsList() {
                         {booking.status}
                       </Badge>
                     </div>
+
+                    {isFullAdmin ? (
+                      <div className="hidden lg:block">{rowActions(booking)}</div>
+                    ) : null}
                     </div>
                   </div>
                 );
@@ -508,6 +756,218 @@ function AdminBookingsList() {
           />
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(editing)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditing(null);
+            setEditError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit booking</DialogTitle>
+            <DialogDescription>
+              {editing
+                ? `Update contact and collection details for ${editing.id}. Status, payment, and driver stay the same.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(event) => void saveEdit(event)} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="edit-booking-name">Customer name</Label>
+                <Input
+                  id="edit-booking-name"
+                  value={editForm.name}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-phone">Phone</Label>
+                <Input
+                  id="edit-booking-phone"
+                  value={editForm.phone}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      phone: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-email">Email</Label>
+                <Input
+                  id="edit-booking-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="edit-booking-street">Street</Label>
+                <Input
+                  id="edit-booking-street"
+                  value={editForm.addressLine1}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      addressLine1: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-suburb">Suburb</Label>
+                <Input
+                  id="edit-booking-suburb"
+                  value={editForm.suburb}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      suburb: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-city">City</Label>
+                <Select
+                  value={editForm.city}
+                  onValueChange={(city) =>
+                    setEditForm((current) => ({ ...current, city }))
+                  }
+                >
+                  <SelectTrigger id="edit-booking-city" className="mt-1.5">
+                    <SelectValue placeholder="City" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_CITIES.map((city) => (
+                      <SelectItem key={city} value={city}>
+                        {city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-date">Collection date</Label>
+                <Input
+                  id="edit-booking-date"
+                  type="date"
+                  value={editForm.collectionDate}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      collectionDate: event.target.value,
+                    }))
+                  }
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-booking-slot">Collection slot</Label>
+                <Select
+                  value={editForm.collectionSlot}
+                  onValueChange={(value) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      collectionSlot:
+                        value === "AFTERNOON" ? "AFTERNOON" : "MORNING",
+                    }))
+                  }
+                >
+                  <SelectTrigger id="edit-booking-slot" className="mt-1.5">
+                    <SelectValue placeholder="Slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MORNING">Morning</SelectItem>
+                    <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {editError ? (
+              <p className="text-sm text-[#b3261e]" role="alert">
+                {editError}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setEditing(null)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deactivating)}
+        onOpenChange={(open) => {
+          if (!open) setDeactivating(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deactivate booking?</DialogTitle>
+            <DialogDescription>
+              {deactivating
+                ? `Deactivate ${deactivating.id}? It will no longer show on the main bookings board, but the record stays (find it under Deactivated).`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeactivating(null)}
+              disabled={busyId === deactivating?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busyId === deactivating?.id}
+              onClick={() => void confirmDeactivate()}
+            >
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminPortalShell>
   );
 }
