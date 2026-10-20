@@ -121,12 +121,12 @@ export function PortalLayout({
 
   return (
     <div
-      className={cn("flex h-screen w-full overflow-hidden", className)}
+      className={cn("flex h-dvh max-h-dvh min-h-0 w-full overflow-hidden", className)}
       style={{ background: "#f5f7fa" }}
     >
       {/* Desktop sidebar */}
       <aside
-        className="hidden h-full w-[248px] flex-none flex-col overflow-hidden lg:flex"
+        className="hidden h-full min-h-0 w-[248px] flex-none flex-col overflow-hidden lg:flex"
         style={{ background: "#000b49" }}
         aria-label="Primary"
       >
@@ -168,7 +168,7 @@ export function PortalLayout({
       </div>
 
       {/* Main */}
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div
           className="z-10 flex flex-none items-center gap-3 bg-white px-4 py-[14px] sm:gap-4 sm:px-6 lg:px-[32px]"
           style={{
@@ -197,7 +197,9 @@ export function PortalLayout({
           ) : null}
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+          {children}
+        </div>
       </main>
     </div>
   );

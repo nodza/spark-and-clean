@@ -60,7 +60,7 @@ describe("groupPickupsIntoZones", () => {
         }),
         booking({
           id: "far",
-          suburb: "Sea Point",
+          suburb: "Atlantis",
           coordinates: { lat: twentyKmNorth[0], lng: twentyKmNorth[1] },
         }),
       ],
@@ -170,20 +170,101 @@ describe("groupPickupsIntoZones", () => {
     expect(zones[0].centroid).toEqual([-33.98, 18.465]);
   });
 
-  it("uses stored coordinates and ignores an invalid pair", () => {
+  it("keeps different customers in one zone when their suburb is the same", () => {
+    const west = { lat: -34.12, lng: 18.34 };
+    const east = { lat: -33.75, lng: 18.7 };
+    expect(distanceKm([west.lat, west.lng], [east.lat, east.lng])).toBeGreaterThan(
+      PICKUP_ZONE_RADIUS_KM
+    );
+
+    const zones = groupPickupsIntoZones(
+      [
+        booking({
+          id: "ada",
+          suburb: "Sea Point",
+          coordinates: west,
+        }),
+        booking({
+          id: "ben",
+          suburb: "Green Point",
+          coordinates: east,
+        }),
+        booking({
+          id: "cara",
+          suburb: "Sea Point",
+          coordinates: { lat: -33.8, lng: 18.55 },
+        }),
+      ],
+      scope
+    );
+
+    expect(zones).toHaveLength(1);
+    expect(zones[0].bookingIds).toEqual(["ada", "ben", "cara"]);
+    expect(zones[0].suburbs).toEqual(["Sea Point", "Green Point"]);
+    expect(zones[0].centroid).not.toEqual([west.lat, west.lng]);
+  });
+
+  it("keeps one unknown suburb in one zone when stored pins are far apart", () => {
+    const west = { lat: -34.12, lng: 18.34 };
+    const east = { lat: -33.75, lng: 18.7 };
+    expect(distanceKm([west.lat, west.lng], [east.lat, east.lng])).toBeGreaterThan(
+      PICKUP_ZONE_RADIUS_KM
+    );
+
+    const zones = groupPickupsIntoZones(
+      [
+        booking({
+          id: "b",
+          suburb: "Mouille Point",
+          coordinates: east,
+        }),
+        booking({
+          id: "a",
+          suburb: "Mouille Point",
+          coordinates: west,
+        }),
+      ],
+      scope
+    );
+
+    expect(zones).toHaveLength(1);
+    expect(zones[0].bookingIds).toEqual(["a", "b"]);
+    expect(zones[0].suburbs).toEqual(["Mouille Point"]);
+    expect(zones[0].centroid).toEqual([west.lat, west.lng]);
+  });
+
+  it("uses a stored pin only when the suburb has no fixed centroid", () => {
     const stored: LatLngTuple = [-33.99, 18.47];
     const withStored = groupPickupsIntoZones(
       [
         booking({
           id: "stored",
-          suburb: "Claremont",
+          suburb: "Atlantis",
           coordinates: { lat: stored[0], lng: stored[1] },
         }),
       ],
       scope
     );
     expect(withStored[0].centroid).toEqual(stored);
-    expect(withStored[0].centroid).not.toEqual(
+
+    const scattered = groupPickupsIntoZones(
+      [
+        booking({
+          id: "a",
+          suburb: "Claremont",
+          coordinates: { lat: -34.12, lng: 18.34 },
+        }),
+        booking({
+          id: "b",
+          suburb: "Claremont",
+          coordinates: { lat: -33.75, lng: 18.7 },
+        }),
+      ],
+      scope
+    );
+    expect(scattered).toHaveLength(1);
+    expect(scattered[0].bookingIds).toEqual(["a", "b"]);
+    expect(scattered[0].centroid).toEqual(
       suburbOrCityCentroid("Claremont", "Cape Town")
     );
 
@@ -243,14 +324,17 @@ describe("groupPickupsIntoZones", () => {
       [
         booking({
           id: "c-between",
+          suburb: "Mid Pin",
           coordinates: { lat: between[0], lng: between[1] },
         }),
         booking({
           id: "a-anchor",
+          suburb: "North Pin",
           coordinates: { lat: anchor[0], lng: anchor[1] },
         }),
         booking({
           id: "b-later",
+          suburb: "South Pin",
           coordinates: { lat: laterSeed[0], lng: laterSeed[1] },
         }),
       ],
