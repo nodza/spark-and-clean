@@ -153,6 +153,11 @@ const BookingSchema = new Schema(
       index: true,
     },
     assignedDriverId: { type: String, trim: true, index: true, sparse: true },
+    /**
+     * Soft-removed from the active admin list. Distinct from status CANCELLED —
+     * keeps contact, price, location, and original status for analytics.
+     */
+    deactivatedAt: { type: Date, default: null, index: true },
     /** Ops-only internal notes — never exposed on public booking APIs */
     notes: { type: [InternalNoteSchema], default: [] },
     /** Tech ↔ ops field thread — never on customer/public booking payloads */

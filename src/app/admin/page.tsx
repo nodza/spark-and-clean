@@ -16,6 +16,7 @@ import {
   isBookingOnLocalDay,
   localCalendarDate,
 } from "@/lib/localCalendarDate";
+import { isBookingDeactivated } from "@/lib/adminBookingDetails";
 import { isActionableUnassignedToday, isUnassignedDriver } from "@/lib/bookingAttention";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 import type { Booking, Driver } from "@/types/booking";
@@ -150,15 +151,23 @@ export default function AdminDashboard() {
 
   const today = localCalendarDate();
   const todaysPickups = bookings.filter(
-    (b) => isBookingOnLocalDay(b.collectionDate, today) && b.status === "SCHEDULED"
+    (b) =>
+      !isBookingDeactivated(b) &&
+      isBookingOnLocalDay(b.collectionDate, today) &&
+      b.status === "SCHEDULED"
   ).length;
-  const activeJobs = bookings.filter((b) =>
-    ["COLLECTED", "CLEANING", "DRYING", "READY"].includes(b.status)
+  const activeJobs = bookings.filter(
+    (b) =>
+      !isBookingDeactivated(b) &&
+      ["COLLECTED", "CLEANING", "DRYING", "READY"].includes(b.status)
   ).length;
-  const unpaidCount = bookings.filter((b) => b.paymentStatus === "UNPAID").length;
+  const unpaidCount = bookings.filter(
+    (b) => !isBookingDeactivated(b) && b.paymentStatus === "UNPAID"
+  ).length;
   const unassignedTodayCount = bookings.filter((b) =>
     isActionableUnassignedToday(b, today)
   ).length;
+  // Include deactivated rows so soft-remove does not rewrite revenue history.
   const revenue = bookings.reduce(
     (acc, b) => acc + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
     0
@@ -167,7 +176,9 @@ export default function AdminDashboard() {
   const todayJobs = bookings
     .filter(
       (b) =>
-        isBookingOnLocalDay(b.collectionDate, today) && b.status !== "CANCELLED"
+        !isBookingDeactivated(b) &&
+        isBookingOnLocalDay(b.collectionDate, today) &&
+        b.status !== "CANCELLED"
     )
     .sort((a, b) => {
       const slot = a.collectionSlot === b.collectionSlot ? 0 : a.collectionSlot === "MORNING" ? -1 : 1;
