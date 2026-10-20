@@ -83,6 +83,8 @@ export interface AppUser {
     punches: number;
     rewardsRedeemed: number;
   };
+  /** Stable share code. Present for clients after the first portal view or signup. */
+  referralCode?: string;
   /** Technician link to Driver profile (`drivers.id`); current bakkie is Vehicle.assignedDriverId */
   driverProfileId?: string;
   lastLoginAt?: string;

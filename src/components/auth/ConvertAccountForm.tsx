@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,10 @@ export function ConvertAccountForm({
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
   const [email, setEmail] = useState(defaultEmail);
+
+  useEffect(() => {
+    setEmail((current) => (current.trim() ? current : defaultEmail));
+  }, [defaultEmail]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +64,15 @@ export function ConvertAccountForm({
     setAccountExists(false);
 
     const trimmedEmail = email.trim().toLowerCase();
+    const bookingEmail = defaultEmail.trim().toLowerCase();
     if (!trimmedEmail || !trimmedEmail.includes("@")) {
       setError("Enter a valid email address.");
+      return;
+    }
+    if (bookingId && bookingEmail && trimmedEmail !== bookingEmail) {
+      setError(
+        `This booking is saved under ${bookingEmail}. Use that email to attach it. A different email will not add this collection to the new account.`
+      );
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -88,6 +99,14 @@ export function ConvertAccountForm({
       setAccountExists(true);
       setError(
         "An account with this email already exists. Log in to attach this booking."
+      );
+      return;
+    }
+
+    if (result.code === "BOOKING_EMAIL_MISMATCH") {
+      setError(
+        result.error ||
+          "Use the email on this booking to attach it. This collection was not added to the account."
       );
       return;
     }
@@ -146,7 +165,7 @@ export function ConvertAccountForm({
           placeholder="you@example.com"
           value={email}
           readOnly={emailLocked}
-          className={emailLocked ? "bg-rule" : undefined}
+          className={emailLocked ? "bg-[#f7f9fb] text-[#32373c]" : undefined}
           onChange={(e) => {
             if (emailLocked) return;
             setEmail(e.target.value);
@@ -155,6 +174,12 @@ export function ConvertAccountForm({
           }}
           required
         />
+        {bookingId && defaultEmail.trim() ? (
+          <span className="text-[12px] leading-snug text-[#6b7280]">
+            This collection is attached only when the account email is{" "}
+            {defaultEmail.trim().toLowerCase()}.
+          </span>
+        ) : null}
       </label>
 
       <label className={cn("flex flex-col gap-2", variant === "page" && "mt-4")}>

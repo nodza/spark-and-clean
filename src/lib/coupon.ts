@@ -19,7 +19,7 @@ const MAX_REDEMPTIONS = 1_000_000;
 
 /** Fields needed to decide whether checkout may apply a coupon. */
 export const COUPON_APPLY_FIELDS =
-  "active validFrom validTo city maxRedemptions redeemedCount";
+  "active validFrom validTo city maxRedemptions redeemedCount ownerUserId";
 
 /** A stored coupon with active: false cannot be applied. */
 export function inactiveCouponMessage(active: unknown): string | null {
@@ -34,7 +34,22 @@ export type CouponApplyDoc = {
   city?: string | null;
   maxRedemptions?: number | null;
   redeemedCount?: number | null;
+  /** Set on a personal loyalty reward. Empty for catalogue codes such as SPARK10. */
+  ownerUserId?: unknown;
 };
+
+function readOwnerUserId(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (
+    value &&
+    typeof value === "object" &&
+    "toHexString" in value &&
+    typeof (value as { toHexString?: unknown }).toHexString === "function"
+  ) {
+    return (value as { toHexString: () => string }).toHexString();
+  }
+  return "";
+}
 
 function asApplyDate(value: unknown): Date | null {
   if (value == null || value === "") return null;
@@ -55,12 +70,20 @@ function utcDay(date: Date): number {
 /**
  * Checkout may apply a code only when it is on the list, active, in date,
  * under its redemption cap, and allowed in the booking city.
+ * A personal reward (ownerUserId) is quoted only for that client.
  */
 export function couponApplyError(
   doc: CouponApplyDoc | null,
-  opts?: { city?: string | null; now?: Date }
+  opts?: { city?: string | null; now?: Date; userId?: string | null }
 ): string | null {
   if (!doc) return UNKNOWN_COUPON_MESSAGE;
+
+  const ownerId = readOwnerUserId(doc.ownerUserId);
+  if (ownerId) {
+    const viewer = typeof opts?.userId === "string" ? opts.userId.trim() : "";
+    if (!viewer || viewer !== ownerId) return UNKNOWN_COUPON_MESSAGE;
+  }
+
   const inactive = inactiveCouponMessage(doc.active);
   if (inactive) return inactive;
 
@@ -101,6 +124,22 @@ export function couponApplyError(
   return null;
 }
 
+/**
+ * Repeat the owner rule on the atomic use, not only on the earlier read.
+ * A personal code is claimed only for that user. A catalogue code is claimed
+ * only when it has no owner, so a reward cannot be used as a public code.
+ * Returns null when this caller must not claim the coupon.
+ */
+export function couponClaimOwner(
+  doc: CouponApplyDoc,
+  userId: string | null
+): { ownerUserId: string | null } | null {
+  const ownerId = readOwnerUserId(doc.ownerUserId);
+  if (!ownerId) return { ownerUserId: null };
+  if (userId && userId === ownerId) return { ownerUserId: ownerId };
+  return null;
+}
+
 export function sanitizeCouponActivePatch(
   body: unknown
 ): { ok: true; active: boolean } | { ok: false; error: string } {
@@ -112,6 +151,21 @@ export function sanitizeCouponActivePatch(
     return { ok: false, error: "Active must be true or false" };
   }
   return { ok: true, active };
+}
+
+export type CouponEditInput = Omit<CouponCreateInput, "active">;
+
+export function sanitizeCouponEditPatch(
+  body: unknown
+): { ok: true; coupon: CouponEditInput } | { ok: false; error: string } {
+  const parsed = sanitizeCouponCreate(body);
+  if (!parsed.ok) return parsed;
+  const { code, type, value, maxRedemptions, validFrom, validTo, city } =
+    parsed.coupon;
+  return {
+    ok: true,
+    coupon: { code, type, value, maxRedemptions, validFrom, validTo, city },
+  };
 }
 
 export type CouponCreateInput = {
@@ -390,6 +444,10 @@ export type ClientCoupon = {
   validTo: string | null;
   city: ServiceCity | null;
   createdAt: string | null;
+  /** Set only for a personal reward. Public codes such as SPARK10 leave this empty. */
+  ownerUserId: string | null;
+  /** Display name for ownerUserId. Null on public codes. */
+  ownerName: string | null;
 };
 
 export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
@@ -409,6 +467,7 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
     typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
       ? doc.redeemedCount
       : 0;
+  const ownerUserId = readOwnerUserId(doc.ownerUserId) || null;
 
   return {
     id: String(doc._id ?? doc.id ?? ""),
@@ -422,6 +481,8 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
     validTo: toIso(doc.validTo),
     city,
     createdAt: toIso(doc.createdAt),
+    ownerUserId,
+    ownerName: null,
   };
 }
 

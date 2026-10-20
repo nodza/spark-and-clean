@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { clearSessionCookie, getSession } from "@/lib/session";
+import { ensureClientReferralCode } from "@/lib/referral";
 import { isClientRole, isFullAccount } from "@/types/user";
 
 async function clientLoyalty(userId: string) {
@@ -37,7 +38,17 @@ export async function GET() {
   }
 
   const loyalty = await clientLoyalty(session.id);
+  let referralCode: string | null = null;
+  try {
+    referralCode = await ensureClientReferralCode(session.id);
+  } catch (err) {
+    console.error("[api/auth/me] referral", err);
+  }
+
   return NextResponse.json({
-    user: loyalty ? { ...session, loyalty } : session,
+    user: {
+      ...(loyalty ? { ...session, loyalty } : session),
+      ...(referralCode ? { referralCode } : {}),
+    },
   });
 }

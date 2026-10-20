@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findOne = vi.fn();
+const getSession = vi.fn();
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/session", () => ({
+  getSession: (...args: unknown[]) => getSession(...args),
 }));
 
 vi.mock("@/models/Coupon", () => ({
@@ -22,6 +27,8 @@ function post(code: string) {
 
 describe("POST /api/coupons/validate", () => {
   beforeEach(() => {
+    getSession.mockReset();
+    getSession.mockResolvedValue(null);
     findOne.mockReset();
     findOne.mockReturnValue({
       select: () => ({ lean: async () => null }),
@@ -88,6 +95,29 @@ describe("POST /api/coupons/validate", () => {
     expect(await res.json()).toEqual({
       valid: false,
       error: "This coupon has expired",
+    });
+  });
+
+  it("rejects another client checking Sarah's personal code", async () => {
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          active: true,
+          ownerUserId: "507f1f77bcf86cd799439011",
+        }),
+      }),
+    });
+    getSession.mockResolvedValue({
+      id: "507f1f77bcf86cd799439012",
+      email: "lee@example.com",
+      role: "client",
+    });
+    const { POST } = await import("./route");
+    const res = await POST(post("RWDSARAH"));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      valid: false,
+      error: "That coupon code isn't valid",
     });
   });
 });

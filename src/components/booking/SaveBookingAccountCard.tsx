@@ -120,7 +120,6 @@ export function SaveBookingAccountCard({
           defaultName={name}
           defaultPhone={phone}
           bookingId={bookingId}
-          emailLocked
           onSuccess={() => void onClaimed()}
         />
       </CardContent>
