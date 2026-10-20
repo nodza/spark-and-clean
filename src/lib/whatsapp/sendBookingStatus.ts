@@ -28,7 +28,8 @@ const STATUS_TEMPLATES: Record<SupportedStatus, string> = {
   DELIVERED: "booking_delivered",
 };
 
-const META_GRAPH_VERSION = "v23.0";
+const DEFAULT_META_GRAPH_VERSION = "v23.0";
+const DEFAULT_TEMPLATE_LANGUAGE = "en";
 
 export async function sendBookingStatus(
   booking: BookingStatusInput,
@@ -53,6 +54,11 @@ export async function sendBookingStatus(
 
   const accessToken = process.env.WHATSAPP_TOKEN?.trim();
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+  const graphVersion =
+    process.env.WHATSAPP_API_VERSION?.trim() || DEFAULT_META_GRAPH_VERSION;
+  const templateLanguage =
+    process.env.WHATSAPP_STATUS_TEMPLATE_LANGUAGE?.trim() ||
+    DEFAULT_TEMPLATE_LANGUAGE;
   const template = STATUS_TEMPLATES[status as SupportedStatus];
   const recipient = phone ? toE164Digits(phone) : "";
 
@@ -63,7 +69,7 @@ export async function sendBookingStatus(
 
   try {
     const response = await fetch(
-      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(phoneNumberId)}/messages`,
+      `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/messages`,
       {
         method: "POST",
         headers: {
@@ -76,7 +82,7 @@ export async function sendBookingStatus(
           type: "template",
           template: {
             name: template,
-            language: { code: "en" },
+            language: { code: templateLanguage },
             components: [
               {
                 type: "body",

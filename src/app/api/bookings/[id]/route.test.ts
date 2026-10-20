@@ -185,6 +185,51 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     );
   });
 
+  it("keeps READY after the WhatsApp sender throws", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "BOOKED" }))
+    );
+    mocks.sendBookingStatus.mockRejectedValue(new Error("WhatsApp is down"));
+
+    const res = await patch({ status: "READY" });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.status).toBe("READY");
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      { id: "SC-SARAH", customer: { phone: "0820000000" } },
+      "READY"
+    );
+  });
+
+  it("does not send again when SCHEDULED is saved a second time", async () => {
+    let storedBooking = sarahBooking({ status: "BOOKED" });
+    mocks.bookingFindOne.mockImplementation(() => lean(storedBooking));
+    mocks.bookingFindOneAndUpdate.mockImplementation((_filter, update) => {
+      const set = (update as { $set?: Record<string, unknown> }).$set ?? {};
+      storedBooking = { ...storedBooking, ...set };
+      return lean(storedBooking);
+    });
+
+    const first = await patch({ status: "SCHEDULED" });
+    const second = await patch({ status: "SCHEDULED" });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledTimes(1);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      { id: "SC-SARAH", customer: { phone: "0820000000" } },
+      "SCHEDULED"
+    );
+  });
+
+  it("does not send a WhatsApp notification for DRYING", async () => {
+    const res = await patch({ status: "DRYING" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
+  });
+
   it("does not fail the status update when WhatsApp notification persistence fails", async () => {
     mocks.sendBookingStatus.mockRejectedValue(new Error("attempt storage down"));
 

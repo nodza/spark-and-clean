@@ -28,6 +28,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("WHATSAPP_TOKEN", "test-token");
   vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", "phone-number-id");
+  vi.stubEnv("WHATSAPP_API_VERSION", "v23.0");
+  vi.stubEnv("WHATSAPP_STATUS_TEMPLATE_LANGUAGE", "en");
   mocks.findOne.mockImplementation(() => lookup());
   mocks.create.mockResolvedValue(undefined);
 });
@@ -99,6 +101,23 @@ describe("sendBookingStatus", () => {
         ],
       })
     );
+  });
+
+  it("uses the configured API version and template language", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: "wamid.configured" }] }), {
+        status: 200,
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("WHATSAPP_API_VERSION", "v24.0");
+    vi.stubEnv("WHATSAPP_STATUS_TEMPLATE_LANGUAGE", "en_US");
+
+    await sendBookingStatus(booking, "READY");
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/v24.0/");
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(request.template.language.code).toBe("en_US");
   });
 
   it.each(["WHATSAPP_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"] as const)(
