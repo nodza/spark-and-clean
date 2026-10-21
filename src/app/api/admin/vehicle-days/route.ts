@@ -13,7 +13,30 @@ import {
   toClientVehicleDayUse,
   vehicleDayConflictMessage,
 } from "@/lib/vehicleDay";
+import { driverNameById } from "@/lib/vehicleStore";
 import { toPublicApiError } from "@/lib/publicApiError";
+
+async function namesForDriverIds(driverIds: string[]) {
+  const names = await driverNameById(driverIds);
+  const missing = [
+    ...new Set(driverIds.filter((id) => id && !names.get(id))),
+  ];
+  if (missing.length === 0) return names;
+
+  const techs = await User.find({
+    role: "technician",
+    driverProfileId: { $in: missing },
+  })
+    .select({ driverProfileId: 1, name: 1, email: 1 })
+    .lean();
+  for (const tech of techs) {
+    const id = String(tech.driverProfileId ?? "");
+    if (!id || names.get(id)) continue;
+    const label = String(tech.name || tech.email || "").trim();
+    if (label) names.set(id, label);
+  }
+  return names;
+}
 
 function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
@@ -58,11 +81,18 @@ export async function GET(request: Request) {
     const byId = new Map(
       vehicles.map((vehicle) => [String(vehicle.id), vehicle] as const)
     );
+    const names = await namesForDriverIds(
+      rows.map((row) => String(row.driverId ?? "")).filter(Boolean)
+    );
 
     return NextResponse.json({
       date: parsed.date,
       entries: rows.map((row) =>
-        toClientVehicleDayUse(row, byId.get(String(row.vehicleId)))
+        toClientVehicleDayUse(
+          row,
+          byId.get(String(row.vehicleId)),
+          names.get(String(row.driverId))
+        )
       ),
     });
   } catch (err) {
@@ -124,11 +154,14 @@ export async function POST(request: Request) {
         vehicleId: parsed.value.vehicleId,
       });
 
+      const requesterName =
+        typeof driver.name === "string" ? driver.name : "";
       return NextResponse.json(
         {
           entry: toClientVehicleDayUse(
             created.toObject() as Record<string, unknown>,
-            vehicle
+            vehicle,
+            requesterName
           ),
         },
         { status: 201 }
@@ -136,7 +169,26 @@ export async function POST(request: Request) {
     } catch (err) {
       const conflict = vehicleDayConflictMessage(err);
       if (conflict) {
-        return NextResponse.json({ error: conflict }, { status: 409 });
+        const existing = await VehicleDayUse.findOne({
+          date: parsed.value.date,
+          vehicleId: parsed.value.vehicleId,
+        }).lean();
+        const names = existing
+          ? await namesForDriverIds([String(existing.driverId ?? "")])
+          : new Map<string, string>();
+        return NextResponse.json(
+          {
+            error: conflict,
+            entry: existing
+              ? toClientVehicleDayUse(
+                  existing,
+                  vehicle,
+                  names.get(String(existing.driverId))
+                )
+              : undefined,
+          },
+          { status: 409 }
+        );
       }
       throw err;
     }
