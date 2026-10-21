@@ -44,6 +44,13 @@ function activeFilterChips(filters: AdminBookingFilters): ActiveChip[] {
   if (filters.q) {
     chips.push({ key: "q", label: `“${filters.q}”`, clear: { q: "" } });
   }
+  if (filters.deactivated === "1") {
+    chips.push({
+      key: "deactivated",
+      label: "Deactivated",
+      clear: { deactivated: "" },
+    });
+  }
   if (filters.status) {
     chips.push({
       key: "status",
@@ -211,6 +218,7 @@ export function BookingsFilterPanel({
   totalCount: number;
   statusCounts: {
     all: number;
+    deactivated: number;
     byStatus: Record<BookingStatus, number>;
   };
   cities: string[];
@@ -296,9 +304,9 @@ export function BookingsFilterPanel({
       <div className="mt-2.5 flex flex-wrap gap-1">
         <button
           type="button"
-          aria-pressed={!filters.status}
-          onClick={() => onPatch({ status: "" })}
-          className={chipClass(!filters.status)}
+          aria-pressed={!filters.status && filters.deactivated !== "1"}
+          onClick={() => onPatch({ status: "", deactivated: "" })}
+          className={chipClass(!filters.status && filters.deactivated !== "1")}
         >
           All
           <span className="tabular-nums text-[11px] font-bold opacity-70">
@@ -306,14 +314,15 @@ export function BookingsFilterPanel({
           </span>
         </button>
         {BOOKING_STATUSES.map((status) => {
-          const selected = filters.status === status;
+          const selected =
+            filters.status === status && filters.deactivated !== "1";
           const count = statusCounts.byStatus[status] ?? 0;
           return (
             <button
               key={status}
               type="button"
               aria-pressed={selected}
-              onClick={() => onPatch({ status })}
+              onClick={() => onPatch({ status, deactivated: "" })}
               className={chipClass(selected, count === 0)}
             >
               <span
@@ -331,6 +340,28 @@ export function BookingsFilterPanel({
             </button>
           );
         })}
+        <button
+          type="button"
+          aria-pressed={filters.deactivated === "1"}
+          onClick={() => onPatch({ deactivated: "1", status: "" })}
+          className={chipClass(
+            filters.deactivated === "1",
+            statusCounts.deactivated === 0
+          )}
+        >
+          <span
+            className="size-[6px] flex-none rounded-full"
+            style={{
+              background: "#6B7280",
+              opacity: filters.deactivated === "1" ? 1 : 0.55,
+            }}
+            aria-hidden
+          />
+          Deactivated
+          <span className="tabular-nums text-[11px] font-bold opacity-70">
+            {statusCounts.deactivated}
+          </span>
+        </button>
       </div>
 
       <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">

@@ -1,4 +1,5 @@
 import type { Booking, BookingStatus } from "@/types/booking";
+import { isBookingDeactivated } from "@/lib/adminBookingDetails";
 import { isBookingOnLocalDay, localCalendarDate } from "@/lib/localCalendarDate";
 
 const UNASSIGNED_TODAY_EXCLUDED: BookingStatus[] = ["CANCELLED", "DELIVERED"];
@@ -9,9 +10,13 @@ export function isUnassignedDriver(assignedDriverId?: string | null): boolean {
 
 /** Same rule as Needs Attention “unassigned today” and Assign list filters. */
 export function isActionableUnassignedToday(
-  booking: Pick<Booking, "collectionDate" | "assignedDriverId" | "status">,
+  booking: Pick<
+    Booking,
+    "collectionDate" | "assignedDriverId" | "status" | "deactivatedAt"
+  >,
   today: string = localCalendarDate()
 ): boolean {
+  if (isBookingDeactivated(booking)) return false;
   if (!isBookingOnLocalDay(booking.collectionDate, today)) return false;
   if (!isUnassignedDriver(booking.assignedDriverId)) return false;
   return !UNASSIGNED_TODAY_EXCLUDED.includes(booking.status);
