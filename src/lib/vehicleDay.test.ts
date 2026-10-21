@@ -80,8 +80,21 @@ describe("toClientVehicleDayUse", () => {
       date: "2026-10-14",
       driverId: "driver_thabo",
       vehicleId: "vehicle_np200",
+      driverName: "",
       label: "Nissan NP200",
       plate: "CA 123-456",
     });
+    expect(
+      toClientVehicleDayUse(
+        {
+          id: "vday_1",
+          date: "2026-10-14",
+          driverId: "driver_thabo",
+          vehicleId: "vehicle_np200",
+        },
+        { label: "Nissan NP200", plate: "CA 123-456" },
+        "Thabo"
+      ).driverName
+    ).toBe("Thabo");
   });
 });

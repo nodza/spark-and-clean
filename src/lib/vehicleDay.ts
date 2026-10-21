@@ -11,6 +11,7 @@ export type ClientVehicleDayUse = {
   date: string;
   driverId: string;
   vehicleId: string;
+  driverName: string;
   label: string;
   plate: string;
 };
@@ -82,13 +83,18 @@ export function toClientVehicleDayUse(
     driverId?: unknown;
     vehicleId?: unknown;
   },
-  vehicle?: { label?: unknown; plate?: unknown } | null
+  vehicle?: { label?: unknown; plate?: unknown } | null,
+  driverName?: string | null
 ): ClientVehicleDayUse {
   return {
     id: String(doc.id ?? ""),
     date: String(doc.date ?? ""),
     driverId: String(doc.driverId ?? ""),
     vehicleId: String(doc.vehicleId ?? ""),
+    driverName:
+      typeof driverName === "string" && driverName.trim()
+        ? driverName.trim()
+        : "",
     label: typeof vehicle?.label === "string" ? vehicle.label : "",
     plate: typeof vehicle?.plate === "string" ? vehicle.plate : "",
   };

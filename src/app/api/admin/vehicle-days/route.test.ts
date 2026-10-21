@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   vehicleFindOne: vi.fn(),
   vehicleFind: vi.fn(),
   dayFind: vi.fn(),
+  dayFindOne: vi.fn(),
   dayCreate: vi.fn(),
+  driverNameById: vi.fn(),
+  userFind: vi.fn(),
 }));
 
 vi.mock("@/lib/adminAuth", async (importOriginal) => {
@@ -23,7 +26,10 @@ vi.mock("@/models/Driver", () => ({
   Driver: { findOne: mocks.driverFindOne },
 }));
 vi.mock("@/models/User", () => ({
-  User: { findOne: mocks.userFindOne },
+  User: { findOne: mocks.userFindOne, find: mocks.userFind },
+}));
+vi.mock("@/lib/vehicleStore", () => ({
+  driverNameById: mocks.driverNameById,
 }));
 vi.mock("@/models/Vehicle", () => ({
   Vehicle: {
@@ -34,6 +40,7 @@ vi.mock("@/models/Vehicle", () => ({
 vi.mock("@/models/VehicleDayUse", () => ({
   VehicleDayUse: {
     find: mocks.dayFind,
+    findOne: mocks.dayFindOne,
     create: mocks.dayCreate,
   },
 }));
@@ -95,6 +102,18 @@ beforeEach(() => {
   mocks.dayCreate.mockImplementation(async (doc: Record<string, unknown>) => ({
     toObject: () => doc,
   }));
+  mocks.dayFindOne.mockReturnValue({ lean: async () => null });
+  mocks.userFind.mockReturnValue({
+    select: () => ({ lean: async () => [] }),
+  });
+  mocks.driverNameById.mockImplementation(async (ids: string[]) => {
+    const map = new Map<string, string>();
+    for (const id of ids) {
+      if (id === thabo) map.set(id, "Thabo");
+      if (id === sipho) map.set(id, "Sipho");
+    }
+    return map;
+  });
 });
 
 describe("POST /api/admin/vehicle-days", () => {
@@ -108,12 +127,14 @@ describe("POST /api/admin/vehicle-days", () => {
     expect((await first.json()).entry).toMatchObject({
       driverId: thabo,
       vehicleId: np200,
+      driverName: "Tech",
       label: "Nissan NP200",
       plate: "CA 111-111",
     });
     expect((await second.json()).entry).toMatchObject({
       driverId: thabo,
       vehicleId: quantum,
+      driverName: "Tech",
       label: "Toyota Quantum",
     });
   });
@@ -123,11 +144,28 @@ describe("POST /api/admin/vehicle-days", () => {
       code: 11000,
       keyPattern: { date: 1, vehicleId: 1 },
     });
+    mocks.dayFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "vday_1",
+        date,
+        driverId: thabo,
+        vehicleId: np200,
+      }),
+    });
 
     const res = await post({ date, driverId: sipho, vehicleId: np200 });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: "That vehicle is already logged to a driver on this date",
+      entry: {
+        id: "vday_1",
+        date,
+        driverId: thabo,
+        vehicleId: np200,
+        driverName: "Thabo",
+        label: "Nissan NP200",
+        plate: "CA 111-111",
+      },
     });
   });
 
@@ -187,6 +225,7 @@ describe("GET /api/admin/vehicle-days", () => {
           date,
           driverId: thabo,
           vehicleId: np200,
+          driverName: "Thabo",
           label: "Nissan NP200",
           plate: "CA 111-111",
         },
@@ -195,6 +234,7 @@ describe("GET /api/admin/vehicle-days", () => {
           date,
           driverId: thabo,
           vehicleId: quantum,
+          driverName: "Thabo",
           label: "Toyota Quantum",
           plate: "CA 222-222",
         },

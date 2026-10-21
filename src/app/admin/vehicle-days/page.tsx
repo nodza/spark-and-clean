@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +15,7 @@ import { isValidCalendarDate } from "@/lib/johannesburgDate";
 import { localCalendarDate } from "@/lib/localCalendarDate";
 import type { ClientVehicleDayUse } from "@/lib/vehicleDay";
 
-type DriverOption = { id: string; name: string };
+type DriverOption = { id: string; name: string; onRoster?: boolean };
 type VehicleOption = { id: string; label: string; plate: string };
 
 type VehicleClaim = {
@@ -24,24 +24,53 @@ type VehicleClaim = {
   driverName: string;
 };
 
+function pairKey(driverId: string, vehicleId: string) {
+  return `${driverId}:${vehicleId}`;
+}
+
+function isAbortError(err: unknown) {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 export default function AdminVehicleDaysPage() {
   const { user, ready } = useAuth();
   const isFullAdmin = user?.role === "admin" && user.adminTier === "full";
 
   const [date, setDate] = useState(() => localCalendarDate());
+  const dateRef = useRef(date);
+  dateRef.current = date;
+
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [entries, setEntries] = useState<ClientVehicleDayUse[]>([]);
   const [loading, setLoading] = useState(true);
   const [sheetLoading, setSheetLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [busyKeys, setBusyKeys] = useState<Set<string>>(() => new Set());
 
-  const driverNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const driver of drivers) map.set(driver.id, driver.name);
-    return map;
-  }, [drivers]);
+  const markBusy = (key: string) => {
+    setBusyKeys((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  };
+
+  const clearBusy = (key: string) => {
+    setBusyKeys((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  };
+
+  const stillOnDay = (day: string) => dateRef.current === day;
 
   const claimByVehicleId = useMemo(() => {
     const map = new Map<string, VehicleClaim>();
@@ -49,14 +78,33 @@ export default function AdminVehicleDaysPage() {
       map.set(entry.vehicleId, {
         entryId: entry.id,
         driverId: entry.driverId,
-        driverName: driverNameById.get(entry.driverId) || "Another driver",
+        driverName: entry.driverName || "Another driver",
       });
     }
     return map;
-  }, [entries, driverNameById]);
+  }, [entries]);
+
+  const sheetDrivers = useMemo(() => {
+    const rosterIds = new Set(drivers.map((driver) => driver.id));
+    const extras: DriverOption[] = [];
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      if (rosterIds.has(entry.driverId) || seen.has(entry.driverId)) continue;
+      seen.add(entry.driverId);
+      extras.push({
+        id: entry.driverId,
+        name: entry.driverName || "Inactive driver",
+        onRoster: false,
+      });
+    }
+    return [
+      ...drivers.map((driver) => ({ ...driver, onRoster: true })),
+      ...extras,
+    ];
+  }, [drivers, entries]);
 
   const loadRoster = useCallback(async () => {
-    setLoadError(null);
+    setRosterError(null);
     try {
       const [vehicleRes, driverRes] = await Promise.all([
         fetch("/api/admin/vehicles", { credentials: "include" }),
@@ -85,24 +133,26 @@ export default function AdminVehicleDaysPage() {
       setVehicles(Array.isArray(vehicleData.vehicles) ? vehicleData.vehicles : []);
       setDrivers(Array.isArray(driverData) ? driverData : []);
     } catch (err) {
-      setLoadError(
+      setRosterError(
         err instanceof Error ? err.message : "Could not load day sheet"
       );
     }
   }, []);
 
-  const loadSheet = useCallback(async (day: string) => {
+  const loadSheet = useCallback(async (day: string, signal?: AbortSignal) => {
+    const isCurrent = () => dateRef.current === day;
     if (!isValidCalendarDate(day)) {
-      setEntries([]);
-      return;
+      if (isCurrent()) setEntries([]);
+      return [] as ClientVehicleDayUse[];
     }
-    setSheetLoading(true);
-    setLoadError(null);
+    if (!signal?.aborted) setSheetLoading(true);
+    setSheetError(null);
     try {
       const res = await fetch(
         `/api/admin/vehicle-days?date=${encodeURIComponent(day)}`,
-        { credentials: "include" }
+        { credentials: "include", signal }
       );
+      if (signal?.aborted) return [];
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         entries?: ClientVehicleDayUse[];
@@ -110,13 +160,20 @@ export default function AdminVehicleDaysPage() {
       if (!res.ok) {
         throw new Error(data.error || "Could not load day log");
       }
-      // Empty day → empty entries (not an error).
-      setEntries(Array.isArray(data.entries) ? data.entries : []);
+      const rows = Array.isArray(data.entries) ? data.entries : [];
+      if (isCurrent()) setEntries(rows);
+      return rows;
     } catch (err) {
-      setEntries([]);
-      setLoadError(err instanceof Error ? err.message : "Could not load day log");
+      if (signal?.aborted || isAbortError(err)) return [];
+      if (isCurrent()) {
+        setEntries([]);
+        setSheetError(
+          err instanceof Error ? err.message : "Could not load day log"
+        );
+      }
+      return [];
     } finally {
-      setSheetLoading(false);
+      if (!signal?.aborted && isCurrent()) setSheetLoading(false);
     }
   }, []);
 
@@ -135,47 +192,73 @@ export default function AdminVehicleDaysPage() {
 
   useEffect(() => {
     if (!ready || !isFullAdmin) return;
-    void loadSheet(date);
+    const ac = new AbortController();
+    void loadSheet(date, ac.signal);
+    return () => {
+      ac.abort();
+    };
   }, [ready, isFullAdmin, date, loadSheet]);
 
   async function addVehicle(driverId: string, vehicleId: string) {
-    const key = `${driverId}:${vehicleId}`;
-    setBusyKey(key);
+    const day = date;
+    const key = pairKey(driverId, vehicleId);
+    markBusy(key);
     try {
       const res = await fetch("/api/admin/vehicle-days", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, driverId, vehicleId }),
+        body: JSON.stringify({ date: day, driverId, vehicleId }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         entry?: ClientVehicleDayUse;
       };
+
+      if (res.status === 409) {
+        if (!stillOnDay(day)) return;
+        const existing = data.entry;
+        if (existing?.driverId === driverId && existing.vehicleId === vehicleId) {
+          setEntries((prev) => {
+            if (prev.some((row) => row.id === existing.id)) return prev;
+            return [...prev, existing];
+          });
+          return;
+        }
+        toast.error(
+          data.error || "That vehicle is already logged to a driver on this date"
+        );
+        await loadSheet(day);
+        return;
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Could not save vehicle for this day");
       }
+      if (!stillOnDay(day)) return;
       if (data.entry) {
         setEntries((prev) => {
           if (prev.some((row) => row.id === data.entry!.id)) return prev;
           return [...prev, data.entry!];
         });
       } else {
-        await loadSheet(date);
+        await loadSheet(day);
       }
     } catch (err) {
+      if (!stillOnDay(day)) return;
       toast.error(
         err instanceof Error ? err.message : "Could not save vehicle for this day"
       );
-      await loadSheet(date);
+      await loadSheet(day);
     } finally {
-      setBusyKey(null);
+      clearBusy(key);
     }
   }
 
   async function removeEntry(entryId: string, driverId: string, vehicleId: string) {
-    const key = `${driverId}:${vehicleId}`;
-    setBusyKey(key);
+    const day = date;
+    const key = pairKey(driverId, vehicleId);
+    markBusy(key);
     try {
       const res = await fetch(
         `/api/admin/vehicle-days/${encodeURIComponent(entryId)}`,
@@ -185,16 +268,18 @@ export default function AdminVehicleDaysPage() {
       if (!res.ok) {
         throw new Error(data.error || "Could not remove vehicle from this day");
       }
+      if (!stillOnDay(day)) return;
       setEntries((prev) => prev.filter((row) => row.id !== entryId));
     } catch (err) {
+      if (!stillOnDay(day)) return;
       toast.error(
         err instanceof Error
           ? err.message
           : "Could not remove vehicle from this day"
       );
-      await loadSheet(date);
+      await loadSheet(day);
     } finally {
-      setBusyKey(null);
+      clearBusy(key);
     }
   }
 
@@ -234,6 +319,8 @@ export default function AdminVehicleDaysPage() {
     );
   }
 
+  const loadError = rosterError || sheetError;
+
   return (
     <AdminPortalShell
       pageTitle="Day sheet"
@@ -272,9 +359,14 @@ export default function AdminVehicleDaysPage() {
           </div>
         </div>
 
-        {loadError ? (
+        {rosterError ? (
           <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
-            {loadError}
+            {rosterError}
+          </p>
+        ) : null}
+        {sheetError ? (
+          <p className="text-sm" style={{ color: "#b3261e" }} role="alert">
+            {sheetError}
           </p>
         ) : null}
 
@@ -296,12 +388,15 @@ export default function AdminVehicleDaysPage() {
             <div className="px-[22px] py-8 text-meta" style={{ color: "#9aa0a6" }}>
               Loading drivers…
             </div>
-          ) : drivers.length === 0 ? (
+          ) : sheetDrivers.length === 0 ? (
             <div className="px-[22px] py-8 text-meta" style={{ color: "#9aa0a6" }}>
-              No assignable drivers yet.
+              {loadError
+                ? "Could not load the day sheet."
+                : "No assignable drivers yet."}
             </div>
           ) : (
-            drivers.map((driver) => {
+            sheetDrivers.map((driver) => {
+              const onRoster = driver.onRoster !== false;
               const selectedCount = entries.filter(
                 (entry) => entry.driverId === driver.id
               ).length;
@@ -323,11 +418,13 @@ export default function AdminVehicleDaysPage() {
                       {driver.name}
                     </div>
                     <div className="text-meta mt-1" style={{ color: "#9aa0a6" }}>
-                      {sheetLoading
-                        ? "Updating…"
-                        : selectedCount === 0
-                          ? "No vehicles logged"
-                          : `${selectedCount} vehicle${selectedCount === 1 ? "" : "s"}`}
+                      {!onRoster
+                        ? "Inactive — uncheck to release"
+                        : sheetLoading
+                          ? "Updating…"
+                          : selectedCount === 0
+                            ? "No vehicles logged"
+                            : `${selectedCount} vehicle${selectedCount === 1 ? "" : "s"}`}
                     </div>
                   </div>
 
@@ -341,10 +438,12 @@ export default function AdminVehicleDaysPage() {
                         const claim = claimByVehicleId.get(vehicle.id);
                         const mine = claim?.driverId === driver.id;
                         const takenByOther = Boolean(claim && !mine);
+                        const busy = busyKeys.has(pairKey(driver.id, vehicle.id));
                         const disabled =
                           sheetLoading ||
-                          busyKey === `${driver.id}:${vehicle.id}` ||
-                          takenByOther;
+                          busy ||
+                          takenByOther ||
+                          (!onRoster && !mine);
                         const label = vehicle.plate
                           ? `${vehicle.label} · ${vehicle.plate}`
                           : vehicle.label;
