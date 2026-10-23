@@ -81,6 +81,7 @@ describe("GET /api/admin/clients", () => {
   it("returns every client field the page shows and no password material", async () => {
     const res = await GET(new Request("http://localhost/api/admin/clients"));
     expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
     const body = await res.json();
     expect(body.total).toBe(1);
     expect(body.page).toBe(1);

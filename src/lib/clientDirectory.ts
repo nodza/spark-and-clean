@@ -1,4 +1,3 @@
-import { accountIsDisabled } from "@/lib/adminAuth";
 import {
   parseListPagination,
   type ListPagination,
@@ -10,6 +9,24 @@ export const CLIENT_DIRECTORY_ROLES = ["client", "CUSTOMER"] as const;
 
 export const CLIENT_DIRECTORY_SELECT =
   "name email phone preferredCity addresses.city addresses.isDefault disabledAt isActive role";
+
+/** Bound regex search so a huge `q` cannot scan the collection unbounded. */
+export const CLIENT_SEARCH_MAX_LENGTH = 100;
+
+export function normalizeClientSearch(rawQuery: string): string {
+  return rawQuery.trim().slice(0, CLIENT_SEARCH_MAX_LENGTH);
+}
+
+/** Name for the directory. Email when name is blank; never an empty heading. */
+export function clientDisplayName(
+  row: Pick<ClientDirectoryRow, "name" | "email">
+): string {
+  const name = row.name.trim();
+  if (name) return name;
+  const email = row.email.trim();
+  if (email) return email;
+  return "No name";
+}
 
 export type ClientDirectoryRow = {
   id: string;
@@ -32,13 +49,11 @@ export function clientIsInactive(doc: {
   disabledAt?: unknown;
   isActive?: unknown;
 }): boolean {
-  if (
-    accountIsDisabled({
-      disabledAt: doc.disabledAt as Date | string | null | undefined,
-      isActive: typeof doc.isActive === "boolean" ? doc.isActive : undefined,
-    })
-  ) {
-    return true;
+  const disabledAt = doc.disabledAt;
+  if (disabledAt != null && disabledAt !== "") {
+    if (!(disabledAt instanceof Date) || !Number.isNaN(disabledAt.getTime())) {
+      return true;
+    }
   }
   return doc.isActive === false;
 }
@@ -96,7 +111,7 @@ export function escapeRegExp(value: string): string {
  * A digit-only or mixed phone query also matches numbers stored with spaces.
  */
 export function clientSearchMatchers(rawQuery: string): RegExp[] | null {
-  const q = rawQuery.trim();
+  const q = normalizeClientSearch(rawQuery);
   if (!q) return null;
 
   const literal = new RegExp(escapeRegExp(q), "i");

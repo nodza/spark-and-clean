@@ -9,14 +9,22 @@ import {
 import { parseListPagination } from "@/lib/listPagination";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
+import { toPublicApiError } from "@/lib/publicApiError";
+
+const NO_STORE = { "Cache-Control": "no-store" };
 
 function jsonError(err: unknown, fallback: string) {
   if (isHttpError(err)) {
-    return NextResponse.json({ error: err.message }, { status: err.status });
+    return NextResponse.json(
+      { error: err.message },
+      { status: err.status, headers: NO_STORE }
+    );
   }
-  const message = err instanceof Error ? err.message : fallback;
-  console.error("[api/admin/clients]", message);
-  return NextResponse.json({ error: message }, { status: 500 });
+  console.error("[api/admin/clients]", err);
+  return NextResponse.json(
+    { error: toPublicApiError(err, fallback) },
+    { status: 500, headers: NO_STORE }
+  );
 }
 
 /** Read-only client directory. Full admins only. */
@@ -44,12 +52,15 @@ export async function GET(request: Request) {
       .map((doc) => toClientDirectoryRow(doc as Record<string, unknown>))
       .filter((row): row is NonNullable<typeof row> => row !== null);
 
-    return NextResponse.json({
-      clients,
-      total,
-      page: window.page,
-      limit: window.limit,
-    });
+    return NextResponse.json(
+      {
+        clients,
+        total,
+        page: window.page,
+        limit: window.limit,
+      },
+      { headers: NO_STORE }
+    );
   } catch (err) {
     return jsonError(err, "Failed to list clients");
   }

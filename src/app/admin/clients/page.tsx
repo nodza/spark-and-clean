@@ -8,6 +8,7 @@ import {
   AdminPortalShell,
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
+import { clientDisplayName, normalizeClientSearch } from "@/lib/clientDirectory";
 import {
   applyListPaginationParams,
   parseListPagination,
@@ -29,7 +30,7 @@ const HEADINGS = ["Name", "Phone", "Email", "City", "Status"] as const;
 
 function listHref(query: string, pagination: ListPagination) {
   const params = applyListPaginationParams(new URLSearchParams(), pagination);
-  const q = query.trim();
+  const q = normalizeClientSearch(query);
   if (q) params.set("q", q);
   const qs = params.toString();
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
@@ -60,7 +61,7 @@ function ClientsShellFallback() {
 function AdminClientsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const query = searchParams.get("q") ?? "";
+  const query = normalizeClientSearch(searchParams.get("q") ?? "");
   const pagination = useMemo(
     () => parseListPagination(searchParams),
     [searchParams]
@@ -77,13 +78,11 @@ function AdminClientsList() {
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
-    const q = query.trim();
+    const q = normalizeClientSearch(query);
     if (q) params.set("q", q);
     applyListPaginationParams(params, { page, limit });
     const qs = params.toString();
 
-    setClients([]);
-    setTotal(0);
     setLoading(true);
     setLoadError(null);
 
@@ -208,7 +207,7 @@ function AdminClientsList() {
                   columnGap: 10,
                 }}
               >
-                <Cell value={client.name} emphasis />
+                <Cell value={clientDisplayName(client)} emphasis />
                 <Cell value={client.phone} />
                 <Cell value={client.email} />
                 <Cell value={client.city} />
@@ -228,7 +227,7 @@ function AdminClientsList() {
                     className="min-w-0 truncate text-[15px] font-bold"
                     style={{ color: "#000b49" }}
                   >
-                    {client.name}
+                    {clientDisplayName(client)}
                   </div>
                   <StatusPill inactive={client.inactive} />
                 </div>
@@ -244,7 +243,7 @@ function AdminClientsList() {
             ))}
           </div>
 
-          {loading ? (
+          {loading && clients.length === 0 ? (
             <div
               className="px-[22px] py-[40px] text-center text-meta"
               style={{ color: "#9aa0a6" }}

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   clientCity,
   clientDirectoryFilter,
+  clientDisplayName,
   clientIsInactive,
   clientMatchesSearch,
   CLIENT_DIRECTORY_SELECT,
+  CLIENT_SEARCH_MAX_LENGTH,
   directoryWindow,
+  normalizeClientSearch,
   toClientDirectoryRow,
 } from "@/lib/clientDirectory";
 
@@ -91,6 +94,17 @@ describe("toClientDirectoryRow", () => {
     expect(CLIENT_DIRECTORY_SELECT).not.toMatch(/password/i);
     expect(CLIENT_DIRECTORY_SELECT).not.toMatch(/sessionsInvalidatedAt/);
   });
+
+  it("falls back to email when the account has no name", () => {
+    const row = toClientDirectoryRow({
+      _id: "no-name",
+      role: "client",
+      email: "anon@example.com",
+    });
+    expect(row?.name).toBe("");
+    expect(clientDisplayName(row!)).toBe("anon@example.com");
+    expect(clientDisplayName({ name: "", email: "" })).toBe("No name");
+  });
 });
 
 describe("client search", () => {
@@ -137,6 +151,14 @@ describe("client search", () => {
     expect(clientDirectoryFilter("   ")).toEqual({
       role: { $in: ["client", "CUSTOMER"] },
     });
+  });
+
+  it("caps a long search string before building matchers", () => {
+    const long = "a".repeat(CLIENT_SEARCH_MAX_LENGTH + 40);
+    expect(normalizeClientSearch(long).length).toBe(CLIENT_SEARCH_MAX_LENGTH);
+    const filter = clientDirectoryFilter(long);
+    const or = filter.$or as Record<string, RegExp>[];
+    expect(or[0].name.source.length).toBe(CLIENT_SEARCH_MAX_LENGTH);
   });
 });
 
