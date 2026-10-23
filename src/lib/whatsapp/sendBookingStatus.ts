@@ -89,10 +89,16 @@ export async function sendBookingStatus(
     );
     const payload = (await response.json()) as {
       messages?: Array<{ id?: string }>;
+      error?: { code?: number; error_subcode?: number };
     };
     const providerMessageId = payload.messages?.[0]?.id;
 
     if (!response.ok || !providerMessageId) {
+      console.error("[whatsapp] Meta rejected booking status template", {
+        httpStatus: response.status,
+        errorCode: payload.error?.code,
+        errorSubcode: payload.error?.error_subcode,
+      });
       await recordAttempt({ bookingId, status, phone, result: "failed" });
       return { result: "failed" };
     }

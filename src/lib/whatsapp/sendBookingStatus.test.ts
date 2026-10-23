@@ -145,4 +145,33 @@ describe("sendBookingStatus", () => {
       })
     );
   });
+
+  it("records a failed Meta response and logs the status without exposing credentials", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: 190, error_subcode: 463 } }),
+        { status: 401 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await sendBookingStatus(booking, "READY");
+
+    expect(result).toEqual({ result: "failed" });
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: booking.id,
+        status: "READY",
+        result: "failed",
+      })
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[whatsapp] Meta rejected booking status template",
+      { httpStatus: 401, errorCode: 190, errorSubcode: 463 }
+    );
+    expect(errorSpy.mock.calls).not.toEqual(
+      expect.arrayContaining([expect.arrayContaining(["test-token"])])
+    );
+  });
 });
