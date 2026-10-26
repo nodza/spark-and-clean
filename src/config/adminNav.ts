@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   MapPinned,
   PackageSearch,
+  Route,
   Tag,
   Truck,
   Users,
@@ -27,6 +28,7 @@ export type AdminNavKey =
   | "pricing"
   | "vehicles"
   | "analytics"
+  | "pickupZones"
   | "vehicle-days";
 
 export type AdminNavItem = {
@@ -125,6 +127,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     match: (p) => p.startsWith("/admin/analytics"),
   },
   {
+    key: "pickupZones",
+    label: "Pickup zones",
+    href: "/admin/pickup-zones",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: Route,
+    match: (p) => p.startsWith("/admin/pickup-zones"),
+  },
+  {
     key: "vehicle-days",
     label: "Day sheet",
     href: "/admin/vehicle-days",
@@ -145,6 +156,7 @@ export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin/pricing": "Pricing & coupons",
   "/admin/vehicles": "Vehicles",
   "/admin/analytics": "Analytics",
+  "/admin/pickup-zones": "Pickup zones",
   "/admin/vehicle-days": "Day sheet",
 };
 
