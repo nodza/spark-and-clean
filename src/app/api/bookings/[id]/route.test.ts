@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   punchOnce: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
+  listDayVehiclesForDriver: vi.fn(),
+  vehiclesByDriverId: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
@@ -26,6 +28,12 @@ vi.mock("@/lib/promotion/loyalty", () => ({
 }));
 vi.mock("@/lib/referral", () => ({
   creditReferrerOnce: mocks.creditReferrerOnce,
+}));
+vi.mock("@/lib/vehicleDay", () => ({
+  listDayVehiclesForDriver: mocks.listDayVehiclesForDriver,
+}));
+vi.mock("@/lib/vehicleStore", () => ({
+  vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
 
 import { PATCH } from "./route";
@@ -70,6 +78,8 @@ beforeEach(() => {
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.punchOnce.mockResolvedValue(true);
   mocks.creditReferrerOnce.mockResolvedValue(true);
+  mocks.listDayVehiclesForDriver.mockResolvedValue([]);
+  mocks.vehiclesByDriverId.mockResolvedValue(new Map());
   mocks.deliveryClientId.mockImplementation(
     async (booking: { userId?: unknown }) => booking.userId ?? null
   );

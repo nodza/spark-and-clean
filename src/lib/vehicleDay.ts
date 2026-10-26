@@ -1,4 +1,8 @@
 import { isValidCalendarDate } from "@/lib/johannesburgDate";
+import { bookingCalendarDate } from "@/lib/localCalendarDate";
+import type { VehicleLabelPlate } from "@/lib/vehicle";
+import { Vehicle } from "@/models/Vehicle";
+import { VehicleDayUse } from "@/models/VehicleDayUse";
 
 export type VehicleDayCreateInput = {
   date: string;
@@ -98,4 +102,51 @@ export function toClientVehicleDayUse(
     label: typeof vehicle?.label === "string" ? vehicle.label : "",
     plate: typeof vehicle?.plate === "string" ? vehicle.plate : "",
   };
+}
+
+/**
+ * Day-log bakkies for one driver on a booking's collection calendar day.
+ * Empty when none logged — callers fall back to the standing vehicle.
+ */
+export async function listDayVehiclesForDriver(
+  driverId: string | null | undefined,
+  collectionDate: string | null | undefined
+): Promise<VehicleLabelPlate[]> {
+  const id = typeof driverId === "string" ? driverId.trim() : "";
+  const rawDate = typeof collectionDate === "string" ? collectionDate.trim() : "";
+  if (!id || !rawDate) return [];
+
+  const date = bookingCalendarDate(rawDate) ?? rawDate.slice(0, 10);
+  if (!isValidCalendarDate(date)) return [];
+
+  const rows = await VehicleDayUse.find({ driverId: id, date })
+    .sort({ createdAt: 1, id: 1 })
+    .select({ vehicleId: 1 })
+    .lean();
+  if (rows.length === 0) return [];
+
+  const vehicleIds = [
+    ...new Set(
+      rows
+        .map((row) => String(row.vehicleId ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+  const vehicles = await Vehicle.find({ id: { $in: vehicleIds } })
+    .select({ id: 1, label: 1, plate: 1 })
+    .lean();
+  const byId = new Map(
+    vehicles.map((vehicle) => [String(vehicle.id), vehicle] as const)
+  );
+
+  const listed: VehicleLabelPlate[] = [];
+  for (const row of rows) {
+    const vehicle = byId.get(String(row.vehicleId ?? ""));
+    if (!vehicle) continue;
+    const label = String(vehicle.label ?? "").trim();
+    const plate = String(vehicle.plate ?? "").trim();
+    if (!label && !plate) continue;
+    listed.push({ label, plate });
+  }
+  return listed;
 }

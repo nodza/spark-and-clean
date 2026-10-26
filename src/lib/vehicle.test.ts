@@ -9,6 +9,7 @@ import {
   overlayDriverVehicle,
   plateUniqueKey,
   platesClash,
+  resolveJobVehicles,
   sanitizeVehicleAssign,
   sanitizeVehicleCreate,
   sanitizeVehiclePatch,
@@ -39,6 +40,28 @@ describe("vehicle display", () => {
       formatAssignedDriverLine("Thabo", "Nissan NP200 (CA 123-456)")
     ).toBe("Thabo · NP200 CA 123-456");
     expect(formatAssignedDriverLine("Thabo")).toBe("Thabo");
+  });
+
+  it("lists every day-log vehicle, not only the first", () => {
+    expect(
+      formatAssignedDriverLine("Thabo", [
+        { label: "Nissan NP200", plate: "CA 123-456" },
+        { label: "Toyota Quantum", plate: "CA 555-001" },
+      ])
+    ).toBe("Thabo · NP200 CA 123-456 · Quantum CA 555-001");
+  });
+
+  it("prefers day-log vehicles over the standing register", () => {
+    expect(
+      resolveJobVehicles(
+        [{ label: "Toyota Quantum", plate: "CA 555-001" }],
+        { label: "Nissan NP200", plate: "CA 123-456" }
+      )
+    ).toEqual([{ label: "Toyota Quantum", plate: "CA 555-001" }]);
+    expect(
+      resolveJobVehicles([], { label: "Nissan NP200", plate: "CA 123-456" })
+    ).toEqual({ label: "Nissan NP200", plate: "CA 123-456" });
+    expect(resolveJobVehicles([], null)).toBeNull();
   });
 
   it("compacts a legacy driver.vehicle string", () => {

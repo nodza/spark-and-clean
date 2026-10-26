@@ -10,7 +10,11 @@ import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
-import { formatBookingCollection } from "@/lib/localCalendarDate";
+import {
+  bookingCalendarDate,
+  formatBookingCollection,
+} from "@/lib/localCalendarDate";
+import type { ClientVehicleDayUse } from "@/lib/vehicleDay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,7 +51,10 @@ import {
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
-import { formatAssignedDriverLine } from "@/lib/vehicle";
+import {
+  formatAssignedDriverLine,
+  resolveJobVehicles,
+} from "@/lib/vehicle";
 import { rugDimensionLabel } from "@/lib/techUi";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
@@ -148,10 +155,14 @@ function AssignedDriverSummary({
   assignedDriverId,
   assigned,
   drivers,
+  dayVehicles,
+  standingVehicle,
 }: {
   assignedDriverId?: string;
   assigned: DriverOption | null;
   drivers: DriverOption[];
+  dayVehicles?: { label: string; plate: string }[];
+  standingVehicle?: { label: string; plate: string } | null;
 }) {
   if (!assignedDriverId) {
     return (
@@ -164,9 +175,13 @@ function AssignedDriverSummary({
   const isInactive =
     assigned?.isActive === false ||
     !drivers.some((driver) => driver.id === assignedDriverId);
+  const jobVehicles = resolveJobVehicles(
+    dayVehicles,
+    standingVehicle ?? assigned?.vehicle ?? null
+  );
   const showName =
     assigned && assigned.name.trim() && assigned.name !== assigned.id
-      ? formatAssignedDriverLine(assigned.name, assigned.vehicle)
+      ? formatAssignedDriverLine(assigned.name, jobVehicles)
       : null;
 
   if (isInactive) {
@@ -222,6 +237,9 @@ export default function AdminBookingDetail() {
     from: PaymentStatus;
     to: PaymentStatus;
   } | null>(null);
+  const [dayVehicles, setDayVehicles] = useState<
+    { label: string; plate: string }[]
+  >([]);
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -319,6 +337,53 @@ export default function AdminBookingDetail() {
       cancelled = true;
     };
   }, [booking?.assignedDriverId, drivers]);
+
+  useEffect(() => {
+    const driverId = booking?.assignedDriverId?.trim();
+    const day = booking?.collectionDate
+      ? bookingCalendarDate(booking.collectionDate)
+      : null;
+    if (!driverId || !day) {
+      setDayVehicles([]);
+      return;
+    }
+
+    // Prefer booking payload when present (detail GET).
+    if (Array.isArray(booking.dayVehicles) && booking.dayVehicles.length > 0) {
+      setDayVehicles(booking.dayVehicles);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(
+      `/api/admin/vehicle-days?date=${encodeURIComponent(day)}`,
+      { credentials: "include" }
+    )
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          entries?: ClientVehicleDayUse[];
+        };
+        if (!res.ok || cancelled) return;
+        const rows = Array.isArray(data.entries) ? data.entries : [];
+        setDayVehicles(
+          rows
+            .filter((row) => row.driverId === driverId)
+            .map((row) => ({ label: row.label, plate: row.plate }))
+            .filter((row) => row.label.trim() || row.plate.trim())
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setDayVehicles([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    booking?.assignedDriverId,
+    booking?.collectionDate,
+    booking?.dayVehicles,
+  ]);
 
   const assigned = useMemo(
     () =>
@@ -737,6 +802,12 @@ export default function AdminBookingDetail() {
                     assignedDriverId={booking.assignedDriverId}
                     assigned={assigned ?? null}
                     drivers={drivers}
+                    dayVehicles={
+                      dayVehicles.length > 0
+                        ? dayVehicles
+                        : booking.dayVehicles
+                    }
+                    standingVehicle={booking.standingVehicle}
                   />
                   <div className="mt-[14px] space-y-2">
                     <Label>Assign driver</Label>

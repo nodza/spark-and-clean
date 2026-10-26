@@ -49,24 +49,57 @@ export function compactVehicleFromDisplay(display: string): string {
   return trimmed;
 }
 
+export type VehicleLabelPlate = { label: string; plate: string };
+
+/**
+ * Prefer day-log bakkies when the collection date has rows; otherwise the
+ * standing register vehicle. Jobs never store their own vehicleId.
+ */
+export function resolveJobVehicles(
+  dayVehicles: readonly VehicleLabelPlate[] | null | undefined,
+  standing?: VehicleLabelPlate | string | null
+): VehicleLabelPlate[] | VehicleLabelPlate | string | null {
+  const day = (dayVehicles ?? []).filter(
+    (vehicle) => vehicle.label.trim() || vehicle.plate.trim()
+  );
+  if (day.length > 0) return day;
+  if (standing == null || standing === "") return null;
+  return standing;
+}
+
+function compactVehiclePart(
+  vehicle: VehicleLabelPlate | string
+): string {
+  return typeof vehicle === "string"
+    ? compactVehicleFromDisplay(vehicle)
+    : formatVehicleCompact(vehicle.label, vehicle.plate);
+}
+
 /**
  * Booking / Today display: "Thabo · NP200 CA 123-456".
+ * Several day-log vehicles: "Thabo · NP200 … · Quantum …".
  * No vehicle → driver name only. Jobs never store their own vehicleId.
  */
 export function formatAssignedDriverLine(
   driverName: string,
-  vehicle?: { label: string; plate: string } | string | null
+  vehicle?:
+    | VehicleLabelPlate
+    | string
+    | null
+    | readonly VehicleLabelPlate[]
 ): string {
   const name = driverName.trim();
   if (!name) return "";
   const first = name.split(/\s+/).filter(Boolean)[0] || name;
-  if (!vehicle) return first;
-  const compact =
-    typeof vehicle === "string"
-      ? compactVehicleFromDisplay(vehicle)
-      : formatVehicleCompact(vehicle.label, vehicle.plate);
-  if (!compact) return first;
-  return `${first} · ${compact}`;
+  if (vehicle == null || vehicle === "") return first;
+
+  const parts = Array.isArray(vehicle)
+    ? vehicle.map(compactVehiclePart).filter(Boolean)
+    : [compactVehiclePart(vehicle as VehicleLabelPlate | string)].filter(
+        Boolean
+      );
+  if (parts.length === 0) return first;
+  return `${first} · ${parts.join(" · ")}`;
 }
 
 /** Assigning V to B clears it from A. A driver has at most one current vehicle. */

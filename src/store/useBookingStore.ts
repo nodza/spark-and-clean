@@ -68,12 +68,20 @@ export const useBookingStore = create<BookingState>((set, get) => ({
             return { bookings: [booking, ...state.bookings], error: null };
           }
           const current = state.bookings[idx];
+          // Detail GET carries computed dayVehicles; never drop them when a
+          // newer list row wins the updatedAt race.
           if (
             current.updatedAt &&
             booking.updatedAt &&
             booking.updatedAt < current.updatedAt
           ) {
-            return state;
+            const next = [...state.bookings];
+            next[idx] = {
+              ...current,
+              dayVehicles: booking.dayVehicles,
+              standingVehicle: booking.standingVehicle,
+            };
+            return { bookings: next, error: null };
           }
           const next = [...state.bookings];
           next[idx] = booking;
