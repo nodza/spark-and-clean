@@ -42,6 +42,10 @@ import {
   parseOptionalCollectDimensions,
   type CollectDimensions,
 } from "@/lib/fieldStatus";
+import {
+  formatAssignedDriverLine,
+  resolveJobVehicles,
+} from "@/lib/vehicle";
 
 type LoadState =
   | { kind: "idle" }
@@ -236,6 +240,7 @@ export function TechJobDetailClient() {
     return (
       <JobContent
         booking={loadState.booking}
+        driverName={user?.name ?? ""}
         pendingStatus={pendingStatus}
         actionError={actionError}
         onStatusUpdate={handleStatusUpdate}
@@ -398,6 +403,7 @@ function JobPhotos({
 
 function JobContent({
   booking,
+  driverName,
   pendingStatus,
   actionError,
   onStatusUpdate,
@@ -405,6 +411,7 @@ function JobContent({
   onBack,
 }: {
   booking: Booking;
+  driverName: string;
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   actionError: string | null;
   onTagged: (booking: Booking) => void;
@@ -418,6 +425,10 @@ function JobContent({
   const phoneHref = phone ? telHref(phone) : null;
   const busy = pendingStatus !== null;
   const kind = techStopKind(booking.status);
+  const vehicleLine = formatAssignedDriverLine(
+    driverName,
+    resolveJobVehicles(booking.dayVehicles, booking.standingVehicle)
+  );
   const canCollect =
     isVanCollectStatus(booking.status) || pendingStatus === "COLLECTED";
   const canDeliver =
@@ -543,6 +554,11 @@ function JobContent({
               <h1 className="mt-1.5 text-xl font-extrabold text-navy">
                 {booking.customer.name}
               </h1>
+              {vehicleLine ? (
+                <p className="mt-1 text-[13px] font-semibold text-[#6b7280]">
+                  {vehicleLine}
+                </p>
+              ) : null}
               {phoneHref ? (
                 <a
                   href={phoneHref}

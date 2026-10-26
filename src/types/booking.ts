@@ -99,6 +99,13 @@ export interface Booking {
     name: string;
     phone?: string;
   };
+  /**
+   * Computed for ops/tech display only — not stored on the booking.
+   * Day-log vehicles for assignedDriverId on the collection date.
+   */
+  dayVehicles?: { label: string; plate: string }[];
+  /** Standing register bakkie for the assigned driver (ops/tech display). */
+  standingVehicle?: { label: string; plate: string } | null;
   updatedAt?: string;
   createdAt: string;
 }

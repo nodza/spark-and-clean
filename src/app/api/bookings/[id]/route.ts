@@ -21,6 +21,9 @@ import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
+import { listDayVehiclesForDriver } from "@/lib/vehicleDay";
+import { vehiclesByDriverId } from "@/lib/vehicleStore";
+import type { Booking as ClientBooking } from "@/types/booking";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -55,6 +58,39 @@ async function customerTechnician(driverId?: string) {
   if (!name) return null;
   const phone = typeof driver.phone === "string" ? driver.phone.trim() : "";
   return phone ? { name, phone } : { name };
+}
+
+function canSeeJobVehicles(
+  session: Awaited<ReturnType<typeof getSession>>
+): boolean {
+  if (session?.role === "technician") return true;
+  return session?.role === "admin" && session.adminTier === "full";
+}
+
+/** Day-log bakkies for the collection date, else standing register — display only. */
+async function withJobVehicles(
+  booking: ClientBooking,
+  session: Awaited<ReturnType<typeof getSession>>
+): Promise<ClientBooking> {
+  if (!canSeeJobVehicles(session)) return booking;
+  const driverId = booking.assignedDriverId?.trim();
+  if (!driverId) {
+    return { ...booking, dayVehicles: [], standingVehicle: null };
+  }
+  try {
+    const [dayVehicles, standingMap] = await Promise.all([
+      listDayVehiclesForDriver(driverId, booking.collectionDate),
+      vehiclesByDriverId([driverId]),
+    ]);
+    return {
+      ...booking,
+      dayVehicles,
+      standingVehicle: standingMap.get(driverId) ?? null,
+    };
+  } catch (err) {
+    console.error("[api/bookings] job vehicles", err);
+    return { ...booking, dayVehicles: [], standingVehicle: null };
+  }
 }
 
 /**
@@ -96,18 +132,21 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const technician = await customerTechnician(booking.assignedDriverId);
+    const withVehicles = await withJobVehicles(booking, session);
+    const technician = await customerTechnician(withVehicles.assignedDriverId);
     const sharedTechnician =
       technician?.phone &&
       !canShareTechnicianPhone(session, {
-        status: booking.status,
-        userId: booking.userId,
-        customer: booking.customer,
+        status: withVehicles.status,
+        userId: withVehicles.userId,
+        customer: withVehicles.customer,
       })
         ? { name: technician.name }
         : technician;
     return NextResponse.json(
-      sharedTechnician ? { ...booking, technician: sharedTechnician } : booking
+      sharedTechnician
+        ? { ...withVehicles, technician: sharedTechnician }
+        : withVehicles
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch booking";
@@ -324,7 +363,8 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
-    return NextResponse.json(toClientBooking(doc as Record<string, unknown>));
+    const client = toClientBooking(doc as Record<string, unknown>);
+    return NextResponse.json(await withJobVehicles(client, session));
   } catch (err) {
     if (isHttpError(err)) {
       return NextResponse.json({ error: err.message }, { status: err.status });
