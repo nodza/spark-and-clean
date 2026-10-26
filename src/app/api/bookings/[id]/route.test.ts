@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   punchOnce: vi.fn(),
+  sendBookingStatus: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
 }));
@@ -26,6 +27,10 @@ vi.mock("@/lib/promotion/loyalty", () => ({
 }));
 vi.mock("@/lib/referral", () => ({
   creditReferrerOnce: mocks.creditReferrerOnce,
+}));
+vi.mock("@/lib/whatsapp/sendBookingStatus", () => ({
+  NOTIFIABLE_BOOKING_STATUSES: ["SCHEDULED", "COLLECTED", "READY", "DELIVERED"],
+  sendBookingStatus: mocks.sendBookingStatus,
 }));
 
 import { PATCH } from "./route";
@@ -69,6 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.punchOnce.mockResolvedValue(true);
+  mocks.sendBookingStatus.mockResolvedValue({ result: "sent" });
   mocks.creditReferrerOnce.mockResolvedValue(true);
   mocks.deliveryClientId.mockImplementation(
     async (booking: { userId?: unknown }) => booking.userId ?? null
@@ -97,6 +103,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       id: "SC-SARAH",
       userId: sarahId,
     });
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "DELIVERED"
+    );
     expect(mocks.creditReferrerOnce).toHaveBeenCalledTimes(1);
     expect(mocks.creditReferrerOnce).toHaveBeenCalledWith({
       id: "SC-SARAH",
@@ -140,6 +153,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       id: "SC-SARAH",
       userId: sarahId,
     });
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "DELIVERED"
+    );
   });
 
   it("does not punch when status becomes COLLECTED", async () => {
@@ -151,6 +171,13 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "COLLECTED"
+    );
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
   });
 
@@ -209,6 +236,7 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
       { id: "SC-SARAH", status: "DELIVERED" },
       { $set: { status: "READY" } }
     );
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
   });
 
   it("keeps DELIVERED when the referrer credit cannot be saved", async () => {
@@ -234,6 +262,77 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
-    expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
+  });
+
+  it("sends the SCHEDULED status after an admin marks a booking scheduled", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "BOOKED" }))
+    );
+
+    const res = await patch({ status: "SCHEDULED" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      {
+        id: "SC-SARAH",
+        customer: { phone: "0820000000" },
+      },
+      "SCHEDULED"
+    );
+  });
+
+  it("keeps READY after the WhatsApp sender throws", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "BOOKED" }))
+    );
+    mocks.sendBookingStatus.mockRejectedValue(new Error("WhatsApp is down"));
+
+    const res = await patch({ status: "READY" });
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.status).toBe("READY");
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      { id: "SC-SARAH", customer: { phone: "0820000000" } },
+      "READY"
+    );
+  });
+
+  it("does not send again when SCHEDULED is saved a second time", async () => {
+    let storedBooking = sarahBooking({ status: "BOOKED" });
+    mocks.bookingFindOne.mockImplementation(() => lean(storedBooking));
+    mocks.bookingFindOneAndUpdate.mockImplementation((_filter, update) => {
+      const set = (update as { $set?: Record<string, unknown> }).$set ?? {};
+      storedBooking = { ...storedBooking, ...set };
+      return lean(storedBooking);
+    });
+
+    const first = await patch({ status: "SCHEDULED" });
+    const second = await patch({ status: "SCHEDULED" });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledTimes(1);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledWith(
+      { id: "SC-SARAH", customer: { phone: "0820000000" } },
+      "SCHEDULED"
+    );
+  });
+
+  it("does not send a WhatsApp notification for DRYING", async () => {
+    const res = await patch({ status: "DRYING" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).not.toHaveBeenCalled();
+  });
+
+  it("does not fail the status update when WhatsApp notification persistence fails", async () => {
+    mocks.sendBookingStatus.mockRejectedValue(new Error("attempt storage down"));
+
+    const res = await patch({ status: "DELIVERED" });
+
+    expect(res.status).toBe(200);
+    expect(mocks.sendBookingStatus).toHaveBeenCalledTimes(1);
   });
 });

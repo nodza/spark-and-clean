@@ -21,6 +21,10 @@ import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
+import {
+  NOTIFIABLE_BOOKING_STATUSES,
+  sendBookingStatus,
+} from "@/lib/whatsapp/sendBookingStatus";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -321,6 +325,26 @@ export async function PATCH(request: Request, { params }: Params) {
         await creditReferrerOnce(delivered);
       } catch (err) {
         console.error("[api/bookings] referral credit", err);
+      }
+    }
+
+    if (
+      doc.status !== existing.status &&
+      NOTIFIABLE_BOOKING_STATUSES.includes(doc.status as (typeof NOTIFIABLE_BOOKING_STATUSES)[number])
+    ) {
+      try {
+        await sendBookingStatus(
+          {
+            id: String(doc.id),
+            customer: {
+              phone: (doc.customer as { phone?: string | null } | undefined)
+                ?.phone,
+            },
+          },
+          doc.status as BookingStatus
+        );
+      } catch (err) {
+        console.error("[api/bookings PATCH] WhatsApp notification failed", err);
       }
     }
 
