@@ -47,6 +47,7 @@ describe("accessControl", () => {
     expect(isAdminFullOnlyPath("/admin/assignments")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/pickup-zones")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/vehicles")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/vehicle-days")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/rugs")).toBe(true);
     expect(isAdminFullOnlyPath("/admin")).toBe(false);
     expect(isAdminFullOnlyPath("/admin/pricing")).toBe(false);

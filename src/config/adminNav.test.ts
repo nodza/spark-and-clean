@@ -28,6 +28,7 @@ describe("visibleAdminNavItems", () => {
       "vehicles",
       "analytics",
       "pickupZones",
+      "vehicle-days",
     ]);
   });
 });

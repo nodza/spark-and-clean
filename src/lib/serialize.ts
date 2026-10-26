@@ -31,6 +31,14 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   } else if (typeof updatedAt === "string") {
     booking.updatedAt = updatedAt;
   }
+  const deactivatedAt = (doc as { deactivatedAt?: unknown }).deactivatedAt;
+  if (deactivatedAt instanceof Date) {
+    booking.deactivatedAt = deactivatedAt.toISOString();
+  } else if (typeof deactivatedAt === "string" && deactivatedAt) {
+    booking.deactivatedAt = deactivatedAt;
+  } else {
+    delete booking.deactivatedAt;
+  }
   if (!booking.assignedDriverId) {
     delete booking.assignedDriverId;
   }
