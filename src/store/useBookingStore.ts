@@ -5,6 +5,7 @@ import { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import { bookingService } from "@/services/bookingService";
 import { statusAfterDriverAssign } from "@/lib/bookingAssignment";
 import { rugAreaSqM } from "@/lib/fieldStatus";
+import { mergeJobVehiclesFromDetail } from "@/lib/vehicle";
 
 export type FieldSizeUpdate = {
   widthM: number;
@@ -68,19 +69,15 @@ export const useBookingStore = create<BookingState>((set, get) => ({
             return { bookings: [booking, ...state.bookings], error: null };
           }
           const current = state.bookings[idx];
-          // Detail GET carries computed dayVehicles; never drop them when a
-          // newer list row wins the updatedAt race.
+          // Detail GET carries computed dayVehicles; keep them on a newer
+          // list row only when it is still the same driver and collection day.
           if (
             current.updatedAt &&
             booking.updatedAt &&
             booking.updatedAt < current.updatedAt
           ) {
             const next = [...state.bookings];
-            next[idx] = {
-              ...current,
-              dayVehicles: booking.dayVehicles,
-              standingVehicle: booking.standingVehicle,
-            };
+            next[idx] = mergeJobVehiclesFromDetail(current, booking);
             return { bookings: next, error: null };
           }
           const next = [...state.bookings];
@@ -196,6 +193,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           ...b,
           assignedDriverId: nextDriver ?? undefined,
           ...(nextStatus ? { status: nextStatus } : {}),
+          // Previous driver's day/standing vehicles must not flash on the new assignee.
+          dayVehicles: undefined,
+          standingVehicle: undefined,
         };
       }),
     });

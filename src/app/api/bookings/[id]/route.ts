@@ -77,16 +77,20 @@ async function withJobVehicles(
   if (!driverId) {
     return { ...booking, dayVehicles: [], standingVehicle: null };
   }
-  const [dayVehicles, standingMap] = await Promise.all([
-    listDayVehiclesForDriver(driverId, booking.collectionDate),
-    vehiclesByDriverId([driverId]),
-  ]);
-  const standing = standingMap.get(driverId) ?? null;
-  return {
-    ...booking,
-    dayVehicles,
-    standingVehicle: standing,
-  };
+  try {
+    const [dayVehicles, standingMap] = await Promise.all([
+      listDayVehiclesForDriver(driverId, booking.collectionDate),
+      vehiclesByDriverId([driverId]),
+    ]);
+    return {
+      ...booking,
+      dayVehicles,
+      standingVehicle: standingMap.get(driverId) ?? null,
+    };
+  } catch (err) {
+    console.error("[api/bookings] job vehicles", err);
+    return { ...booking, dayVehicles: [], standingVehicle: null };
+  }
 }
 
 /**

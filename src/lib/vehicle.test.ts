@@ -4,6 +4,7 @@ import {
   formatAssignedDriverLine,
   formatVehicleCompact,
   formatVehicleFull,
+  mergeJobVehiclesFromDetail,
   mongoDuplicateField,
   nextVehicleAssignments,
   overlayDriverVehicle,
@@ -62,6 +63,52 @@ describe("vehicle display", () => {
       resolveJobVehicles([], { label: "Nissan NP200", plate: "CA 123-456" })
     ).toEqual({ label: "Nissan NP200", plate: "CA 123-456" });
     expect(resolveJobVehicles([], null)).toBeNull();
+  });
+
+  it("keeps detail day vehicles on a newer list row for the same driver and day", () => {
+    const listRow = {
+      assignedDriverId: "driver_sipho",
+      collectionDate: "2026-10-26",
+      updatedAt: "2026-10-26T12:00:00.000Z",
+    };
+    const detail = {
+      assignedDriverId: "driver_sipho",
+      collectionDate: "2026-10-26",
+      updatedAt: "2026-10-26T11:00:00.000Z",
+      dayVehicles: [{ label: "Toyota Quantum", plate: "CA 555-001" }],
+      standingVehicle: { label: "Nissan NP200", plate: "CA 123-456" },
+    };
+    expect(mergeJobVehiclesFromDetail(listRow, detail)).toEqual({
+      ...listRow,
+      dayVehicles: detail.dayVehicles,
+      standingVehicle: detail.standingVehicle,
+    });
+  });
+
+  it("does not copy another driver's day vehicles onto a newer list row", () => {
+    const listRow = {
+      assignedDriverId: "driver_thabo",
+      collectionDate: "2026-10-26",
+      updatedAt: "2026-10-26T12:00:00.000Z",
+    };
+    const detail = {
+      assignedDriverId: "driver_sipho",
+      collectionDate: "2026-10-26",
+      updatedAt: "2026-10-26T11:00:00.000Z",
+      dayVehicles: [{ label: "Toyota Quantum", plate: "CA 555-001" }],
+      standingVehicle: { label: "Nissan NP200", plate: "CA 123-456" },
+    };
+    expect(mergeJobVehiclesFromDetail(listRow, detail)).toEqual(listRow);
+    expect(
+      mergeJobVehiclesFromDetail(
+        { ...listRow, assignedDriverId: "driver_sipho", collectionDate: "2026-10-27" },
+        detail
+      )
+    ).toEqual({
+      ...listRow,
+      assignedDriverId: "driver_sipho",
+      collectionDate: "2026-10-27",
+    });
   });
 
   it("compacts a legacy driver.vehicle string", () => {

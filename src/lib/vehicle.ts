@@ -67,6 +67,34 @@ export function resolveJobVehicles(
   return standing;
 }
 
+type JobVehicleFields = {
+  assignedDriverId?: string;
+  collectionDate: string;
+  dayVehicles?: VehicleLabelPlate[];
+  standingVehicle?: VehicleLabelPlate | null;
+};
+
+/**
+ * Copy display-only day/standing vehicles from a detail GET onto a newer
+ * list-cache row — only when it is still the same driver and collection day.
+ */
+export function mergeJobVehiclesFromDetail<T extends JobVehicleFields>(
+  current: T,
+  detail: T
+): T {
+  if (
+    (current.assignedDriverId ?? "") !== (detail.assignedDriverId ?? "") ||
+    current.collectionDate !== detail.collectionDate
+  ) {
+    return current;
+  }
+  return {
+    ...current,
+    dayVehicles: detail.dayVehicles,
+    standingVehicle: detail.standingVehicle,
+  };
+}
+
 function compactVehiclePart(
   vehicle: VehicleLabelPlate | string
 ): string {

@@ -338,6 +338,13 @@ export default function AdminBookingDetail() {
     };
   }, [booking?.assignedDriverId, drivers]);
 
+  const dayVehiclesFromPayload = Array.isArray(booking?.dayVehicles);
+  const dayVehiclesKey = dayVehiclesFromPayload
+    ? (booking?.dayVehicles ?? [])
+        .map((vehicle) => `${vehicle.label}\0${vehicle.plate}`)
+        .join("\n")
+    : null;
+
   useEffect(() => {
     const driverId = booking?.assignedDriverId?.trim();
     const day = booking?.collectionDate
@@ -348,12 +355,14 @@ export default function AdminBookingDetail() {
       return;
     }
 
-    // Prefer booking payload when present (detail GET).
-    if (Array.isArray(booking.dayVehicles) && booking.dayVehicles.length > 0) {
-      setDayVehicles(booking.dayVehicles);
+    // Detail GET/PATCH already resolved the day log (including none).
+    if (dayVehiclesFromPayload) {
+      setDayVehicles(booking?.dayVehicles ?? []);
       return;
     }
 
+    // List-cache row has no dayVehicles — load Day sheet for this date.
+    setDayVehicles([]);
     let cancelled = false;
     void fetch(
       `/api/admin/vehicle-days?date=${encodeURIComponent(day)}`,
@@ -382,7 +391,8 @@ export default function AdminBookingDetail() {
   }, [
     booking?.assignedDriverId,
     booking?.collectionDate,
-    booking?.dayVehicles,
+    dayVehiclesFromPayload,
+    dayVehiclesKey,
   ]);
 
   const assigned = useMemo(
@@ -803,9 +813,9 @@ export default function AdminBookingDetail() {
                     assigned={assigned ?? null}
                     drivers={drivers}
                     dayVehicles={
-                      dayVehicles.length > 0
-                        ? dayVehicles
-                        : booking.dayVehicles
+                      Array.isArray(booking.dayVehicles)
+                        ? booking.dayVehicles
+                        : dayVehicles
                     }
                     standingVehicle={booking.standingVehicle}
                   />

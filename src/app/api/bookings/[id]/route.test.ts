@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   bookingFindOne: vi.fn(),
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
+  driverFindOne: vi.fn(),
   punchOnce: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
@@ -22,6 +23,9 @@ vi.mock("@/models/Booking", () => ({
     updateOne: mocks.bookingUpdateOne,
   },
 }));
+vi.mock("@/models/Driver", () => ({
+  Driver: { findOne: mocks.driverFindOne },
+}));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
   deliveryClientId: (...args: unknown[]) => mocks.deliveryClientId(...args),
@@ -36,7 +40,7 @@ vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
 
-import { PATCH } from "./route";
+import { GET, PATCH } from "./route";
 
 const sarahId = "507f1f77bcf86cd799439011";
 
@@ -55,6 +59,20 @@ function patch(body: Record<string, unknown>, id = "SC-SARAH") {
   );
 }
 
+function get(id = "SC-SARAH") {
+  return GET(new Request(`http://localhost/api/bookings/${id}`), {
+    params: Promise.resolve({ id }),
+  });
+}
+
+function driverLean(result: unknown) {
+  return {
+    select: vi.fn(() => ({
+      lean: vi.fn().mockResolvedValue(result),
+    })),
+  };
+}
+
 function sarahBooking(overrides: Record<string, unknown> = {}) {
   return {
     id: "SC-SARAH",
@@ -62,6 +80,7 @@ function sarahBooking(overrides: Record<string, unknown> = {}) {
     status: "READY",
     paymentStatus: "UNPAID",
     assignedDriverId: "driver_mark",
+    collectionDate: "2026-10-26",
     customer: {
       id: "sarah",
       name: "Sarah",
@@ -80,6 +99,9 @@ beforeEach(() => {
   mocks.creditReferrerOnce.mockResolvedValue(true);
   mocks.listDayVehiclesForDriver.mockResolvedValue([]);
   mocks.vehiclesByDriverId.mockResolvedValue(new Map());
+  mocks.driverFindOne.mockImplementation(() =>
+    driverLean({ name: "Mark", phone: "0821111111" })
+  );
   mocks.deliveryClientId.mockImplementation(
     async (booking: { userId?: unknown }) => booking.userId ?? null
   );
@@ -245,5 +267,93 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/bookings/[id] job vehicles", () => {
+  const quantum = { label: "Toyota Quantum", plate: "CA 555-001" };
+  const np200 = { label: "Nissan NP200", plate: "CA 123-456" };
+
+  beforeEach(() => {
+    mocks.listDayVehiclesForDriver.mockResolvedValue([quantum]);
+    mocks.vehiclesByDriverId.mockResolvedValue(
+      new Map([["driver_mark", np200]])
+    );
+  });
+
+  it("attaches day-log and standing vehicles for a full admin", async () => {
+    const res = await get();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.dayVehicles).toEqual([quantum]);
+    expect(payload.standingVehicle).toEqual(np200);
+    expect(mocks.listDayVehiclesForDriver).toHaveBeenCalledWith(
+      "driver_mark",
+      "2026-10-26"
+    );
+  });
+
+  it("attaches day-log and standing vehicles for the assigned technician", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+
+    const res = await get();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.dayVehicles).toEqual([quantum]);
+    expect(payload.standingVehicle).toEqual(np200);
+  });
+
+  it("omits job vehicles on a public tracking GET", async () => {
+    mocks.getSession.mockResolvedValue(null);
+
+    const res = await get();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).not.toHaveProperty("dayVehicles");
+    expect(payload).not.toHaveProperty("standingVehicle");
+    expect(mocks.listDayVehiclesForDriver).not.toHaveBeenCalled();
+  });
+
+  it("omits job vehicles for the owning client", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+
+    const res = await get();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).not.toHaveProperty("dayVehicles");
+    expect(payload).not.toHaveProperty("standingVehicle");
+    expect(mocks.listDayVehiclesForDriver).not.toHaveBeenCalled();
+  });
+
+  it("still returns the booking when day-log lookup fails", async () => {
+    mocks.listDayVehiclesForDriver.mockRejectedValue(
+      new Error("vehicleDayUses unavailable")
+    );
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const res = await get();
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.id).toBe("SC-SARAH");
+    expect(payload.dayVehicles).toEqual([]);
+    expect(payload.standingVehicle).toBeNull();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
