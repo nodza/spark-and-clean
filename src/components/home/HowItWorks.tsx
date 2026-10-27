@@ -10,8 +10,7 @@ const STEPS = [
     title: "Find Your Rug's Measurements",
     description:
       "Simply check the label on the back of your rug for its size, or measure the length and width (the long and shorter sides).",
-    image:
-      "https://www.sparkandclean.co.za/wp-content/uploads/2025/08/spark-and-clean-booking1-2.png",
+    image: "/images/how-it-works-1.png",
     alt: "Find your rug's measurements",
   },
   {
@@ -19,8 +18,7 @@ const STEPS = [
     title: "Fill Out Our Online Booking Form",
     description:
       "Fill out our online booking form with your measurements — you'll also add photos and a collection address so we can price and schedule in one go.",
-    image:
-      "https://www.sparkandclean.co.za/wp-content/uploads/2025/08/Untitled-3-copy.png",
+    image: "/images/how-it-works-2.png",
     alt: "Enter rug measurements in the online booking form",
   },
   {
@@ -28,8 +26,7 @@ const STEPS = [
     title: "We'll Handle the Rest",
     description:
       "See your estimated price instantly, pick a collection slot, and confirm. We'll collect from your door — or you can drop off at a branch — then track your rug as we clean it.",
-    image:
-      "https://www.sparkandclean.co.za/wp-content/uploads/2025/08/spark-and-clean-booking3-1.png",
+    image: "/images/how-it-works-3.png",
     alt: "Collection or drop-off arranged for your rug",
   },
 ] as const;
