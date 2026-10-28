@@ -1,5 +1,6 @@
 import type { Booking, BookingStatus } from "@/types/booking";
 import { isBookingDeactivated } from "@/lib/adminBookingDetails";
+import { isReadyNeedingDeliverySchedule } from "@/lib/deliverySchedule";
 import { isBookingOnLocalDay, localCalendarDate } from "@/lib/localCalendarDate";
 
 const UNASSIGNED_TODAY_EXCLUDED: BookingStatus[] = ["CANCELLED", "DELIVERED"];
@@ -25,3 +26,6 @@ export function isActionableUnassignedToday(
 export function isExcludedFromUnassignedQueue(status: BookingStatus): boolean {
   return UNASSIGNED_TODAY_EXCLUDED.includes(status);
 }
+
+/** Re-export for Overview “to schedule” attention row. */
+export { isReadyNeedingDeliverySchedule };

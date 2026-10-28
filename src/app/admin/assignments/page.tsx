@@ -9,12 +9,13 @@ import { ASSIGNMENT_SLOT_CAPACITY } from "@/config/assignmentBoard";
 import {
   ASSIGNMENT_SLOTS,
   buildAssignmentBoard,
-  collectionsForAssignmentDay,
   customerSurname,
+  jobsForAssignmentDay,
   type AssignmentBoardDriver,
   type AssignmentBoardJob,
   type AssignmentSlot,
 } from "@/lib/assignmentBoard";
+import { hasDeliverySchedule } from "@/lib/deliverySchedule";
 import { isUnassignedDriver } from "@/lib/bookingAttention";
 import {
   isValidCalendarDate,
@@ -50,6 +51,8 @@ function statusDisplay(status: BookingStatus): {
       return { label: "NEW", variant: "status-new" };
     case "COLLECTED":
       return { label: "COLLECTED", variant: "status-collected" };
+    case "READY":
+      return { label: "DELIVER", variant: "status-delivering" };
     default:
       return { label: status, variant: "outline" };
   }
@@ -75,10 +78,10 @@ function matchesAssignmentSearch(
 ) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const driverLabel = isUnassignedDriver(job.assignedDriverId)
+  const driverLabel = isUnassignedDriver(job.boardDriverId)
     ? "unassigned"
-    : drivers.find((driver) => driver.id === job.assignedDriverId)?.name ??
-      job.assignedDriverId ??
+    : drivers.find((driver) => driver.id === job.boardDriverId)?.name ??
+      job.boardDriverId ??
       "";
   const haystack = [
     job.id,
@@ -89,6 +92,7 @@ function matchesAssignmentSearch(
     job.suburb,
     job.status,
     job.paymentStatus,
+    job.stopKind,
     driverLabel,
   ]
     .filter(Boolean)
@@ -100,7 +104,8 @@ function matchesAssignmentSearch(
 function AssignmentBoardBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { bookings, fetchBookings, isLoading, assignDriver } = useBookingStore();
+  const { bookings, fetchBookings, isLoading, assignDriver, scheduleDelivery } =
+    useBookingStore();
   const [drivers, setDrivers] = useState<AssignmentBoardDriver[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -149,7 +154,7 @@ function AssignmentBoardBody() {
   }, [fetchBookings]);
 
   const dayJobs = useMemo(
-    () => collectionsForAssignmentDay(bookings, selectedDay),
+    () => jobsForAssignmentDay(bookings, selectedDay),
     [bookings, selectedDay]
   );
 
@@ -174,20 +179,32 @@ function AssignmentBoardBody() {
   };
 
   const handleAssign = async (
-    bookingId: string,
-    currentDriverId: string | undefined,
+    job: AssignmentBoardJob,
     value: string
   ) => {
-    const current = currentDriverId || "unassigned";
+    const current = job.boardDriverId || "unassigned";
     if (value === current) return;
-    if (assigningId === bookingId) return;
+    if (assigningId === job.id) return;
     if (value !== "unassigned" && !drivers.some((driver) => driver.id === value)) {
       return;
     }
-    setAssigningId(bookingId);
+    setAssigningId(job.id);
     try {
+      if (job.stopKind === "delivery") {
+        if (!hasDeliverySchedule(job) || !job.deliveryDate || !job.deliverySlot) {
+          toast.error("Delivery date and slot are required");
+          return;
+        }
+        const error = await scheduleDelivery(job.id, {
+          deliveryDate: job.deliveryDate,
+          deliverySlot: job.deliverySlot,
+          deliveryDriverId: value === "unassigned" ? null : value,
+        });
+        if (error) toast.error(error);
+        return;
+      }
       const error = await assignDriver(
-        bookingId,
+        job.id,
         value === "unassigned" ? null : value
       );
       if (error) toast.error(error);
@@ -215,8 +232,8 @@ function AssignmentBoardBody() {
       <div className="portal-page">
         <div className="mb-[18px] flex flex-wrap items-end justify-between gap-[14px]">
           <p className="text-body max-w-[520px]" style={{ color: "#6b7280" }}>
-            Collections by driver for the selected date. Assign a job from the
-            card without opening the booking.
+            Collections and scheduled deliveries by driver for the selected date.
+            Assign a job from the card without opening the booking.
           </p>
           <label className="flex flex-col gap-[7px]">
             <span className="text-eyebrow" style={{ color: "#6b7280" }}>
@@ -226,7 +243,7 @@ function AssignmentBoardBody() {
               type="date"
               value={selectedDay}
               onChange={(event) => setDay(event.target.value)}
-              aria-label="Collection date"
+              aria-label="Service date"
               className="w-[200px] py-[10px]"
             />
           </label>
@@ -239,10 +256,11 @@ function AssignmentBoardBody() {
         ) : showEmpty ? (
           <div className="ds-card">
             <p className="text-card-title" style={{ color: "#000b49" }}>
-              No collections on this day
+              No stops on this day
             </p>
             <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
-              BOOKED and SCHEDULED pickups for this date will appear here.
+              BOOKED/SCHEDULED pickups and READY deliveries for this date will
+              appear here.
             </p>
           </div>
         ) : showNoMatches ? (
@@ -251,7 +269,7 @@ function AssignmentBoardBody() {
               No matches
             </p>
             <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
-              No collections on this day match “{search.trim()}”.
+              No stops on this day match “{search.trim()}”.
             </p>
           </div>
         ) : (
@@ -355,17 +373,17 @@ function AssignmentBoardBody() {
                                     item.paymentStatus
                                   );
                                   const knownDriver =
-                                    !!item.assignedDriverId &&
-                                    activeDriverIds.has(item.assignedDriverId);
+                                    !!item.boardDriverId &&
+                                    activeDriverIds.has(item.boardDriverId);
                                   const inactiveAssignee =
-                                    !isUnassignedDriver(item.assignedDriverId) &&
+                                    !isUnassignedDriver(item.boardDriverId) &&
                                     !knownDriver;
                                   const assignValue = knownDriver
-                                    ? item.assignedDriverId!
+                                    ? item.boardDriverId!
                                     : "unassigned";
                                   return (
                                     <article
-                                      key={item.id}
+                                      key={`${item.stopKind}-${item.id}`}
                                       className="rounded-[10px] border border-[#e3e7ed] bg-white p-[14px]"
                                     >
                                       <Link
@@ -385,6 +403,9 @@ function AssignmentBoardBody() {
                                         style={{ color: "#9aa0a6" }}
                                       >
                                         {item.suburb}
+                                        {item.stopKind === "delivery"
+                                          ? " · Delivery"
+                                          : " · Collect"}
                                       </p>
                                       <div className="mt-[10px] flex flex-wrap gap-[6px]">
                                         <Badge variant={status.variant}>
@@ -427,11 +448,7 @@ function AssignmentBoardBody() {
                                           value={assignValue}
                                           disabled={assigningId === item.id}
                                           onValueChange={(value) =>
-                                            void handleAssign(
-                                              item.id,
-                                              item.assignedDriverId,
-                                              value
-                                            )
+                                            void handleAssign(item, value)
                                           }
                                         >
                                           <SelectTrigger
