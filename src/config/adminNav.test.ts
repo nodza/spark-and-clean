@@ -27,6 +27,15 @@ describe("visibleAdminNavItems", () => {
       "pricing",
       "vehicles",
       "analytics",
+      "notification-log",
     ]);
+  });
+
+  it("keeps the notification log hidden from marketing-only admins", () => {
+    expect(
+      visibleAdminNavItems({ ready: true, marketingOnly: true }).some(
+        (item) => item.href === "/admin/notification-log"
+      )
+    ).toBe(false);
   });
 });

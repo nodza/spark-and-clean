@@ -9,6 +9,7 @@ import {
   Tag,
   Truck,
   Users,
+  MessageSquareText,
 } from "lucide-react";
 
 /**
@@ -25,7 +26,8 @@ export type AdminNavKey =
   | "rugs"
   | "pricing"
   | "vehicles"
-  | "analytics";
+  | "analytics"
+  | "notification-log";
 
 export type AdminNavItem = {
   key: AdminNavKey;
@@ -121,6 +123,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     fullAdminOnly: true,
     icon: BarChart3,
     match: (p) => p.startsWith("/admin/analytics"),
+  },
+  {
+    key: "notification-log",
+    label: "Notification log",
+    href: "/admin/notification-log",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: MessageSquareText,
+    match: (p) => p.startsWith("/admin/notification-log"),
   },
 ];
 

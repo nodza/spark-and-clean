@@ -8,6 +8,8 @@ const NotificationAttemptSchema = new Schema(
     bookingId: { type: String, required: true, trim: true },
     status: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
+    claimKey: { type: String, default: undefined },
+    claimState: { type: String, enum: ["pending", "complete"], default: undefined },
     result: { type: String, enum: NOTIFICATION_RESULTS, required: true },
     providerMessageId: { type: String, default: null },
   },
@@ -39,3 +41,5 @@ export const NotificationAttempt: Model<NotificationAttemptDocument> = model<Not
   "NotificationAttempt",
   NotificationAttemptSchema
 );
+
+NotificationAttemptSchema.index({ claimKey: 1 }, { unique: true, sparse: true });
