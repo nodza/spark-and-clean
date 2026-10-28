@@ -10,6 +10,7 @@ import {
   bookingCalendarDate,
   formatBookingCollection,
 } from "@/lib/localCalendarDate";
+import { quotedValueRand } from "@/lib/priceFormat";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,7 +134,7 @@ function formatRand(amount: number) {
 }
 
 function bookingValue(booking: Booking) {
-  return (booking.estimatedPriceMin + booking.estimatedPriceMax) / 2;
+  return quotedValueRand(booking);
 }
 
 function collectionLabel(booking: Booking) {

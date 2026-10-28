@@ -49,13 +49,15 @@ import {
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
+import { MeasuredSizeCard } from "@/components/admin/MeasuredSizeCard";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
-import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { bookingAddOnLabels, OPS_ADD_ON_COPY, rugDimensionLabel } from "@/lib/techUi";
 import {
   formatAssignedDriverLine,
   resolveJobVehicles,
 } from "@/lib/vehicle";
-import { rugDimensionLabel } from "@/lib/techUi";
+import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
+import { amountDueCentsForBooking } from "@/lib/payments/deposit";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -558,15 +560,77 @@ export default function AdminBookingDetail() {
                   </a>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="tabular text-[22px] font-extrabold" style={{ color: "#000b49" }}>
-                  R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
-                </div>
-                <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                  Estimated total
-                </div>
+              <div className="min-w-0 w-full text-left sm:w-auto sm:max-w-xs sm:text-right">
+                {booking.measuredQuote ? (
+                  <>
+                    <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                      Original estimate
+                    </p>
+                    <p
+                      className="tabular text-[15px] font-bold break-words"
+                      style={{ color: "#6b7280" }}
+                    >
+                      {formatQuoteRange(
+                        booking.estimatedPriceMin,
+                        booking.estimatedPriceMax
+                      )}
+                    </p>
+                    <p className="mt-[8px] text-[12.5px] font-extrabold" style={{ color: "#0a7a63" }}>
+                      Final price after measurement
+                    </p>
+                    <p
+                      className="tabular text-[22px] font-extrabold leading-tight break-words"
+                      style={{ color: "#000b49" }}
+                    >
+                      {formatQuoteRange(
+                        booking.measuredQuote.estimatedPriceMin,
+                        booking.measuredQuote.estimatedPriceMax
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p
+                      className="tabular text-[22px] font-extrabold break-words"
+                      style={{ color: "#000b49" }}
+                    >
+                      {formatQuoteRange(
+                        booking.estimatedPriceMin,
+                        booking.estimatedPriceMax
+                      )}
+                    </p>
+                    <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                      Estimated total
+                    </p>
+                  </>
+                )}
               </div>
             </div>
+
+            {booking.refundRequired ? (
+              <div
+                className="rounded-[14px] border border-[#f6c9c9] bg-[#fdecec] px-4 py-3.5 sm:px-[22px]"
+                role="status"
+              >
+                <p className="text-card-title" style={{ color: "#b33232" }}>
+                  Refund needed
+                </p>
+                <p className="text-body mt-[6px]" style={{ color: "#7a2424" }}>
+                  {formatRandCents(booking.billing?.amountPaidCents ?? 0)} has been
+                  paid and the final amount due is{" "}
+                  {formatRandCents(amountDueCentsForBooking(booking))}. Refund the
+                  difference of{" "}
+                  {formatRandCents(
+                    Math.max(
+                      0,
+                      (booking.billing?.amountPaidCents ?? 0) -
+                        amountDueCentsForBooking(booking)
+                    )
+                  )}
+                  .
+                </p>
+              </div>
+            ) : null}
 
             <BookingReceipts
               bookingId={booking.id}
@@ -579,7 +643,7 @@ export default function AdminBookingDetail() {
                   <div className="text-card-title" style={{ color: "#000b49" }}>
                     Job details
                   </div>
-                  <div className="mt-[16px] grid grid-cols-2 gap-[14px]">
+                  <div className="mt-[16px] grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                     <div>
                       <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
                         RUG TYPE
@@ -642,17 +706,36 @@ export default function AdminBookingDetail() {
                       )}
                     </div>
                   </div>
-                  {booking.couponCode ? (
+                  {booking.couponCode || booking.promotion?.code ? (
                     <div className="mt-[16px]">
                       <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
                         COUPON
                       </div>
                       <p className="text-body mt-[4px] tabular" style={{ color: "#32373c" }}>
-                        {booking.couponCode}
+                        {booking.promotion?.code || booking.couponCode}
                       </p>
                     </div>
                   ) : null}
                 </div>
+
+                <MeasuredSizeCard
+                  booking={booking}
+                  onUpdated={(next) => {
+                    useBookingStore.setState((state) => ({
+                      bookings: state.bookings.map((row) =>
+                        row.id === next.id
+                          ? {
+                              ...next,
+                              dayVehicles: row.dayVehicles ?? next.dayVehicles,
+                              standingVehicle:
+                                row.standingVehicle ?? next.standingVehicle,
+                              technician: row.technician ?? next.technician,
+                            }
+                          : row
+                      ),
+                    }));
+                  }}
+                />
 
                 {booking.rug.photos && booking.rug.photos.length > 0 && (
                   <div className="ds-card">

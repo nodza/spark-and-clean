@@ -217,19 +217,58 @@ export function TechJobDetailClient() {
       dimensions ?? undefined
     );
 
-    if (error) {
+    const readSaved = () =>
+      useBookingStore
+        .getState()
+        .bookings.find((candidate) => candidate.id === bookingId);
+
+    let saved = readSaved();
+    const measurementSaved = (booking: Booking | undefined) =>
+      !dimensions ||
+      (booking != null &&
+        booking.rug.widthM === dimensions.widthM &&
+        booking.rug.lengthM === dimensions.lengthM &&
+        booking.measuredQuote != null &&
+        typeof booking.billing?.amountDueCents === "number");
+
+    if (!error && dimensions && !measurementSaved(saved)) {
+      try {
+        saved = (await fetchBookingById(bookingId)) ?? readSaved();
+      } catch {
+        saved = readSaved();
+      }
+    }
+
+    if (error || !saved) {
       fieldUpdateLock.current = false;
       setPendingStatus(null);
-      setActionError(error);
-      toast.error(error);
+      setActionError(error ?? "Could not save this job. Try again.");
+      toast.error(error ?? "Could not save this job. Try again.");
       setLoadState({ kind: "ready", booking: previous });
       return;
     }
 
+    if (!measurementSaved(saved)) {
+      fieldUpdateLock.current = false;
+      setPendingStatus(null);
+      const message =
+        "Size saved, but the updated price did not come back. Open the job again in a moment.";
+      setActionError(message);
+      toast.error(message);
+      setLoadState({ kind: "ready", booking: saved });
+      return;
+    }
+
+    setLoadState({ kind: "ready", booking: saved });
+    fieldUpdateLock.current = false;
+    setPendingStatus(null);
+
     toast.success(
-      newStatus === "COLLECTED"
-        ? "Marked collected — status saved"
-        : "Marked delivered — status saved"
+      dimensions
+        ? "Size saved. The price is calculated from this measurement."
+        : newStatus === "COLLECTED"
+          ? "Marked collected — status saved"
+          : "Marked delivered — status saved"
     );
     router.push("/tech/dashboard");
   };
@@ -707,11 +746,13 @@ function JobContent({
             <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
               SIZE ON PICKUP
             </p>
-            <p className="mt-1 text-xs text-[#6b7280]">
-              Optional. Leave both blank to measure on pickup.
+            <p id="pickup-size-help" className="mt-1 text-xs leading-relaxed text-[#6b7280]">
+              Measure width and length in metres. The price is calculated from
+              this size — you don&apos;t enter a price. Leave both blank only if
+              you cannot measure yet.
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div>
+            <div className="mt-3 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+              <div className="min-w-0">
                 <label
                   htmlFor="collect-width"
                   className="mb-1 block text-[11px] font-bold text-navy"
@@ -726,10 +767,12 @@ function JobContent({
                   disabled={busy}
                   aria-invalid={Boolean(widthError)}
                   aria-describedby={
-                    widthError ? "collect-width-error" : undefined
+                    widthError
+                      ? "collect-width-error pickup-size-help"
+                      : "pickup-size-help"
                   }
                   placeholder="e.g. 2"
-                  className="py-2 text-sm"
+                  className="min-h-11 text-base"
                   onChange={(event) => {
                     setWidthRaw(event.target.value);
                     setWidthError(undefined);
@@ -745,7 +788,7 @@ function JobContent({
                   </p>
                 ) : null}
               </div>
-              <div>
+              <div className="min-w-0">
                 <label
                   htmlFor="collect-length"
                   className="mb-1 block text-[11px] font-bold text-navy"
@@ -760,10 +803,12 @@ function JobContent({
                   disabled={busy}
                   aria-invalid={Boolean(lengthError)}
                   aria-describedby={
-                    lengthError ? "collect-length-error" : undefined
+                    lengthError
+                      ? "collect-length-error pickup-size-help"
+                      : "pickup-size-help"
                   }
                   placeholder="e.g. 3"
-                  className="py-2 text-sm"
+                  className="min-h-11 text-base"
                   onChange={(event) => {
                     setLengthRaw(event.target.value);
                     setLengthError(undefined);

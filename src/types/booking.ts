@@ -18,6 +18,19 @@ export interface BookingBilling {
 }
 
 /**
+ * Price after a driver measurement or an admin size correction.
+ * `estimatedPriceMin` / `estimatedPriceMax` on the booking stay the original quote.
+ */
+export interface MeasuredQuote {
+  estimatedPriceMin: number;
+  estimatedPriceMax: number;
+  amountDueCents: number;
+  discountCents: number;
+  /** ISO time of the latest measurement or correction. */
+  measuredAt: string;
+}
+
+/**
  * E8 promotion snapshot (optional). When amountDueCents is set, the ledger
  * uses it instead of the estimate midpoint. Confirm fills this from a server
  * coupon re-check, not from the client's posted total.
@@ -81,6 +94,16 @@ export interface Booking {
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;
+  /**
+   * Set when a size is saved at collection or corrected by a full admin.
+   * The original quote stays on estimatedPriceMin / estimatedPriceMax.
+   */
+  measuredQuote?: MeasuredQuote;
+  /**
+   * Succeeded payments are higher than the amount due after a measurement.
+   * Ops still need to refund the difference.
+   */
+  refundRequired?: boolean;
   /** Kept for older screens. The charged discount is booking.promotion. */
   couponCode?: string;
   /** Ledger snapshot — optional until first succeeded transfer is recorded */

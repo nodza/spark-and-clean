@@ -83,6 +83,21 @@ const AddOnsSchema = new Schema(
   { _id: false }
 );
 
+/**
+ * Final quote after the rug is measured. The booking's estimatedPriceMin/Max
+ * stay the original wizard quote.
+ */
+const MeasuredQuoteSchema = new Schema(
+  {
+    estimatedPriceMin: { type: Number, required: true, min: 0 },
+    estimatedPriceMax: { type: Number, required: true, min: 0 },
+    amountDueCents: { type: Number, required: true, min: 0 },
+    discountCents: { type: Number, required: true, min: 0, default: 0 },
+    measuredAt: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 /** Cents snapshot for the payment ledger (E7). No checkout UI in this story. */
 const BillingSchema = new Schema(
   {
@@ -95,7 +110,8 @@ const BillingSchema = new Schema(
 
 /**
  * E8 promotion snapshot (optional). Ledger reads amountDueCents when present.
- * Written on confirm from a server coupon re-check. Do not rename couponCode.
+ * Written on confirm from a server coupon re-check, and again when a measured
+ * size is priced. Do not rename couponCode.
  */
 const PromotionSchema = new Schema(
   {
@@ -137,6 +153,9 @@ const BookingSchema = new Schema(
     addOns: { type: AddOnsSchema, default: () => ({}) },
     estimatedPriceMin: { type: Number, required: true },
     estimatedPriceMax: { type: Number, required: true },
+    measuredQuote: { type: MeasuredQuoteSchema },
+    /** Paid cents are above the measured amount due — ops refund the difference. */
+    refundRequired: { type: Boolean, default: false },
     couponCode: { type: String, trim: true },
     billing: { type: BillingSchema },
     promotion: { type: PromotionSchema },

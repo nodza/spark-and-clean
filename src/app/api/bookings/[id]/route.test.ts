@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   driverFindOne: vi.fn(),
+  paymentFind: vi.fn(),
+  couponFindOne: vi.fn(),
   punchOnce: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
@@ -26,6 +28,12 @@ vi.mock("@/models/Booking", () => ({
 vi.mock("@/models/Driver", () => ({
   Driver: { findOne: mocks.driverFindOne },
 }));
+vi.mock("@/models/Payment", () => ({
+  Payment: { find: mocks.paymentFind },
+}));
+vi.mock("@/models/Coupon", () => ({
+  Coupon: { findOne: mocks.couponFindOne },
+}));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
   deliveryClientId: (...args: unknown[]) => mocks.deliveryClientId(...args),
@@ -40,6 +48,8 @@ vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
 
+import { estimateBookingPrice } from "@/lib/bookingEstimate";
+import { estimateQuoteMidpointCents } from "@/lib/promotion/applyCoupon";
 import { GET, PATCH } from "./route";
 
 const sarahId = "507f1f77bcf86cd799439011";
@@ -106,6 +116,12 @@ beforeEach(() => {
     async (booking: { userId?: unknown }) => booking.userId ?? null
   );
   mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.paymentFind.mockReturnValue({
+    select: () => ({ lean: async () => [] }),
+  });
+  mocks.couponFindOne.mockReturnValue({
+    select: () => ({ lean: async () => null }),
+  });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
     email: "ops@example.com",
@@ -184,6 +200,12 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("billing");
   });
 
   it("lets a full admin mark a job collected without a rug tag", async () => {
@@ -267,6 +289,85 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/bookings/[id] measured size", () => {
+  const addOns = { odourRemoval: false, stainProtection: true };
+
+  function technician() {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+  }
+
+  it("reprices a skipped size from 2 m × 3 m and ignores a posted price", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          paymentStatus: "UNPAID",
+          estimatedPriceMin: 0,
+          estimatedPriceMax: 0,
+          addOns,
+          rug: {
+            type: "Persian",
+            widthM: null,
+            lengthM: null,
+            areaSqM: 0,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const estimate = estimateBookingPrice({
+      rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
+      addOns,
+    });
+    const amountDueCents = estimateQuoteMidpointCents(
+      estimate.totalMin,
+      estimate.totalMax
+    );
+
+    const res = await patch({
+      status: "COLLECTED",
+      widthM: 2,
+      lengthM: 3,
+      estimatedPriceMin: 1,
+      estimatedPriceMax: 2,
+      amountDueCents: 1,
+      billing: { amountDueCents: 1, amountPaidCents: 999 },
+    });
+
+    expect(res.status).toBe(200);
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set.status).toBe("COLLECTED");
+    expect(update.$set["rug.widthM"]).toBe(2);
+    expect(update.$set["rug.lengthM"]).toBe(3);
+    expect(update.$set["rug.areaSqM"]).toBe(6);
+    expect(update.$set.estimatedPriceMin).toBeUndefined();
+    expect(update.$set.estimatedPriceMax).toBeUndefined();
+    expect(update.$set.paymentStatus).toBe("UNPAID");
+    expect(update.$set.refundRequired).toBe(false);
+    expect(update.$set.billing).toEqual({
+      currency: "ZAR",
+      amountDueCents,
+      amountPaidCents: 0,
+    });
+    expect(update.$set.measuredQuote).toMatchObject({
+      estimatedPriceMin: estimate.totalMin,
+      estimatedPriceMax: estimate.totalMax,
+      amountDueCents,
+    });
+    expect(amountDueCents).toBeGreaterThan(0);
+    expect(mocks.couponFindOne).not.toHaveBeenCalled();
   });
 });
 
