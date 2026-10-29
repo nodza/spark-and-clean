@@ -9,6 +9,16 @@ import {
   type AdminTier,
 } from "@/types/user";
 import { toPublicApiError } from "@/lib/publicApiError";
+import {
+  clearRateLimit,
+  getClientIp,
+  getRateLimitStatus,
+  recordRateLimitFailure,
+  tooManyAttemptsMessage,
+} from "@/lib/rateLimit";
+
+const LOGIN_LIMIT = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 function sessionFromUser(user: {
   _id: { toString(): string };
@@ -66,6 +76,24 @@ export async function POST(request: Request) {
       );
     }
 
+    const ip = getClientIp(request);
+    const emailKey = `auth-login:email:${email}`;
+    const ipKey = `auth-login:ip:${ip}`;
+    const [emailLimit, ipLimit] = await Promise.all([
+      getRateLimitStatus(emailKey, LOGIN_LIMIT),
+      getRateLimitStatus(ipKey, LOGIN_LIMIT),
+    ]);
+    const limited = [emailLimit, ipLimit].find((result) => !result.allowed);
+    if (limited) {
+      return NextResponse.json(
+        { error: tooManyAttemptsMessage(limited.retryAfterSeconds) },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limited.retryAfterSeconds) },
+        }
+      );
+    }
+
     await connectDB();
 
     const query: Record<string, unknown> = {
@@ -86,6 +114,10 @@ export async function POST(request: Request) {
     const user = await User.findOne(query).select("+passwordHash").lean();
 
     if (!user) {
+      await Promise.all([
+        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -96,6 +128,10 @@ export async function POST(request: Request) {
       typeof user.passwordHash !== "string" ||
       !(await bcrypt.compare(password, user.passwordHash))
     ) {
+      await Promise.all([
+        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -104,12 +140,17 @@ export async function POST(request: Request) {
 
     const role = normalizeUserRole(user.role);
     if (roleFilter && !isClientRole(roleFilter) && role !== roleFilter) {
+      await Promise.all([
+        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
+      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
+    await Promise.all([clearRateLimit(emailKey), clearRateLimit(ipKey)]);
     await User.updateOne(
       { _id: user._id },
       { $set: { lastLoginAt: new Date() } }

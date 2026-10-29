@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/mongodb", () => ({ connectDB: vi.fn() }));
 vi.mock("@/lib/rateLimit", () => ({
-  checkRateLimit: () => ({ allowed: true, retryAfterSeconds: 0 }),
+  checkRateLimit: async () => ({ allowed: true, retryAfterSeconds: 0 }),
+  getClientIp: () => "127.0.0.1",
 }));
 vi.mock("@/lib/session", () => ({
   createSessionToken: (...args: unknown[]) => mocks.createSessionToken(...args),

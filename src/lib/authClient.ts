@@ -164,6 +164,22 @@ export async function requestPasswordReset(
     });
     const data = await res.json();
     // API always returns the same public message (even on soft failures)
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      const minutes = Number.isFinite(retryAfter)
+        ? Math.max(1, Math.ceil(retryAfter / 60))
+        : 1;
+      return {
+        error: `Too many attempts. Try again in ${minutes} ${
+          minutes === 1 ? "minute" : "minutes"
+        }.`,
+      };
+    }
+    if (!res.ok) {
+      return {
+        error: "Could not process your request. Please try again later.",
+      };
+    }
     return {
       message:
         data.message ||
