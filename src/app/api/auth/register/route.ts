@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { Booking } from "@/models/Booking";
 import { attachUnclaimedBookingsByEmail } from "@/lib/attachGuestBookings";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { normalizeUserRole } from "@/types/user";
 import {
@@ -29,11 +29,12 @@ import {
  */
 export async function POST(request: Request) {
   try {
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-    const rateLimit = checkRateLimit(`auth-register:${ip}`, 5, 60 * 60 * 1000);
+    const ip = getClientIp(request);
+    const rateLimit = await checkRateLimit(
+      `auth-register:${ip}`,
+      5,
+      60 * 60 * 1000
+    );
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many signup attempts. Please try again later." },
