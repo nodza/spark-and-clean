@@ -10,6 +10,7 @@ import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { jobStopSlot } from "@/lib/deliverySchedule";
 import { localCalendarDate } from "@/lib/localCalendarDate";
 import { DEFAULT_MAP_CENTER, todayMapPins } from "@/lib/jobMapCoords";
 import { slotTimeLabel, slotWindowLabel } from "@/lib/techUi";
@@ -127,8 +128,8 @@ export default function TechMapPage() {
                         {job.addressLine1}
                       </p>
                       <p className="mt-1.5 text-xs font-medium text-muted-foreground">
-                        {slotWindowLabel(job.collectionSlot)} ·{" "}
-                        {slotTimeLabel(job.collectionSlot)}
+                        {slotWindowLabel(jobStopSlot(job))} ·{" "}
+                        {slotTimeLabel(jobStopSlot(job))}
                       </p>
                       <Button
                         asChild

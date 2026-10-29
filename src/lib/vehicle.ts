@@ -69,22 +69,34 @@ export function resolveJobVehicles(
 
 type JobVehicleFields = {
   assignedDriverId?: string;
+  deliveryDriverId?: string;
   collectionDate: string;
+  deliveryDate?: string;
+  status?: string;
   dayVehicles?: VehicleLabelPlate[];
   standingVehicle?: VehicleLabelPlate | null;
 };
 
 /**
  * Copy display-only day/standing vehicles from a detail GET onto a newer
- * list-cache row — only when it is still the same driver and collection day.
+ * list-cache row — only when it is still the same driver and service day.
  */
 export function mergeJobVehiclesFromDetail<T extends JobVehicleFields>(
   current: T,
   detail: T
 ): T {
+  const sameCollectDriver =
+    (current.assignedDriverId ?? "") === (detail.assignedDriverId ?? "");
+  const sameDeliveryDriver =
+    (current.deliveryDriverId ?? "") === (detail.deliveryDriverId ?? "");
+  const sameCollectionDay = current.collectionDate === detail.collectionDate;
+  const sameDeliveryDay =
+    (current.deliveryDate ?? "") === (detail.deliveryDate ?? "");
   if (
-    (current.assignedDriverId ?? "") !== (detail.assignedDriverId ?? "") ||
-    current.collectionDate !== detail.collectionDate
+    !sameCollectDriver ||
+    !sameDeliveryDriver ||
+    !sameCollectionDay ||
+    !sameDeliveryDay
   ) {
     return current;
   }

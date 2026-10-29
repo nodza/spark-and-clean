@@ -42,6 +42,18 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   if (!booking.assignedDriverId) {
     delete booking.assignedDriverId;
   }
+  if (!booking.deliveryDriverId) {
+    delete booking.deliveryDriverId;
+  }
+  if (!booking.deliveryDate) {
+    delete booking.deliveryDate;
+  }
+  if (
+    booking.deliverySlot !== "MORNING" &&
+    booking.deliverySlot !== "AFTERNOON"
+  ) {
+    delete booking.deliverySlot;
+  }
   return booking;
 }
 

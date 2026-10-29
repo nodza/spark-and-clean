@@ -38,7 +38,14 @@ export async function GET() {
       if (!session.driverProfileId) {
         return NextResponse.json([]);
       }
-      filter.assignedDriverId = session.driverProfileId;
+      // Include READY returns where this tech is the delivery driver only.
+      filter.$or = [
+        { assignedDriverId: session.driverProfileId },
+        {
+          status: "READY",
+          deliveryDriverId: session.driverProfileId,
+        },
+      ];
     } else if (session.role === "admin") {
       // Operations booking list — full admin only (marketing-only denied)
       if (session.adminTier === "marketing-only") {

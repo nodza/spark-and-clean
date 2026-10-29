@@ -9,6 +9,7 @@ import { BOOKING_STATUS_STEPS } from "@/components/booking/BookingStatusTimeline
 import { SaveBookingAccountCard } from "@/components/booking/SaveBookingAccountCard";
 import { bookingStatusVariant } from "@/components/admin/bookingBadges";
 import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { formatClientDeliveryLine } from "@/lib/deliverySchedule";
 import { APP_TIMEZONE, formatBookingCollection } from "@/lib/localCalendarDate";
 import {
   amountDueCentsForBooking,
@@ -265,12 +266,15 @@ export function ClientBookingDetail({
                 {BOOKING_STATUS_STEPS.map((step, index) => {
                   const tone = stepTone(index, currentIndex < 0 ? 0 : currentIndex);
                   const last = index === BOOKING_STATUS_STEPS.length - 1;
+                  const deliveryLine = formatClientDeliveryLine(booking);
                   const meta =
                     step.id === "SCHEDULED"
                       ? `${formatBookingCollection(booking.collectionDate, "d MMM yyyy")} · ${slotLabel(booking.collectionSlot)}`
-                      : step.id === "COLLECTED" && alreadyCollected && technicianName
-                        ? `${step.description} · ${technicianName}`
-                        : step.description;
+                      : step.id === "READY" && deliveryLine
+                        ? deliveryLine
+                        : step.id === "COLLECTED" && alreadyCollected && technicianName
+                          ? `${step.description} · ${technicianName}`
+                          : step.description;
                   return (
                     <li key={step.id} className="flex gap-4">
                       <div className="flex flex-none flex-col items-center">
@@ -382,6 +386,14 @@ export function ClientBookingDetail({
                 {formatBookingCollection(booking.collectionDate, "d MMM yyyy")} ·{" "}
                 {slotLabel(booking.collectionSlot)} · {booking.suburb}
               </p>
+              {(() => {
+                const deliveryLine = formatClientDeliveryLine(booking);
+                return deliveryLine ? (
+                  <p className="mt-1.5 text-[12.5px] text-[#2c4fa6]">
+                    {deliveryLine}
+                  </p>
+                ) : null;
+              })()}
               {addOns.length > 0 ? (
                 <p className="mt-1.5 text-[12.5px] text-[#0a7a63]">{addOns.join(" · ")}</p>
               ) : null}

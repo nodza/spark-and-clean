@@ -4,12 +4,14 @@ import {
   collectionsForAssignmentDay,
   customerSurname,
   isAssignmentBoardStatus,
+  jobsForAssignmentDay,
 } from "@/lib/assignmentBoard";
 import type { AssignmentBoardJob } from "@/lib/assignmentBoard";
+import type { Booking } from "@/types/booking";
 
-function job(
-  partial: Partial<AssignmentBoardJob> & Pick<AssignmentBoardJob, "id">
-): AssignmentBoardJob {
+function base(
+  partial: Partial<Booking> & Pick<Booking, "id">
+): Omit<AssignmentBoardJob, "stopKind" | "boardSlot" | "boardDriverId"> {
   return {
     suburb: "Sandton",
     customer: { id: "c1", name: "Nomsa Khumalo", phone: "", email: "" },
@@ -18,6 +20,29 @@ function job(
     collectionDate: "2026-09-17",
     collectionSlot: "MORNING",
     ...partial,
+  };
+}
+
+function job(
+  partial: Partial<AssignmentBoardJob> & Pick<AssignmentBoardJob, "id">
+): AssignmentBoardJob {
+  const row = {
+    suburb: "Sandton",
+    customer: { id: "c1", name: "Nomsa Khumalo", phone: "", email: "" },
+    status: "SCHEDULED" as const,
+    paymentStatus: "PAID" as const,
+    collectionDate: "2026-09-17",
+    collectionSlot: "MORNING" as const,
+    stopKind: "collection" as const,
+    boardSlot: "MORNING" as const,
+    ...partial,
+  };
+  return {
+    ...row,
+    boardDriverId: row.boardDriverId ?? row.assignedDriverId,
+    boardSlot:
+      row.boardSlot ??
+      (row.collectionSlot === "AFTERNOON" ? "AFTERNOON" : "MORNING"),
   };
 }
 
@@ -42,17 +67,64 @@ describe("customerSurname", () => {
   });
 });
 
+describe("jobsForAssignmentDay", () => {
+  it("keeps BOOKED/SCHEDULED collections and READY deliveries on that day", () => {
+    const rows = jobsForAssignmentDay(
+      [
+        base({ id: "a", status: "BOOKED" }),
+        base({ id: "b", status: "SCHEDULED", collectionSlot: "AFTERNOON" }),
+        base({ id: "c", status: "COLLECTED" }),
+        base({ id: "d", collectionDate: "2026-09-16" }),
+        base({
+          id: "e",
+          collectionDate: "2026-09-16T22:30:00.000Z",
+        }),
+        base({
+          id: "f",
+          status: "READY",
+          deliveryDate: "2026-09-17",
+          deliverySlot: "AFTERNOON",
+          deliveryDriverId: "d2",
+          assignedDriverId: "d1",
+        }),
+        base({
+          id: "g",
+          status: "READY",
+          deliveryDate: "2026-09-18",
+          deliverySlot: "MORNING",
+        }),
+        base({
+          id: "h",
+          status: "READY",
+        }),
+      ],
+      "2026-09-17"
+    );
+    expect(rows.map((row) => row.id).sort()).toEqual(["a", "b", "e", "f"]);
+    const delivery = rows.find((row) => row.id === "f");
+    expect(delivery?.stopKind).toBe("delivery");
+    expect(delivery?.boardSlot).toBe("AFTERNOON");
+    expect(delivery?.boardDriverId).toBe("d2");
+  });
+});
+
 describe("collectionsForAssignmentDay", () => {
   it("keeps BOOKED/SCHEDULED jobs on that Johannesburg day", () => {
     const rows = collectionsForAssignmentDay(
       [
-        job({ id: "a", status: "BOOKED" }),
-        job({ id: "b", status: "SCHEDULED", collectionSlot: "AFTERNOON" }),
-        job({ id: "c", status: "COLLECTED" }),
-        job({ id: "d", collectionDate: "2026-09-16" }),
-        job({
+        base({ id: "a", status: "BOOKED" }),
+        base({ id: "b", status: "SCHEDULED", collectionSlot: "AFTERNOON" }),
+        base({ id: "c", status: "COLLECTED" }),
+        base({ id: "d", collectionDate: "2026-09-16" }),
+        base({
           id: "e",
           collectionDate: "2026-09-16T22:30:00.000Z",
+        }),
+        base({
+          id: "f",
+          status: "READY",
+          deliveryDate: "2026-09-17",
+          deliverySlot: "MORNING",
         }),
       ],
       "2026-09-17"
@@ -70,14 +142,21 @@ describe("buildAssignmentBoard", () => {
           id: "u-pm",
           assignedDriverId: "",
           collectionSlot: "AFTERNOON",
+          boardSlot: "AFTERNOON",
         }),
-        job({ id: "t-am", assignedDriverId: "d1" }),
+        job({ id: "t-am", assignedDriverId: "d1", boardDriverId: "d1" }),
         job({
           id: "t-pm",
           assignedDriverId: "d1",
+          boardDriverId: "d1",
           collectionSlot: "AFTERNOON",
+          boardSlot: "AFTERNOON",
         }),
-        job({ id: "inactive", assignedDriverId: "inactive_1" }),
+        job({
+          id: "inactive",
+          assignedDriverId: "inactive_1",
+          boardDriverId: "inactive_1",
+        }),
       ],
       drivers
     );
@@ -98,14 +177,16 @@ describe("buildAssignmentBoard", () => {
   });
 
   it("warns when a driver exceeds slot capacity without dropping jobs", () => {
-    const jobs = Array.from({ length: 7 }, (_, index) =>
-      job({ id: `over-${index}`, assignedDriverId: "d1" })
+    const overloaded = Array.from({ length: 7 }, (_, index) =>
+      job({
+        id: `over-${index}`,
+        assignedDriverId: "d1",
+        boardDriverId: "d1",
+      })
     );
-    const columns = buildAssignmentBoard(jobs, drivers, 6);
-    const thabo = columns.find((col) => col.driverId === "d1")!;
-    expect(thabo.slots.MORNING).toHaveLength(7);
-    expect(thabo.overCapacity.MORNING).toBe(true);
-    expect(thabo.overCapacity.AFTERNOON).toBe(false);
-    expect(columns[0].overCapacity.MORNING).toBe(false);
+    const columns = buildAssignmentBoard(overloaded, drivers, 6);
+    expect(columns[1].slots.MORNING).toHaveLength(7);
+    expect(columns[1].overCapacity.MORNING).toBe(true);
+    expect(columns[1].overCapacity.AFTERNOON).toBe(false);
   });
 });

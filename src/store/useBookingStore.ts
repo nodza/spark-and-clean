@@ -34,6 +34,14 @@ interface BookingState {
     id: string,
     driverId: string | null
   ) => Promise<string | null>;
+  scheduleDelivery: (
+    id: string,
+    input: {
+      deliveryDate: string;
+      deliverySlot: "MORNING" | "AFTERNOON";
+      deliveryDriverId?: string | null;
+    }
+  ) => Promise<string | null>;
 }
 
 /**
@@ -208,6 +216,44 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to assign driver";
+      set({ error: message, bookings: prev });
+      return message;
+    }
+  },
+
+  scheduleDelivery: async (id, input) => {
+    const prev = get().bookings;
+    const nextDriver =
+      input.deliveryDriverId && input.deliveryDriverId.length > 0
+        ? input.deliveryDriverId
+        : undefined;
+    set({
+      error: null,
+      bookings: prev.map((b) => {
+        if (b.id !== id) return b;
+        return {
+          ...b,
+          deliveryDate: input.deliveryDate,
+          deliverySlot: input.deliverySlot,
+          deliveryDriverId:
+            nextDriver ??
+            b.deliveryDriverId ??
+            b.assignedDriverId ??
+            undefined,
+          dayVehicles: undefined,
+          standingVehicle: undefined,
+        };
+      }),
+    });
+    try {
+      const updated = await bookingService.scheduleDelivery(id, input);
+      set((state) => ({
+        bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
+      }));
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to schedule delivery";
       set({ error: message, bookings: prev });
       return message;
     }

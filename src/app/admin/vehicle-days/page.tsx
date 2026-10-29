@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,8 +12,13 @@ import {
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  jobsForAssignmentDay,
+  type AssignmentBoardJob,
+} from "@/lib/assignmentBoard";
 import { isValidCalendarDate } from "@/lib/johannesburgDate";
 import { localCalendarDate } from "@/lib/localCalendarDate";
+import { useBookingStore } from "@/store/useBookingStore";
 import type { ClientVehicleDayUse } from "@/lib/vehicleDay";
 
 type DriverOption = { id: string; name: string; onRoster?: boolean };
@@ -38,6 +44,7 @@ function isAbortError(err: unknown) {
 export default function AdminVehicleDaysPage() {
   const { user, ready } = useAuth();
   const isFullAdmin = user?.role === "admin" && user.adminTier === "full";
+  const { bookings, fetchBookings } = useBookingStore();
 
   const [date, setDate] = useState(() => localCalendarDate());
   const dateRef = useRef(date);
@@ -71,6 +78,16 @@ export default function AdminVehicleDaysPage() {
   };
 
   const stillOnDay = (day: string) => dateRef.current === day;
+
+  useEffect(() => {
+    if (!ready || !isFullAdmin) return;
+    void fetchBookings({ silent: true });
+  }, [ready, isFullAdmin, fetchBookings]);
+
+  const dayStops = useMemo(
+    () => jobsForAssignmentDay(bookings, date),
+    [bookings, date]
+  );
 
   const claimByVehicleId = useMemo(() => {
     const map = new Map<string, VehicleClaim>();
@@ -329,7 +346,7 @@ export default function AdminVehicleDaysPage() {
     >
       <div className="portal-page flex flex-col gap-[18px]">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <div
               className="flex items-center gap-2 text-eyebrow"
               style={{ color: "#9aa0a6" }}
@@ -338,11 +355,12 @@ export default function AdminVehicleDaysPage() {
               DAY VEHICLE LOG
             </div>
             <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
-              Record which bakkies each driver uses on a date. This does not
-              change standing assignments on Vehicles.
+              Record which bakkies each driver uses on a date. Collections and
+              deliveries for the day are listed below so you can match vehicles
+              to the route. This does not change standing assignments on Vehicles.
             </p>
           </div>
-          <div className="w-full max-w-[220px]">
+          <div className="ml-auto w-[200px] shrink-0">
             <Label htmlFor="vehicle-day-date" className="text-meta text-[#9aa0a6]">
               Date
             </Label>
@@ -357,6 +375,43 @@ export default function AdminVehicleDaysPage() {
               className="mt-1"
             />
           </div>
+        </div>
+
+        <div className="ds-card">
+          <div className="text-card-title" style={{ color: "#000b49" }}>
+            Stops this day
+          </div>
+          <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+            Collections and scheduled deliveries on {date}.
+          </p>
+          {dayStops.length === 0 ? (
+            <p className="text-meta mt-[12px]" style={{ color: "#9aa0a6" }}>
+              No collections or deliveries on this date.
+            </p>
+          ) : (
+            <ul className="mt-[12px] flex flex-col gap-[8px]">
+              {dayStops.map((stop: AssignmentBoardJob) => (
+                <li
+                  key={`${stop.stopKind}-${stop.id}`}
+                  className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#f0f2f6] pb-[8px] last:border-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      href={`/admin/bookings/${stop.id}`}
+                      className="ds-text-action text-[13px] font-extrabold"
+                    >
+                      {stop.id}
+                    </Link>
+                    <span className="text-meta ml-2" style={{ color: "#9aa0a6" }}>
+                      {stop.stopKind === "delivery" ? "Delivery" : "Collect"} ·{" "}
+                      {stop.boardSlot === "MORNING" ? "Morning" : "Afternoon"} ·{" "}
+                      {stop.suburb}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {rosterError ? (
