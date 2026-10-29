@@ -48,8 +48,6 @@ vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
 
-import { estimateBookingPrice } from "@/lib/bookingEstimate";
-import { estimateQuoteMidpointCents } from "@/lib/promotion/applyCoupon";
 import { GET, PATCH } from "./route";
 
 const sarahId = "507f1f77bcf86cd799439011";
@@ -293,8 +291,6 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
 });
 
 describe("PATCH /api/bookings/[id] measured size", () => {
-  const addOns = { odourRemoval: false, stainProtection: true };
-
   function technician() {
     mocks.getSession.mockResolvedValue({
       id: "tech-1",
@@ -304,16 +300,12 @@ describe("PATCH /api/bookings/[id] measured size", () => {
     });
   }
 
-  it("reprices a skipped size from 2 m × 3 m and ignores a posted price", async () => {
+  it("does not save a size when the driver marks the rug collected", async () => {
     technician();
     mocks.bookingFindOne.mockImplementation(() =>
       lean(
         sarahBooking({
           status: "SCHEDULED",
-          paymentStatus: "UNPAID",
-          estimatedPriceMin: 0,
-          estimatedPriceMax: 0,
-          addOns,
           rug: {
             type: "Persian",
             widthM: null,
@@ -325,49 +317,47 @@ describe("PATCH /api/bookings/[id] measured size", () => {
       )
     );
 
-    const estimate = estimateBookingPrice({
-      rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
-      addOns,
-    });
-    const amountDueCents = estimateQuoteMidpointCents(
-      estimate.totalMin,
-      estimate.totalMax
-    );
-
     const res = await patch({
       status: "COLLECTED",
       widthM: 2,
       lengthM: 3,
       estimatedPriceMin: 1,
-      estimatedPriceMax: 2,
       amountDueCents: 1,
-      billing: { amountDueCents: 1, amountPaidCents: 999 },
     });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Correct the size on the job before you mark it collected.",
+    });
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("marks a scheduled job collected without changing the saved size", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          rug: {
+            type: "Persian",
+            widthM: 5,
+            lengthM: 4,
+            areaSqM: 20,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const res = await patch({ status: "COLLECTED" });
 
     expect(res.status).toBe(200);
     const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
       $set: Record<string, unknown>;
     };
-    expect(update.$set.status).toBe("COLLECTED");
-    expect(update.$set["rug.widthM"]).toBe(2);
-    expect(update.$set["rug.lengthM"]).toBe(3);
-    expect(update.$set["rug.areaSqM"]).toBe(6);
-    expect(update.$set.estimatedPriceMin).toBeUndefined();
-    expect(update.$set.estimatedPriceMax).toBeUndefined();
-    expect(update.$set.paymentStatus).toBe("UNPAID");
-    expect(update.$set.refundRequired).toBe(false);
-    expect(update.$set.billing).toEqual({
-      currency: "ZAR",
-      amountDueCents,
-      amountPaidCents: 0,
-    });
-    expect(update.$set.measuredQuote).toMatchObject({
-      estimatedPriceMin: estimate.totalMin,
-      estimatedPriceMax: estimate.totalMax,
-      amountDueCents,
-    });
-    expect(amountDueCents).toBeGreaterThan(0);
-    expect(mocks.couponFindOne).not.toHaveBeenCalled();
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("rug.widthM");
   });
 });
 

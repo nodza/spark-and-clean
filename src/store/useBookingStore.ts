@@ -26,6 +26,11 @@ interface BookingState {
     status: BookingStatus,
     size?: FieldSizeUpdate | null
   ) => Promise<string | null>;
+  /** Correct metres on a scheduled job. null = success. */
+  saveMeasuredSize: (
+    id: string,
+    size: FieldSizeUpdate
+  ) => Promise<string | null>;
   updatePaymentStatus: (
     id: string,
     status: PaymentStatus
@@ -183,6 +188,53 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update status";
+      set({ error: message, bookings: prev });
+      return message;
+    }
+  },
+
+  saveMeasuredSize: async (id, size) => {
+    const prev = get().bookings;
+    set({
+      error: null,
+      bookings: prev.map((b) => {
+        if (b.id !== id) return b;
+        return {
+          ...b,
+          rug: {
+            ...b.rug,
+            widthM: size.widthM,
+            lengthM: size.lengthM,
+            areaSqM: rugAreaSqM(size.widthM, size.lengthM),
+          },
+        };
+      }),
+    });
+    try {
+      const updated = await bookingService.saveMeasuredSize(id, size);
+      set((state) => {
+        const idx = state.bookings.findIndex((b) => b.id === id);
+        if (idx === -1) {
+          return { bookings: [updated, ...state.bookings] };
+        }
+        const current = state.bookings[idx];
+        const next = [...state.bookings];
+        next[idx] = {
+          ...current,
+          ...updated,
+          technician: updated.technician ?? current.technician,
+          dayVehicles: updated.dayVehicles ?? current.dayVehicles,
+          standingVehicle:
+            updated.standingVehicle !== undefined
+              ? updated.standingVehicle
+              : current.standingVehicle,
+        };
+        return { bookings: next };
+      });
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not save the measured size.";
       set({ error: message, bookings: prev });
       return message;
     }

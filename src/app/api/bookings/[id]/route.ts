@@ -161,11 +161,11 @@ export async function GET(_request: Request, { params }: Params) {
  * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
  * their status. Full admin for depot moves. Technicians may only
  * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
- * may save width/length when collecting a rug that has no size yet, and
- * cannot collect until a rug tag is attached. A saved size is repriced on
- * the server (rug type, add-ons, and any coupon). Technicians cannot send
- * a price. A full admin can mark collected without a tag. Size corrections
- * after that go through the admin measurement route.
+ * and cannot collect until a rug tag is attached. They correct width and
+ * length on the scheduled job (that save reprices the booking). Once the
+ * rug is collected, a technician cannot change the size. Technicians cannot
+ * send a price. A full admin can mark collected without a tag. Later size
+ * corrections go through the admin measurement route.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {

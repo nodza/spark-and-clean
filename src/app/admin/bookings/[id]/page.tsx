@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import {
+  CalendarDays,
+  Clock,
+  Layers,
+  MapPin,
+  Ruler,
+  Sparkles,
+  Ticket,
+  type LucideIcon,
+} from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
@@ -49,7 +59,7 @@ import {
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
-import { MeasuredSizeCard } from "@/components/admin/MeasuredSizeCard";
+import { MeasuredSizeEditor } from "@/components/admin/MeasuredSizeCard";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { bookingAddOnLabels, OPS_ADD_ON_COPY, rugDimensionLabel } from "@/lib/techUi";
 import {
@@ -94,6 +104,24 @@ type DriverOption = {
   phone?: string;
   isActive?: boolean;
 };
+
+function JobDetailLabel({
+  icon: Icon,
+  children,
+  action,
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="text-eyebrow flex items-center gap-1.5" style={{ color: "#9aa0a6" }}>
+      <Icon className="size-3.5 shrink-0" aria-hidden />
+      <span>{children}</span>
+      {action}
+    </div>
+  );
+}
 
 function addOnLabels(booking: Booking): string[] {
   return bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
@@ -637,7 +665,7 @@ export default function AdminBookingDetail() {
               refreshKey={booking.paymentStatus}
             />
 
-            <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,24rem)]">
               <div className="flex min-w-0 flex-col gap-[18px]">
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>
@@ -645,42 +673,56 @@ export default function AdminBookingDetail() {
                   </div>
                   <div className="mt-[16px] grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        RUG TYPE
-                      </div>
+                      <JobDetailLabel icon={Layers}>Rug type</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {booking.rug.type}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        DIMENSIONS
-                      </div>
+                      <JobDetailLabel
+                        icon={Ruler}
+                        action={
+                          <MeasuredSizeEditor
+                            booking={booking}
+                            onUpdated={(next) => {
+                              useBookingStore.setState((state) => ({
+                                bookings: state.bookings.map((row) =>
+                                  row.id === next.id
+                                    ? {
+                                        ...next,
+                                        dayVehicles: row.dayVehicles ?? next.dayVehicles,
+                                        standingVehicle:
+                                          row.standingVehicle ?? next.standingVehicle,
+                                        technician: row.technician ?? next.technician,
+                                      }
+                                    : row
+                                ),
+                              }));
+                            }}
+                          />
+                        }
+                      >
+                        Dimensions
+                      </JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {rugDimensionLabel(booking.rug)}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        COLLECTION DATE
-                      </div>
+                      <JobDetailLabel icon={CalendarDays}>Collection date</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {formatCollectionLong(booking.collectionDate)}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        TIME SLOT
-                      </div>
+                      <JobDetailLabel icon={Clock}>Time slot</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {booking.collectionSlot}
                       </p>
                     </div>
                   </div>
                   <div className="mt-[16px]">
-                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                      ADDRESS
-                    </div>
+                    <JobDetailLabel icon={MapPin}>Address</JobDetailLabel>
                     <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                       {booking.addressLine1}
                     </p>
@@ -689,9 +731,7 @@ export default function AdminBookingDetail() {
                     </p>
                   </div>
                   <div className="mt-[16px]">
-                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                      ADD-ONS
-                    </div>
+                    <JobDetailLabel icon={Sparkles}>Add-ons</JobDetailLabel>
                     <div className="mt-[8px] flex flex-wrap gap-[8px]">
                       {addOnLabels(booking).length === 0 ? (
                         <span className="text-meta" style={{ color: "#9aa0a6" }}>
@@ -708,34 +748,13 @@ export default function AdminBookingDetail() {
                   </div>
                   {booking.couponCode || booking.promotion?.code ? (
                     <div className="mt-[16px]">
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        COUPON
-                      </div>
+                      <JobDetailLabel icon={Ticket}>Coupon</JobDetailLabel>
                       <p className="text-body mt-[4px] tabular" style={{ color: "#32373c" }}>
                         {booking.promotion?.code || booking.couponCode}
                       </p>
                     </div>
                   ) : null}
                 </div>
-
-                <MeasuredSizeCard
-                  booking={booking}
-                  onUpdated={(next) => {
-                    useBookingStore.setState((state) => ({
-                      bookings: state.bookings.map((row) =>
-                        row.id === next.id
-                          ? {
-                              ...next,
-                              dayVehicles: row.dayVehicles ?? next.dayVehicles,
-                              standingVehicle:
-                                row.standingVehicle ?? next.standingVehicle,
-                              technician: row.technician ?? next.technician,
-                            }
-                          : row
-                      ),
-                    }));
-                  }}
-                />
 
                 {booking.rug.photos && booking.rug.photos.length > 0 && (
                   <div className="ds-card">
