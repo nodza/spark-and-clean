@@ -3,6 +3,7 @@ import {
   canAccessPath,
   homeForRole,
   isAdminFullOnlyPath,
+  passwordChangePathForRole,
   resolvePostLoginPath,
 } from "@/lib/accessControl";
 import type { SessionUser } from "@/lib/sessionJwt";
@@ -49,8 +50,10 @@ describe("accessControl", () => {
     expect(isAdminFullOnlyPath("/admin/vehicles")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/vehicle-days")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/rugs")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/team")).toBe(true);
     expect(isAdminFullOnlyPath("/admin")).toBe(false);
     expect(isAdminFullOnlyPath("/admin/pricing")).toBe(false);
+    expect(isAdminFullOnlyPath("/admin/change-password")).toBe(false);
   });
 
   it("redirects anonymous users to the right login with next=", () => {
@@ -77,10 +80,17 @@ describe("accessControl", () => {
     expect(hit.ok).toBe(false);
     if (!hit.ok) expect(hit.redirectTo).toContain("/admin?access=denied");
     expect(canAccessPath(adminMarketing, "/admin/rugs").ok).toBe(false);
+    const teamHit = canAccessPath(adminMarketing, "/admin/team");
+    expect(teamHit.ok).toBe(false);
+    if (!teamHit.ok) expect(teamHit.redirectTo).toContain("/admin?access=denied");
 
     expect(canAccessPath(adminMarketing, "/admin").ok).toBe(true);
     expect(canAccessPath(adminMarketing, "/admin/pricing").ok).toBe(true);
     expect(canAccessPath(adminFull, "/admin/analytics").ok).toBe(true);
+    expect(canAccessPath(adminFull, "/admin/team").ok).toBe(true);
+    expect(passwordChangePathForRole("admin")).toBe("/admin/change-password");
+    expect(passwordChangePathForRole("technician")).toBe("/tech/change-password");
+    expect(passwordChangePathForRole("client")).toBeNull();
   });
 
   it("honors next= only when role allows", () => {
@@ -91,6 +101,12 @@ describe("accessControl", () => {
     expect(
       resolvePostLoginPath("admin", "/admin/analytics", "marketing-only")
     ).toBe("/admin?access=denied");
+    expect(resolvePostLoginPath("admin", "/admin/team", "marketing-only")).toBe(
+      "/admin?access=denied"
+    );
+    expect(resolvePostLoginPath("admin", "/admin/team", "full")).toBe(
+      "/admin/team"
+    );
     expect(resolvePostLoginPath("technician", "/tech/job/1")).toBe(
       "/tech/job/1"
     );

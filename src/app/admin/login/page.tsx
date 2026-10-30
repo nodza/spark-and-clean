@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { resolvePostLoginPath } from "@/lib/accessControl";
+import {
+  passwordChangePathForRole,
+  resolvePostLoginPath,
+} from "@/lib/accessControl";
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -30,7 +33,9 @@ function AdminLoginForm() {
   useEffect(() => {
     if (ready && user?.role === "admin") {
       router.replace(
-        resolvePostLoginPath("admin", next, user.adminTier ?? null)
+        user.mustChangePassword
+          ? passwordChangePathForRole("admin") || "/admin/change-password"
+          : resolvePostLoginPath("admin", next, user.adminTier ?? null)
       );
     }
   }, [ready, user, router, next]);
@@ -59,11 +64,13 @@ function AdminLoginForm() {
 
     await refresh();
     router.push(
-      resolvePostLoginPath(
-        result.user.role,
-        next,
-        result.user.adminTier ?? null
-      )
+      result.user.mustChangePassword
+        ? passwordChangePathForRole("admin") || "/admin/change-password"
+        : resolvePostLoginPath(
+            result.user.role,
+            next,
+            result.user.adminTier ?? null
+          )
     );
   };
 
