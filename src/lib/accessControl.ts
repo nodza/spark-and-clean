@@ -37,7 +37,17 @@ export function isAdminFullOnlyPath(pathname: string): boolean {
   if (pathname.startsWith("/admin/vehicles")) return true;
   if (pathname.startsWith("/admin/vehicle-days")) return true;
   if (pathname.startsWith("/admin/rugs")) return true;
+  if (pathname.startsWith("/admin/team")) return true;
   return false;
+}
+
+/** First-login temporary password screen for that role, if any. */
+export function passwordChangePathForRole(
+  role: UserRole | undefined
+): string | null {
+  if (role === "technician") return "/tech/change-password";
+  if (role === "admin") return "/admin/change-password";
+  return null;
 }
 
 export function isPublicPath(pathname: string): boolean {
