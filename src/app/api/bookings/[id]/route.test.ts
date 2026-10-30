@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   driverFindOne: vi.fn(),
+  paymentFind: vi.fn(),
+  couponFindOne: vi.fn(),
   punchOnce: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
@@ -25,6 +27,12 @@ vi.mock("@/models/Booking", () => ({
 }));
 vi.mock("@/models/Driver", () => ({
   Driver: { findOne: mocks.driverFindOne },
+}));
+vi.mock("@/models/Payment", () => ({
+  Payment: { find: mocks.paymentFind },
+}));
+vi.mock("@/models/Coupon", () => ({
+  Coupon: { findOne: mocks.couponFindOne },
 }));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
@@ -106,6 +114,12 @@ beforeEach(() => {
     async (booking: { userId?: unknown }) => booking.userId ?? null
   );
   mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.paymentFind.mockReturnValue({
+    select: () => ({ lean: async () => [] }),
+  });
+  mocks.couponFindOne.mockReturnValue({
+    select: () => ({ lean: async () => null }),
+  });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
     email: "ops@example.com",
@@ -184,6 +198,12 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("billing");
   });
 
   it("lets a full admin mark a job collected without a rug tag", async () => {
@@ -267,6 +287,77 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/bookings/[id] measured size", () => {
+  function technician() {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+  }
+
+  it("does not save a size when the driver marks the rug collected", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          rug: {
+            type: "Persian",
+            widthM: null,
+            lengthM: null,
+            areaSqM: 0,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const res = await patch({
+      status: "COLLECTED",
+      widthM: 2,
+      lengthM: 3,
+      estimatedPriceMin: 1,
+      amountDueCents: 1,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Correct the size on the job before you mark it collected.",
+    });
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("marks a scheduled job collected without changing the saved size", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          rug: {
+            type: "Persian",
+            widthM: 5,
+            lengthM: 4,
+            areaSqM: 20,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const res = await patch({ status: "COLLECTED" });
+
+    expect(res.status).toBe(200);
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("rug.widthM");
   });
 });
 

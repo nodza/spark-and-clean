@@ -90,6 +90,35 @@ class BookingService {
     return res.json();
   }
 
+  /** Assigned driver corrects metres while the job is still scheduled. */
+  async saveMeasuredSize(
+    id: string,
+    size: { widthM: number; lengthM: number }
+  ): Promise<Booking> {
+    const res = await fetch(`/api/bookings/${id}/measurement`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        widthM: size.widthM,
+        lengthM: size.lengthM,
+      }),
+    });
+    if (res.status === 401) {
+      throw httpError("Unauthorized", 401);
+    }
+    if (res.status === 403) {
+      throw httpError("You can only update your own jobs", 403);
+    }
+    if (!res.ok) {
+      throw httpError(
+        await readError(res, "Could not save the measured size."),
+        res.status
+      );
+    }
+    return res.json();
+  }
+
   async updatePaymentStatus(
     id: string,
     status: PaymentStatus

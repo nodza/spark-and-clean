@@ -26,6 +26,11 @@ interface BookingState {
     status: BookingStatus,
     size?: FieldSizeUpdate | null
   ) => Promise<string | null>;
+  /** Correct metres on a scheduled job. null = success. */
+  saveMeasuredSize: (
+    id: string,
+    size: FieldSizeUpdate
+  ) => Promise<string | null>;
   updatePaymentStatus: (
     id: string,
     status: PaymentStatus
@@ -69,19 +74,30 @@ export const useBookingStore = create<BookingState>((set, get) => ({
             return { bookings: [booking, ...state.bookings], error: null };
           }
           const current = state.bookings[idx];
-          // Detail GET carries computed dayVehicles; keep them on a newer
-          // list row only when it is still the same driver and collection day.
-          if (
-            current.updatedAt &&
-            booking.updatedAt &&
-            booking.updatedAt < current.updatedAt
-          ) {
+          const currentUpdated = current.updatedAt;
+          const incomingUpdated = booking.updatedAt;
+          // A poll that started before the driver saved a size must not
+          // wipe the priced booking the PATCH just stored.
+          const incomingOlder =
+            typeof currentUpdated === "string" &&
+            typeof incomingUpdated === "string" &&
+            incomingUpdated < currentUpdated;
+          const dropsMeasurement =
+            Boolean(current.measuredQuote) &&
+            !booking.measuredQuote &&
+            (!incomingUpdated ||
+              !currentUpdated ||
+              incomingUpdated <= currentUpdated);
+          if (incomingOlder || dropsMeasurement) {
             const next = [...state.bookings];
             next[idx] = mergeJobVehiclesFromDetail(current, booking);
             return { bookings: next, error: null };
           }
           const next = [...state.bookings];
-          next[idx] = booking;
+          next[idx] = {
+            ...booking,
+            technician: booking.technician ?? current.technician,
+          };
           return { bookings: next, error: null };
         });
       } else {
@@ -147,13 +163,78 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     });
     try {
       const updated = await bookingService.updateStatus(id, status, size);
-      set((state) => ({
-        bookings: state.bookings.map((b) => (b.id === id ? updated : b)),
-      }));
+      set((state) => {
+        const idx = state.bookings.findIndex((b) => b.id === id);
+        if (idx === -1) {
+          return { bookings: [updated, ...state.bookings] };
+        }
+        const current = state.bookings[idx];
+        const next = [...state.bookings];
+        // Server booking carries the repriced amount due. Keep display-only
+        // fields the status PATCH does not return.
+        next[idx] = {
+          ...current,
+          ...updated,
+          technician: updated.technician ?? current.technician,
+          dayVehicles: updated.dayVehicles ?? current.dayVehicles,
+          standingVehicle:
+            updated.standingVehicle !== undefined
+              ? updated.standingVehicle
+              : current.standingVehicle,
+        };
+        return { bookings: next };
+      });
       return null;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to update status";
+      set({ error: message, bookings: prev });
+      return message;
+    }
+  },
+
+  saveMeasuredSize: async (id, size) => {
+    const prev = get().bookings;
+    set({
+      error: null,
+      bookings: prev.map((b) => {
+        if (b.id !== id) return b;
+        return {
+          ...b,
+          rug: {
+            ...b.rug,
+            widthM: size.widthM,
+            lengthM: size.lengthM,
+            areaSqM: rugAreaSqM(size.widthM, size.lengthM),
+          },
+        };
+      }),
+    });
+    try {
+      const updated = await bookingService.saveMeasuredSize(id, size);
+      set((state) => {
+        const idx = state.bookings.findIndex((b) => b.id === id);
+        if (idx === -1) {
+          return { bookings: [updated, ...state.bookings] };
+        }
+        const current = state.bookings[idx];
+        const next = [...state.bookings];
+        next[idx] = {
+          ...current,
+          ...updated,
+          technician: updated.technician ?? current.technician,
+          dayVehicles: updated.dayVehicles ?? current.dayVehicles,
+          standingVehicle:
+            updated.standingVehicle !== undefined
+              ? updated.standingVehicle
+              : current.standingVehicle,
+        };
+        return { bookings: next };
+      });
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not save the measured size.";
       set({ error: message, bookings: prev });
       return message;
     }

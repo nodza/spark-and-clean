@@ -18,6 +18,7 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
@@ -160,9 +161,11 @@ export async function GET(_request: Request, { params }: Params) {
  * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
  * their status. Full admin for depot moves. Technicians may only
  * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
- * may save width/length when collecting a rug that has no size yet, and
- * cannot collect until a rug tag is attached. A full admin can mark
- * collected without a tag.
+ * and cannot collect until a rug tag is attached. They correct width and
+ * length on the scheduled job (that save reprices the booking). Once the
+ * rug is collected, a technician cannot change the size. Technicians cannot
+ * send a price. A full admin can mark collected without a tag. Later size
+ * corrections go through the admin measurement route.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -317,18 +320,40 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
-    const update: Record<string, unknown> = {};
-    if (Object.keys($set).length > 0) update.$set = $set;
-    if (Object.keys($unset).length > 0) update.$unset = $unset;
+    const measuredWidth = $set["rug.widthM"];
+    const measuredLength = $set["rug.lengthM"];
+    const savingSize =
+      typeof measuredWidth === "number" && typeof measuredLength === "number";
 
-    if (Object.keys(update).length === 0) {
-      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+    let doc: Record<string, unknown> | null;
+    if (savingSize) {
+      const committed = await commitMeasuredSize({
+        bookingId: id,
+        widthM: measuredWidth,
+        lengthM: measuredLength,
+        extraSet: $set,
+      });
+      if (!committed.ok) {
+        return NextResponse.json(
+          { error: committed.error },
+          { status: committed.status }
+        );
+      }
+      doc = committed.doc;
+    } else {
+      const update: Record<string, unknown> = {};
+      if (Object.keys($set).length > 0) update.$set = $set;
+      if (Object.keys($unset).length > 0) update.$unset = $unset;
+
+      if (Object.keys(update).length === 0) {
+        return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+      }
+
+      doc = (await Booking.findOneAndUpdate({ id }, update, {
+        new: true,
+        runValidators: true,
+      }).lean()) as Record<string, unknown> | null;
     }
-
-    const doc = await Booking.findOneAndUpdate({ id }, update, {
-      new: true,
-      runValidators: true,
-    }).lean();
 
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

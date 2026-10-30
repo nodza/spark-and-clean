@@ -21,6 +21,7 @@ import { telHref, whatsappHref } from "@/lib/phone";
 import { PayButton } from "@/components/payments/PayButton";
 import type { AuthUser } from "@/lib/authClient";
 import type { Booking, BookingStatus } from "@/types/booking";
+import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
 import { cn } from "@/lib/utils";
 
 type TabId = "tracking" | "items" | "invoice";
@@ -32,20 +33,11 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 function formatRand(cents: number) {
-  const amount = new Intl.NumberFormat("en-ZA", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-  return `R${amount.replace(/[\u00a0\u202f]/g, " ")}`;
+  return formatRandCents(cents);
 }
 
 function formatEstimate(min: number, max: number) {
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 })
-      .format(n)
-      .replace(/[\u00a0\u202f]/g, " ");
-  if (min === max) return `R${fmt(min)}`;
-  return `R${fmt(min)} – R${fmt(max)}`;
+  return formatQuoteRange(min, max);
 }
 
 function paymentStatusPresentation(status: string): {
@@ -138,6 +130,11 @@ export function ClientBookingDetail({
   const placed = placedLabel(booking.createdAt);
   const addOns = bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
   const estimate = formatEstimate(booking.estimatedPriceMin, booking.estimatedPriceMax);
+  const measured = booking.measuredQuote;
+  const finalPrice = measured
+    ? formatEstimate(measured.estimatedPriceMin, measured.estimatedPriceMax)
+    : null;
+  const headline = finalPrice ?? estimate;
   const amountDueCents = amountDueCentsForBooking(booking);
   const depositCents = depositAmountCents(amountDueCents);
   const outstandingCents = balanceAmountCents(booking);
@@ -363,7 +360,7 @@ export function ClientBookingDetail({
           aria-labelledby="booking-tab-items"
           className="mt-5"
         >
-          <article className="mb-[11px] flex items-center gap-4 rounded-[12px] border border-[#e3e7ed] bg-white px-4 py-[18px] sm:gap-[18px] sm:px-5">
+          <article className="mb-[11px] flex flex-wrap items-center gap-4 rounded-[12px] border border-[#e3e7ed] bg-white px-4 py-[18px] sm:gap-[18px] sm:px-5">
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -386,7 +383,25 @@ export function ClientBookingDetail({
                 <p className="mt-1.5 text-[12.5px] text-[#0a7a63]">{addOns.join(" · ")}</p>
               ) : null}
             </div>
-            <span className="shrink-0 text-[15px] font-extrabold text-[#000b49]">{estimate}</span>
+            <div className="ml-auto min-w-0 text-right">
+              {finalPrice ? (
+                <>
+                  <span className="block text-[11px] font-extrabold text-[#0a7a63]">
+                    Final price after measurement
+                  </span>
+                  <span className="mt-1 block break-words text-[15px] font-extrabold text-[#000b49]">
+                    {finalPrice}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-semibold text-[#9aa0a6]">
+                    Original estimate {estimate}
+                  </span>
+                </>
+              ) : (
+                <span className="block break-words text-[15px] font-extrabold text-[#000b49]">
+                  {estimate}
+                </span>
+              )}
+            </div>
           </article>
         </div>
       ) : null}
@@ -397,9 +412,29 @@ export function ClientBookingDetail({
           role="tabpanel"
           aria-labelledby="booking-tab-invoice"
         >
+          {booking.refundRequired ? (
+            <div
+              className="mt-5 rounded-[14px] border border-[#f6c9c9] bg-[#fdecec] px-4 py-4"
+              role="status"
+            >
+              <p className="text-[15px] font-extrabold text-[#b33232]">Refund due</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-[#7a2424]">
+                You&apos;ve paid {formatRand(booking.billing?.amountPaidCents ?? 0)} and
+                the final price is {formatRand(amountDueCents)}. We&apos;ll refund the
+                difference of{" "}
+                {formatRand(
+                  Math.max(0, (booking.billing?.amountPaidCents ?? 0) - amountDueCents)
+                )}
+                .
+              </p>
+            </div>
+          ) : null}
           <div className="mt-5 grid grid-cols-1 items-start gap-5 md:grid-cols-2">
           <div className="min-w-0 overflow-hidden rounded-[14px] border border-[#e3e7ed] bg-white">
-            <InvoiceRow label={`${booking.rug.type} · ${dims}`} value={estimate} />
+            <InvoiceRow label={`${booking.rug.type} · ${dims}`} value={headline} />
+            {finalPrice ? (
+              <InvoiceRow label="Original estimate" value={estimate} />
+            ) : null}
             {addOns.map((label) => (
               <InvoiceRow key={label} label={label} value="Included" tone="teal" />
             ))}
@@ -442,13 +477,19 @@ export function ClientBookingDetail({
               />
             ) : null}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-[#f7f9fb] px-4 py-5 sm:px-6">
-              <div>
-                <p className="text-[13px] font-extrabold tracking-[0.08em] text-[#9aa0a6]">
-                  ESTIMATED TOTAL
+              <div className="min-w-0">
+                <p className="text-[13px] font-extrabold tracking-[0.04em] text-[#9aa0a6]">
+                  {finalPrice ? "Final price after measurement" : "ESTIMATED TOTAL"}
                 </p>
                 <p className="mt-1 break-words text-[24px] font-extrabold text-[#000b49]">
-                  {estimate}
+                  {headline}
                 </p>
+                {finalPrice ? (
+                  <p className="mt-1 text-[12.5px] text-[#6b7280]">
+                    Original estimate {estimate}. Calculated from the size measured at
+                    collection.
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -587,6 +628,25 @@ function InvoicePayment({
   }
 
   if (booking.paymentStatus === "PAID") {
+    if (booking.refundRequired) {
+      return (
+        <div
+          className="flex items-start gap-3 rounded-[12px] border border-[#f6c9c9] bg-[#fdecec] px-4 py-4"
+          role="status"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#b33232] text-white">
+            <CircleAlert className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-extrabold text-[#b33232]">Refund due</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-[#7a2424]">
+              Nothing more is due. The final price is lower than what you&apos;ve paid,
+              and the difference will be refunded.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         className="flex items-start gap-3 rounded-[12px] border border-[#bfe9dc] bg-[#eafaf5] px-4 py-4"

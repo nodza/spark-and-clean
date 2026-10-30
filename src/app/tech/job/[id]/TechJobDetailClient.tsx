@@ -14,14 +14,12 @@ import {
 } from "lucide-react";
 import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import {
   bookingAddOnLabels,
   formatBadgeDate,
   isDisplayablePhotoUrl,
   paymentBadgeClass,
-  rugDimensionLabel,
   slotTimeLabel,
   slotWindowLabel,
   techStopKind,
@@ -33,14 +31,12 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { DriverMeasurement } from "@/components/tech/DriverMeasurement";
 import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
-  bothDimensionsEmpty,
   hasRugTagCode,
   isVanCollectStatus,
   isVanDeliverStatus,
-  parseOptionalCollectDimensions,
-  type CollectDimensions,
 } from "@/lib/fieldStatus";
 import {
   formatAssignedDriverLine,
@@ -77,7 +73,8 @@ export function TechJobDetailClient() {
   const rawId = params.id;
   const id = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
-  const { fetchBookingById, updateBookingStatus } = useBookingStore();
+  const { fetchBookingById, updateBookingStatus, saveMeasuredSize } =
+    useBookingStore();
   const storeBooking = useBookingStore((s) =>
     s.bookings.find((b) => b.id === id)
   );
@@ -197,10 +194,7 @@ export function TechJobDetailClient() {
     });
   }, [storeBooking, user?.driverProfileId]);
 
-  const handleStatusUpdate = async (
-    newStatus: "COLLECTED" | "DELIVERED",
-    dimensions?: CollectDimensions | null
-  ) => {
+  const handleStatusUpdate = async (newStatus: "COLLECTED" | "DELIVERED") => {
     if (loadState.kind !== "ready" || pendingStatus || fieldUpdateLock.current) {
       return;
     }
@@ -211,20 +205,23 @@ export function TechJobDetailClient() {
     setActionError(null);
     setPendingStatus(newStatus);
 
-    const error = await updateBookingStatus(
-      bookingId,
-      newStatus,
-      dimensions ?? undefined
-    );
+    const error = await updateBookingStatus(bookingId, newStatus);
+    const saved = useBookingStore
+      .getState()
+      .bookings.find((candidate) => candidate.id === bookingId);
 
-    if (error) {
+    if (error || !saved) {
       fieldUpdateLock.current = false;
       setPendingStatus(null);
-      setActionError(error);
-      toast.error(error);
+      setActionError(error ?? "Could not save this job. Try again.");
+      toast.error(error ?? "Could not save this job. Try again.");
       setLoadState({ kind: "ready", booking: previous });
       return;
     }
+
+    setLoadState({ kind: "ready", booking: saved });
+    fieldUpdateLock.current = false;
+    setPendingStatus(null);
 
     toast.success(
       newStatus === "COLLECTED"
@@ -232,6 +229,58 @@ export function TechJobDetailClient() {
         : "Marked delivered — status saved"
     );
     router.push("/tech/dashboard");
+  };
+
+  const handleSaveMeasurement = async (widthM: number, lengthM: number) => {
+    if (loadState.kind !== "ready" || pendingStatus || fieldUpdateLock.current) {
+      return "Could not save this size. Try again.";
+    }
+    const bookingId = loadState.booking.id;
+    const previous = loadState.booking;
+
+    fieldUpdateLock.current = true;
+    setActionError(null);
+
+    const error = await saveMeasuredSize(bookingId, { widthM, lengthM });
+    const readSaved = () =>
+      useBookingStore
+        .getState()
+        .bookings.find((candidate) => candidate.id === bookingId);
+
+    let saved = readSaved();
+    const priced = (booking: Booking | undefined) =>
+      booking != null &&
+      booking.rug.widthM === widthM &&
+      booking.rug.lengthM === lengthM &&
+      booking.measuredQuote != null &&
+      typeof booking.billing?.amountDueCents === "number";
+
+    if (!error && !priced(saved)) {
+      try {
+        saved = (await fetchBookingById(bookingId)) ?? readSaved();
+      } catch {
+        saved = readSaved();
+      }
+    }
+
+    if (error || !saved) {
+      fieldUpdateLock.current = false;
+      setLoadState({ kind: "ready", booking: previous });
+      return error ?? "Could not save this size. Try again.";
+    }
+
+    setLoadState({ kind: "ready", booking: saved });
+    fieldUpdateLock.current = false;
+
+    if (!priced(saved)) {
+      toast.error(
+        "Size saved, but the updated price did not come back. Open the job again in a moment."
+      );
+      return null;
+    }
+
+    toast.success("Size saved.");
+    return null;
   };
 
   const showJob = loadState.kind === "ready";
@@ -244,6 +293,7 @@ export function TechJobDetailClient() {
         pendingStatus={pendingStatus}
         actionError={actionError}
         onStatusUpdate={handleStatusUpdate}
+        onSaveMeasurement={handleSaveMeasurement}
         onTagged={(booking) => setLoadState({ kind: "ready", booking })}
         onBack={() => router.push("/tech/dashboard")}
       />
@@ -407,6 +457,7 @@ function JobContent({
   pendingStatus,
   actionError,
   onStatusUpdate,
+  onSaveMeasurement,
   onTagged,
   onBack,
 }: {
@@ -415,10 +466,8 @@ function JobContent({
   pendingStatus: "COLLECTED" | "DELIVERED" | null;
   actionError: string | null;
   onTagged: (booking: Booking) => void;
-  onStatusUpdate: (
-    status: "COLLECTED" | "DELIVERED",
-    dimensions?: CollectDimensions | null
-  ) => void;
+  onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
+  onSaveMeasurement: (widthM: number, lengthM: number) => Promise<string | null>;
   onBack: () => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
@@ -434,35 +483,9 @@ function JobContent({
   const canDeliver =
     isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
   const hasTagCode = hasRugTagCode(booking.rug.tagCode);
-  const showSize =
-    canCollect && bothDimensionsEmpty(booking.rug.widthM, booking.rug.lengthM);
-  const [widthRaw, setWidthRaw] = useState("");
-  const [lengthRaw, setLengthRaw] = useState("");
-  const [widthError, setWidthError] = useState<string | undefined>();
-  const [lengthError, setLengthError] = useState<string | undefined>();
 
   function submitCollect() {
     if (busy) return;
-    if (showSize) {
-      const parsed = parseOptionalCollectDimensions(widthRaw, lengthRaw);
-      if (!parsed.ok) {
-        setWidthError(parsed.widthError);
-        setLengthError(parsed.lengthError);
-        const sizeFields = document.getElementById("pickup-size");
-        const reduceMotion = window.matchMedia(
-          "(prefers-reduced-motion: reduce)"
-        ).matches;
-        sizeFields?.scrollIntoView({
-          block: "center",
-          behavior: reduceMotion ? "auto" : "smooth",
-        });
-        return;
-      }
-      setWidthError(undefined);
-      setLengthError(undefined);
-      onStatusUpdate("COLLECTED", parsed.dimensions);
-      return;
-    }
     onStatusUpdate("COLLECTED");
   }
   const addOns = bookingAddOnLabels(booking.addOns);
@@ -642,9 +665,11 @@ function JobContent({
       </p>
       <div className="rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
         <div className="text-sm font-bold text-navy">{booking.rug.type}</div>
-        <div className="mt-1 text-xs text-[#6b7280]">
-          {rugDimensionLabel(booking.rug)}
-        </div>
+        <DriverMeasurement
+          booking={booking}
+          disabled={busy}
+          onSave={onSaveMeasurement}
+        />
 
         <div className="mt-3">
           <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
@@ -696,90 +721,6 @@ function JobContent({
         {canCollect ? (
           <div className="mb-3">
             <RugTagIntake booking={booking} onTagged={onTagged} />
-          </div>
-        ) : null}
-
-        {showSize ? (
-          <div
-            id="pickup-size"
-            className="mb-3 scroll-mb-4 rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5"
-          >
-            <p className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
-              SIZE ON PICKUP
-            </p>
-            <p className="mt-1 text-xs text-[#6b7280]">
-              Optional. Leave both blank to measure on pickup.
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div>
-                <label
-                  htmlFor="collect-width"
-                  className="mb-1 block text-[11px] font-bold text-navy"
-                >
-                  Width (m)
-                </label>
-                <Input
-                  id="collect-width"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={widthRaw}
-                  disabled={busy}
-                  aria-invalid={Boolean(widthError)}
-                  aria-describedby={
-                    widthError ? "collect-width-error" : undefined
-                  }
-                  placeholder="e.g. 2"
-                  className="py-2 text-sm"
-                  onChange={(event) => {
-                    setWidthRaw(event.target.value);
-                    setWidthError(undefined);
-                  }}
-                />
-                {widthError ? (
-                  <p
-                    id="collect-width-error"
-                    className="mt-1 text-[11px] font-semibold text-[#b33232]"
-                    role="alert"
-                  >
-                    {widthError}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <label
-                  htmlFor="collect-length"
-                  className="mb-1 block text-[11px] font-bold text-navy"
-                >
-                  Length (m)
-                </label>
-                <Input
-                  id="collect-length"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={lengthRaw}
-                  disabled={busy}
-                  aria-invalid={Boolean(lengthError)}
-                  aria-describedby={
-                    lengthError ? "collect-length-error" : undefined
-                  }
-                  placeholder="e.g. 3"
-                  className="py-2 text-sm"
-                  onChange={(event) => {
-                    setLengthRaw(event.target.value);
-                    setLengthError(undefined);
-                  }}
-                />
-                {lengthError ? (
-                  <p
-                    id="collect-length-error"
-                    className="mt-1 text-[11px] font-semibold text-[#b33232]"
-                    role="alert"
-                  >
-                    {lengthError}
-                  </p>
-                ) : null}
-              </div>
-            </div>
           </div>
         ) : null}
 

@@ -150,29 +150,20 @@ export function parseOptionalCollectDimensions(
   };
 }
 
-function readMeter(
-  value: unknown,
-  label: string
-): { ok: true; value: number } | { ok: false; error: string } {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return {
-      ok: false,
-      error: `Enter a valid ${label.toLowerCase()} in metres.`,
-    };
-  }
-  const err = validateDimensionMeters(value, label);
-  if (err) return { ok: false, error: err };
-  return { ok: true, value };
-}
-
 function dimensionWasSent(provided: boolean, value: unknown): boolean {
   if (!provided) return false;
   return value !== null && value !== "";
 }
 
+/** Driver may correct metres only while the pickup is still scheduled. */
+export function canTechnicianEditSize(status: BookingStatus): boolean {
+  return status === "SCHEDULED";
+}
+
 /**
  * Technician PATCH: own job only, and only the van transition list.
- * Optional width/length are stored only when collecting a rug that has no size yet.
+ * Width and length are not accepted here. The driver corrects size on the
+ * scheduled job, then the size locks once the rug is collected.
  * Admins are not gated here — depot moves stay on the admin status control.
  */
 export function technicianFieldUpdate(input: {
@@ -218,41 +209,13 @@ export function technicianFieldUpdate(input: {
   const widthSent = dimensionWasSent(input.widthProvided, input.widthM);
   const lengthSent = dimensionWasSent(input.lengthProvided, input.lengthM);
 
-  if (!widthSent && !lengthSent) {
-    return { ok: true, set };
-  }
-
-  if (input.to !== "COLLECTED") {
+  if (widthSent || lengthSent) {
     return {
       ok: false,
       status: 400,
-      error: "Size can only be saved when marking the rug collected.",
+      error: "Correct the size on the job before you mark it collected.",
     };
   }
 
-  if (!bothDimensionsEmpty(input.existingWidth, input.existingLength)) {
-    return {
-      ok: false,
-      status: 400,
-      error: "This rug already has a size.",
-    };
-  }
-
-  if (!widthSent || !lengthSent) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Enter both width and length, or leave both blank.",
-    };
-  }
-
-  const width = readMeter(input.widthM, "Width");
-  if (!width.ok) return { ok: false, status: 400, error: width.error };
-  const length = readMeter(input.lengthM, "Length");
-  if (!length.ok) return { ok: false, status: 400, error: length.error };
-
-  set["rug.widthM"] = width.value;
-  set["rug.lengthM"] = length.value;
-  set["rug.areaSqM"] = rugAreaSqM(width.value, length.value);
   return { ok: true, set };
 }
