@@ -7,36 +7,36 @@ type Client = {
 };
 
 const clients: Client[] = [
-  { 
-    name: "Radisson Hotels", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/1-radisson-logo.jpg", 
-    alt: "Radisson Hotels" 
+  {
+    name: "Radisson Hotels",
+    src: "/images/trust-radisson.jpg",
+    alt: "Radisson Hotels",
   },
-  { 
-    name: "Torga Optical", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/2-torga-logo.jpg", 
-    alt: "Torga Optical" 
+  {
+    name: "Torga Optical",
+    src: "/images/trust-torga.jpg",
+    alt: "Torga Optical",
   },
-  { 
-    name: "Sefar", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/3-sefar-logo.jpg", 
-    alt: "Sefar" 
+  {
+    name: "Sefar",
+    src: "/images/trust-sefar.jpg",
+    alt: "Sefar",
   },
-  { 
-    name: "Ukko", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/4-ukko-logo.jpg",
-    alt: "Ukko" 
+  {
+    name: "Ukko",
+    src: "/images/trust-ukko.jpg",
+    alt: "Ukko",
   },
-  { 
-    name: "Jonsson Workwear", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2023/03/jonsson-workwear-logo.jpg", 
-    alt: "Jonsson Workwear" 
+  {
+    name: "Jonsson Workwear",
+    src: "/images/trust-jonsson-workwear.jpg",
+    alt: "Jonsson Workwear",
   },
-  { 
-    name: "Skye College", 
-    src: "https://www.sparkandclean.co.za/wp-content/uploads/2022/04/5-skye-college-logo.jpg", 
-    alt: "Skye College"
-  }
+  {
+    name: "Skye College",
+    src: "/images/trust-skye-college.jpg",
+    alt: "Skye College",
+  },
 ];
 
 export function TrustSection() {

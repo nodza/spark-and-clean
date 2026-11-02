@@ -93,7 +93,7 @@ export function Header() {
         <Link href="/" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://www.sparkandclean.co.za/wp-content/uploads/2017/10/spark-and-clean-22.png"
+            src="/images/logo-spark-and-clean.png"
             alt="Spark & Clean"
             className="h-10 w-auto"
           />
