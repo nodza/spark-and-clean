@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bothDimensionsEmpty,
+  canTechnicianEditSize,
   formatRugSizeLabel,
   hasRugTagCode,
   isAllowedVanTransition,
@@ -103,7 +104,7 @@ describe("van status transitions", () => {
 });
 
 describe("collect dimensions", () => {
-  it("saves 2 × 3 m as 6 m²", () => {
+  it("formats 2 × 3 m as 6 m² and refuses to save size on collect", () => {
     const parsed = parseOptionalCollectDimensions("2", "3");
     expect(parsed).toEqual({
       ok: true,
@@ -117,17 +118,16 @@ describe("collect dimensions", () => {
       lengthM: 3,
     });
     expect(result).toEqual({
-      ok: true,
-      set: {
-        status: "COLLECTED",
-        "rug.widthM": 2,
-        "rug.lengthM": 3,
-        "rug.areaSqM": 6,
-      },
+      ok: false,
+      status: 400,
+      error: "Correct the size on the job before you mark it collected.",
     });
     expect(formatRugSizeLabel({ widthM: 2, lengthM: 3, areaSqM: 6 })).toBe(
       "2m × 3m (6 m²)"
     );
+    expect(canTechnicianEditSize("SCHEDULED")).toBe(true);
+    expect(canTechnicianEditSize("COLLECTED")).toBe(false);
+    expect(canTechnicianEditSize("BOOKED")).toBe(false);
   });
 
   it("skips size when both fields are blank", () => {

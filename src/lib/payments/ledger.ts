@@ -187,6 +187,7 @@ async function applyLedgerToBooking(
     const seenPaid = resolveAmountPaidCents(snapshot);
     const amountPaidCents = await sumSucceededPaidCents(bookingId);
     const paymentStatus = derivePaymentStatus(amountPaidCents, amountDueCents);
+    const refundRequired = amountPaidCents > amountDueCents;
     const billing: BookingBilling = {
       currency: LEDGER_CURRENCY,
       amountDueCents,
@@ -204,7 +205,7 @@ async function applyLedgerToBooking(
 
     const updated = await Booking.updateOne(
       { id: bookingId, $or: paidStillUnchanged },
-      { $set: { billing, paymentStatus } }
+      { $set: { billing, paymentStatus, refundRequired } }
     );
 
     if (updated.matchedCount > 0) {

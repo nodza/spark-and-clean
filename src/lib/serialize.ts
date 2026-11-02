@@ -26,6 +26,13 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
       loyaltyPunchedAt: punchedAt.toISOString(),
     };
   }
+  const measuredAt = booking.measuredQuote?.measuredAt as unknown;
+  if (measuredAt instanceof Date && booking.measuredQuote) {
+    booking.measuredQuote = {
+      ...booking.measuredQuote,
+      measuredAt: measuredAt.toISOString(),
+    };
+  }
   if (updatedAt instanceof Date) {
     booking.updatedAt = updatedAt.toISOString();
   } else if (typeof updatedAt === "string") {
