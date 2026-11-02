@@ -26,6 +26,13 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
       loyaltyPunchedAt: punchedAt.toISOString(),
     };
   }
+  const measuredAt = booking.measuredQuote?.measuredAt as unknown;
+  if (measuredAt instanceof Date && booking.measuredQuote) {
+    booking.measuredQuote = {
+      ...booking.measuredQuote,
+      measuredAt: measuredAt.toISOString(),
+    };
+  }
   if (updatedAt instanceof Date) {
     booking.updatedAt = updatedAt.toISOString();
   } else if (typeof updatedAt === "string") {
@@ -41,6 +48,18 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   }
   if (!booking.assignedDriverId) {
     delete booking.assignedDriverId;
+  }
+  if (!booking.deliveryDriverId) {
+    delete booking.deliveryDriverId;
+  }
+  if (!booking.deliveryDate) {
+    delete booking.deliveryDate;
+  }
+  if (
+    booking.deliverySlot !== "MORNING" &&
+    booking.deliverySlot !== "AFTERNOON"
+  ) {
+    delete booking.deliverySlot;
   }
   return booking;
 }

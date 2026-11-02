@@ -18,9 +18,17 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
+import {
+  effectiveDeliveryDriverId,
+  hasDeliverySchedule,
+  isDeliveryStop,
+  sanitizeDeliverySchedulePatch,
+  technicianOwnsJob,
+} from "@/lib/deliverySchedule";
 import { listDayVehiclesForDriver } from "@/lib/vehicleDay";
 import { vehiclesByDriverId } from "@/lib/vehicleStore";
 import type { Booking as ClientBooking } from "@/types/booking";
@@ -67,19 +75,26 @@ function canSeeJobVehicles(
   return session?.role === "admin" && session.adminTier === "full";
 }
 
-/** Day-log bakkies for the collection date, else standing register — display only. */
+/** Day-log bakkies for the active stop date, else standing register — display only. */
 async function withJobVehicles(
   booking: ClientBooking,
   session: Awaited<ReturnType<typeof getSession>>
 ): Promise<ClientBooking> {
   if (!canSeeJobVehicles(session)) return booking;
-  const driverId = booking.assignedDriverId?.trim();
+  const deliveryLeg =
+    isDeliveryStop(booking.status) && hasDeliverySchedule(booking);
+  const driverId = deliveryLeg
+    ? effectiveDeliveryDriverId(booking)
+    : booking.assignedDriverId?.trim();
   if (!driverId) {
     return { ...booking, dayVehicles: [], standingVehicle: null };
   }
+  const serviceDate = deliveryLeg
+    ? booking.deliveryDate
+    : booking.collectionDate;
   try {
     const [dayVehicles, standingMap] = await Promise.all([
-      listDayVehiclesForDriver(driverId, booking.collectionDate),
+      listDayVehiclesForDriver(driverId, serviceDate),
       vehiclesByDriverId([driverId]),
     ]);
     return {
@@ -120,10 +135,7 @@ export async function GET(_request: Request, { params }: Params) {
     }
 
     if (session?.role === "technician") {
-      if (
-        !session.driverProfileId ||
-        booking.assignedDriverId !== session.driverProfileId
-      ) {
+      if (!technicianOwnsJob(booking, session.driverProfileId)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
@@ -155,14 +167,17 @@ export async function GET(_request: Request, { params }: Params) {
 }
 
 /**
- * Persist status / paymentStatus / assignedDriverId (null / omit via $unset).
+ * Persist status / paymentStatus / assignedDriverId / delivery schedule
+ * (null / omit via $unset).
  *
  * Assign rule: first assign from BOOKED may set SCHEDULED; later statuses keep
- * their status. Full admin for depot moves. Technicians may only
- * (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on their own job,
- * may save width/length when collecting a rug that has no size yet, and
- * cannot collect until a rug tag is attached. A full admin can mark
- * collected without a tag.
+ * their status. Full admin for depot moves and delivery scheduling.
+ * Technicians may only (BOOKED|SCHEDULED) → COLLECTED or READY → DELIVERED on
+ * their own job, and cannot collect until a rug tag is attached. They correct
+ * width and length on the scheduled job (that save reprices the booking). Once
+ * the rug is collected, a technician cannot change the size. Technicians cannot
+ * send a price. A full admin can mark collected without a tag. Later size
+ * corrections go through the admin measurement route.
  */
 export async function PATCH(request: Request, { params }: Params) {
   try {
@@ -180,8 +195,12 @@ export async function PATCH(request: Request, { params }: Params) {
       body,
       "assignedDriverId"
     );
+    const wantsDelivery =
+      Object.prototype.hasOwnProperty.call(body, "deliveryDate") ||
+      Object.prototype.hasOwnProperty.call(body, "deliverySlot") ||
+      Object.prototype.hasOwnProperty.call(body, "deliveryDriverId");
 
-    if (!wantsStatus && !wantsPayment && !wantsAssign) {
+    if (!wantsStatus && !wantsPayment && !wantsAssign && !wantsDelivery) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
@@ -190,7 +209,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if (session.role === "technician") {
-      if (wantsPayment || wantsAssign) {
+      if (wantsPayment || wantsAssign || wantsDelivery) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       if (!session.driverProfileId) {
@@ -221,9 +240,28 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const existingClient = toClientBooking(existing as Record<string, unknown>);
     if (session.role === "technician") {
-      if (existing.assignedDriverId !== session.driverProfileId) {
+      if (!technicianOwnsJob(existingClient, session.driverProfileId)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    let deliveryPatch: ReturnType<typeof sanitizeDeliverySchedulePatch> | null =
+      null;
+    if (wantsDelivery) {
+      deliveryPatch = sanitizeDeliverySchedulePatch(body);
+      if (!deliveryPatch.ok) {
+        return NextResponse.json(
+          { error: deliveryPatch.error },
+          { status: 400 }
+        );
+      }
+      if (existingClient.status !== "READY") {
+        return NextResponse.json(
+          { error: "Schedule delivery once the rug is READY." },
+          { status: 409 }
+        );
       }
     }
 
@@ -254,7 +292,12 @@ export async function PATCH(request: Request, { params }: Params) {
       );
       const decision = technicianFieldUpdate({
         driverProfileId: session.driverProfileId,
-        assignedDriverId: existing.assignedDriverId,
+        // Delivery drivers own READY → DELIVERED; collectors own pickups.
+        assignedDriverId:
+          existingClient.status === "READY"
+            ? effectiveDeliveryDriverId(existingClient) ??
+              existing.assignedDriverId
+            : existing.assignedDriverId,
         from: existing.status as BookingStatus,
         to: body.status as BookingStatus,
         existingWidth: existingRug?.widthM,
@@ -317,18 +360,84 @@ export async function PATCH(request: Request, { params }: Params) {
       }
     }
 
-    const update: Record<string, unknown> = {};
-    if (Object.keys($set).length > 0) update.$set = $set;
-    if (Object.keys($unset).length > 0) update.$unset = $unset;
+    if (deliveryPatch?.ok) {
+      const { deliveryDate, deliverySlot, deliveryDriverId } = deliveryPatch.patch;
+      $set.deliveryDate = deliveryDate;
+      $set.deliverySlot = deliverySlot;
 
-    if (Object.keys(update).length === 0) {
-      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+      if (deliveryDriverId === null) {
+        // Fall back to collecting driver when admin clears the field.
+        const collecting = existingClient.assignedDriverId?.trim();
+        if (collecting) {
+          $set.deliveryDriverId = collecting;
+        } else {
+          $unset.deliveryDriverId = "";
+        }
+      } else {
+        const [driver, tech] = await Promise.all([
+          Driver.findOne({ id: deliveryDriverId })
+            .select({ id: 1, isActive: 1 })
+            .lean(),
+          User.findOne({
+            role: "technician",
+            driverProfileId: deliveryDriverId,
+          })
+            .select({ _id: 1, disabledAt: 1, isActive: 1 })
+            .lean(),
+        ]);
+        if (!isAssignableDriverPair(driver, tech)) {
+          return NextResponse.json(
+            { error: "Unknown or inactive delivery driver" },
+            { status: 400 }
+          );
+        }
+        $set.deliveryDriverId = deliveryDriverId;
+      }
+
+      // Default to collecting driver when schedule is set without an explicit id.
+      if (
+        !Object.prototype.hasOwnProperty.call(body, "deliveryDriverId") &&
+        !existingClient.deliveryDriverId
+      ) {
+        const collecting = existingClient.assignedDriverId?.trim();
+        if (collecting) $set.deliveryDriverId = collecting;
+      }
     }
 
-    const doc = await Booking.findOneAndUpdate({ id }, update, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    const measuredWidth = $set["rug.widthM"];
+    const measuredLength = $set["rug.lengthM"];
+    const savingSize =
+      typeof measuredWidth === "number" && typeof measuredLength === "number";
+
+    let doc: Record<string, unknown> | null;
+    if (savingSize) {
+      const committed = await commitMeasuredSize({
+        bookingId: id,
+        widthM: measuredWidth,
+        lengthM: measuredLength,
+        extraSet: $set,
+      });
+      if (!committed.ok) {
+        return NextResponse.json(
+          { error: committed.error },
+          { status: committed.status }
+        );
+      }
+      doc = committed.doc;
+    } else {
+      const update: Record<string, unknown> = {};
+      if (Object.keys($set).length > 0) update.$set = $set;
+      if (Object.keys($unset).length > 0) update.$unset = $unset;
+
+      if (Object.keys(update).length === 0) {
+        return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+      }
+
+      doc = (await Booking.findOneAndUpdate({ id }, update, {
+        new: true,
+        runValidators: true,
+      }).lean()) as Record<string, unknown> | null;
+    }
 
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

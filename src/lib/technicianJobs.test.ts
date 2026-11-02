@@ -20,6 +20,9 @@ function job(
       | "assignedDriverId"
       | "collectionDate"
       | "collectionSlot"
+      | "deliveryDate"
+      | "deliverySlot"
+      | "deliveryDriverId"
       | "status"
       | "updatedAt"
     >
@@ -64,32 +67,56 @@ describe("technician job helpers", () => {
     expect(upcoming).toHaveLength(3);
   });
 
-  it("shows only today's pickups and assigned READY returns", () => {
+  it("shows today's pickups and READY only on the delivery date", () => {
     const jobs = [
       job({ status: "SCHEDULED", collectionSlot: "MORNING" }),
       job({ status: "BOOKED", collectionSlot: "AFTERNOON" }),
       job({
         status: "READY",
-        collectionDate: tomorrowIso,
+        deliveryDate: tomorrowIso,
+        deliverySlot: "AFTERNOON",
         collectionSlot: "AFTERNOON",
+      }),
+      job({
+        status: "READY",
+        deliveryDate: today,
+        deliverySlot: "AFTERNOON",
+        collectionDate: tomorrowIso,
+      }),
+      job({
+        status: "READY",
+        collectionDate: todayIso,
       }),
       job({ status: "CLEANING", collectionDate: todayIso }),
       job({ status: "SCHEDULED", assignedDriverId: "driver_2" }),
       job({ status: "SCHEDULED", collectionDate: laterIso }),
     ];
 
-    expect(technicianTodayStops(jobs, "driver_1", today).map((item) => item.status)).toEqual([
-      "SCHEDULED",
-      "BOOKED",
-      "READY",
-    ]);
+    expect(
+      technicianTodayStops(jobs, "driver_1", today).map((item) => item.status)
+    ).toEqual(["SCHEDULED", "BOOKED", "READY"]);
+  });
+
+  it("puts a READY delivery on tomorrow's list, not today's", () => {
+    const tomorrow = "2026-09-17";
+    const readyTomorrow = job({
+      status: "READY",
+      deliveryDate: tomorrow,
+      deliverySlot: "MORNING",
+    });
+    expect(technicianTodayStops([readyTomorrow], "driver_1", today)).toEqual([]);
+    expect(
+      technicianTodayStops([readyTomorrow], "driver_1", tomorrow).map(
+        (item) => item.status
+      )
+    ).toEqual(["READY"]);
   });
 
   it("puts delivered jobs updated today in Done", () => {
     const jobs = [
       job({ status: "DELIVERED", updatedAt: `${today}T12:00:00.000Z` }),
       job({ status: "DELIVERED", updatedAt: `${tomorrowIso}` }),
-      job({ status: "READY" }),
+      job({ status: "READY", deliveryDate: today, deliverySlot: "MORNING" }),
     ];
 
     expect(technicianDoneToday(jobs, "driver_1", today)).toHaveLength(1);

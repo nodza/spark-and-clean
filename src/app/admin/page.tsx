@@ -17,7 +17,11 @@ import {
   localCalendarDate,
 } from "@/lib/localCalendarDate";
 import { isBookingDeactivated } from "@/lib/adminBookingDetails";
-import { isActionableUnassignedToday, isUnassignedDriver } from "@/lib/bookingAttention";
+import {
+  isActionableUnassignedToday,
+  isReadyNeedingDeliverySchedule,
+  isUnassignedDriver,
+} from "@/lib/bookingAttention";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 import type { Booking, Driver } from "@/types/booking";
 
@@ -167,6 +171,10 @@ export default function AdminDashboard() {
   const unassignedTodayCount = bookings.filter((b) =>
     isActionableUnassignedToday(b, today)
   ).length;
+  const toScheduleDeliveries = bookings.filter((b) =>
+    isReadyNeedingDeliverySchedule(b)
+  );
+  const toScheduleCount = toScheduleDeliveries.length;
   // Include deactivated rows so soft-remove does not rewrite revenue history.
   const revenue = bookings.reduce(
     (acc, b) => acc + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
@@ -206,7 +214,10 @@ export default function AdminDashboard() {
 
   const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
   const hasActionable =
-    unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
+    unpaidCount > 0 ||
+    unassignedTodayCount > 0 ||
+    toScheduleCount > 0 ||
+    opsAlerts.length > 0;
   const bookingsSettled = !(isLoading && bookings.length === 0);
   const attentionReady = !alertsLoading && bookingsSettled;
   const showAttentionLoading =
@@ -492,6 +503,43 @@ export default function AdminDashboard() {
                     >
                       Assign
                     </Link>
+                  </div>
+                ) : null}
+
+                {toScheduleCount > 0 ? (
+                  <div
+                    className="flex items-start gap-[12px] px-[20px] py-[14px]"
+                    style={{ borderBottom: "1px solid #f0f2f6" }}
+                  >
+                    <div
+                      className="mt-[5px] size-[8px] flex-none rounded-full"
+                      style={{ background: "#2c4fa6" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                        {toScheduleCount} ready to schedule
+                      </div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        READY rugs need a delivery date
+                      </div>
+                      <ul className="mt-[8px] flex flex-col gap-[6px]">
+                        {toScheduleDeliveries.slice(0, 5).map((booking) => (
+                          <li key={booking.id}>
+                            <Link
+                              href={`/admin/bookings/${booking.id}`}
+                              className="ds-text-action text-[12.5px]"
+                            >
+                              {booking.id} · {booking.customer.name}
+                            </Link>
+                          </li>
+                        ))}
+                        {toScheduleCount > 5 ? (
+                          <li className="text-meta" style={{ color: "#9aa0a6" }}>
+                            +{toScheduleCount - 5} more
+                          </li>
+                        ) : null}
+                      </ul>
+                    </div>
                   </div>
                 ) : null}
 
