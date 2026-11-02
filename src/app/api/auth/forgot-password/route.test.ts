@@ -5,6 +5,12 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   create: vi.fn(),
   checkRateLimit: vi.fn(),
+  tooManyAttemptsMessage: vi.fn((retryAfterSeconds: number) => {
+    const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+    return `Too many attempts. Try again in ${minutes} ${
+      minutes === 1 ? "minute" : "minutes"
+    }.`;
+  }),
   sendPasswordResetEmail: vi.fn(),
 }));
 
@@ -21,6 +27,8 @@ vi.mock("@/models/PasswordResetToken", () => ({
 vi.mock("@/lib/rateLimit", () => ({
   checkRateLimit: (...args: unknown[]) => mocks.checkRateLimit(...args),
   getClientIp: () => "127.0.0.1",
+  tooManyAttemptsMessage: (retryAfterSeconds: number) =>
+    mocks.tooManyAttemptsMessage(retryAfterSeconds),
 }));
 vi.mock("@/lib/mail", () => ({
   getAppBaseUrl: () => "http://localhost:3000",
@@ -58,18 +66,38 @@ beforeEach(() => {
 });
 
 describe("POST /api/auth/forgot-password", () => {
-  it("returns an identical public response for capped and uncapped email keys", async () => {
+  it("returns a visible rate-limit error with the retry delay", async () => {
     mocks.checkRateLimit.mockImplementation(async (key: string) => ({
       allowed: !key.endsWith("known@example.com"),
       retryAfterSeconds: key.endsWith("known@example.com") ? 120 : 0,
     }));
 
     const capped = await POST(request("known@example.com"));
-    const uncapped = await POST(request("unknown@example.com"));
 
-    expect(capped.status).toBe(200);
-    expect(uncapped.status).toBe(200);
-    expect(await capped.json()).toEqual(await uncapped.json());
+    expect(capped.status).toBe(429);
+    expect(capped.headers.get("Retry-After")).toBe("120");
+    expect(await capped.json()).toEqual({
+      error: "Too many attempts. Try again in 2 minutes.",
+    });
     expect(mocks.findOne).not.toHaveBeenCalled();
+  });
+
+  it("uses the same success response for known and unknown emails", async () => {
+    mocks.findOne.mockReturnValue({
+      lean: async () => ({ _id: "507f1f77bcf86cd799439011" }),
+    });
+
+    const known = await POST(request("known@example.com"));
+    mocks.findOne.mockReturnValue({ lean: async () => null });
+    const unknown = await POST(request("unknown@example.com"));
+
+    expect(known.status).toBe(200);
+    expect(unknown.status).toBe(200);
+    const knownBody = await known.json();
+    const unknownBody = await unknown.json();
+    expect(knownBody).toEqual(unknownBody);
+    expect(unknownBody).toEqual({
+      message: "If an account exists for that email, we've sent a reset link.",
+    });
   });
 });

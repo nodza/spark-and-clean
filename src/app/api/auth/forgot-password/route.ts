@@ -10,7 +10,11 @@ import {
   hashResetToken,
 } from "@/lib/passwordReset";
 import { getAppBaseUrl, sendPasswordResetEmail } from "@/lib/mail";
-import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import {
+  checkRateLimit,
+  getClientIp,
+  tooManyAttemptsMessage,
+} from "@/lib/rateLimit";
 
 const PUBLIC_BODY = { message: FORGOT_PASSWORD_PUBLIC_MESSAGE };
 const FORGOT_PASSWORD_LIMIT = 3;
@@ -48,7 +52,14 @@ export async function POST(request: Request) {
     const limited = limits.find((result) => !result.allowed);
     if (limited) {
       await padTiming(started);
-      return NextResponse.json(PUBLIC_BODY);
+      const retryAfterSeconds = Math.max(1, limited.retryAfterSeconds);
+      return NextResponse.json(
+        { error: tooManyAttemptsMessage(retryAfterSeconds) },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfterSeconds) },
+        }
+      );
     }
 
     if (email && email.includes("@")) {

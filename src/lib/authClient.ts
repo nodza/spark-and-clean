@@ -187,8 +187,7 @@ export async function requestPasswordReset(
     };
   } catch {
     return {
-      message:
-        "If an account exists for that email, we've sent a reset link.",
+      error: "Could not process your request. Please try again later.",
     };
   }
 }
