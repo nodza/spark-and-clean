@@ -11,12 +11,18 @@ import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
 import {
+  effectiveDeliveryDriverId,
+  hasDeliverySchedule,
+} from "@/lib/deliverySchedule";
+import {
   bookingCalendarDate,
   formatBookingCollection,
+  localCalendarDate,
 } from "@/lib/localCalendarDate";
 import type { ClientVehicleDayUse } from "@/lib/vehicleDay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -213,6 +219,7 @@ export default function AdminBookingDetail() {
     updateBookingStatus,
     updatePaymentStatus,
     assignDriver,
+    scheduleDelivery,
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
 
@@ -240,6 +247,11 @@ export default function AdminBookingDetail() {
   const [dayVehicles, setDayVehicles] = useState<
     { label: string; plate: string }[]
   >([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliverySlot, setDeliverySlot] = useState<"MORNING" | "AFTERNOON">(
+    "MORNING"
+  );
+  const [deliveryDriverId, setDeliveryDriverId] = useState("unassigned");
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -346,10 +358,41 @@ export default function AdminBookingDetail() {
     : null;
 
   useEffect(() => {
-    const driverId = booking?.assignedDriverId?.trim();
-    const day = booking?.collectionDate
-      ? bookingCalendarDate(booking.collectionDate)
-      : null;
+    if (!booking) return;
+    if (hasDeliverySchedule(booking)) {
+      setDeliveryDate(bookingCalendarDate(booking.deliveryDate!) ?? "");
+      setDeliverySlot(
+        booking.deliverySlot === "AFTERNOON" ? "AFTERNOON" : "MORNING"
+      );
+      setDeliveryDriverId(effectiveDeliveryDriverId(booking) || "unassigned");
+      return;
+    }
+    setDeliveryDate(localCalendarDate());
+    setDeliverySlot("MORNING");
+    setDeliveryDriverId(booking.assignedDriverId || "unassigned");
+  }, [
+    booking?.id,
+    booking?.deliveryDate,
+    booking?.deliverySlot,
+    booking?.deliveryDriverId,
+    booking?.assignedDriverId,
+    booking?.status,
+  ]);
+
+  useEffect(() => {
+    if (!booking) {
+      setDayVehicles([]);
+      return;
+    }
+    const deliveryLeg =
+      booking.status === "READY" && hasDeliverySchedule(booking);
+    const driverId = deliveryLeg
+      ? effectiveDeliveryDriverId(booking)
+      : booking.assignedDriverId?.trim();
+    const dayRaw = deliveryLeg
+      ? booking.deliveryDate
+      : booking.collectionDate;
+    const day = dayRaw ? bookingCalendarDate(dayRaw) : null;
     if (!driverId || !day) {
       setDayVehicles([]);
       return;
@@ -389,8 +432,12 @@ export default function AdminBookingDetail() {
       cancelled = true;
     };
   }, [
+    booking,
     booking?.assignedDriverId,
     booking?.collectionDate,
+    booking?.deliveryDate,
+    booking?.deliveryDriverId,
+    booking?.status,
     dayVehiclesFromPayload,
     dayVehiclesKey,
   ]);
@@ -464,6 +511,33 @@ export default function AdminBookingDetail() {
         val === "unassigned" ? null : val
       );
       if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleScheduleDelivery = async () => {
+    if (!booking || saving) return;
+    if (!deliveryDate) {
+      toast.error("Enter a delivery date");
+      return;
+    }
+    if (
+      deliveryDriverId !== "unassigned" &&
+      !drivers.some((driver) => driver.id === deliveryDriverId)
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const error = await scheduleDelivery(booking.id, {
+        deliveryDate,
+        deliverySlot,
+        deliveryDriverId:
+          deliveryDriverId === "unassigned" ? null : deliveryDriverId,
+      });
+      if (error) toast.error(error);
+      else toast.success("Delivery scheduled");
     } finally {
       setSaving(false);
     }
@@ -871,6 +945,120 @@ export default function AdminBookingDetail() {
                     </Button>
                   ) : null}
                 </div>
+
+                {booking.status === "READY" ||
+                booking.status === "DELIVERED" ||
+                hasDeliverySchedule(booking) ? (
+                  <div className="ds-card">
+                    <div className="text-card-title" style={{ color: "#000b49" }}>
+                      Delivery
+                    </div>
+                    <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+                      {hasDeliverySchedule(booking)
+                        ? "Return window for the customer and the driver’s Today list."
+                        : "Set a date and slot so this READY job leaves the to-schedule list and appears on the driver’s Today list."}
+                    </p>
+                    {booking.status === "READY" ? (
+                      <div className="mt-[14px] space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="delivery-date">Delivery date</Label>
+                          <Input
+                            id="delivery-date"
+                            type="date"
+                            value={deliveryDate}
+                            disabled={saving}
+                            onChange={(event) =>
+                              setDeliveryDate(event.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Time slot</Label>
+                          <Select
+                            value={deliverySlot}
+                            disabled={saving}
+                            onValueChange={(val) =>
+                              setDeliverySlot(
+                                val === "AFTERNOON" ? "AFTERNOON" : "MORNING"
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MORNING">Morning</SelectItem>
+                              <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Delivery driver</Label>
+                          <Select
+                            value={deliveryDriverId}
+                            disabled={saving}
+                            onValueChange={setDeliveryDriverId}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Collecting driver" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72 overflow-y-auto">
+                              <SelectItem value="unassigned">
+                                Collecting driver
+                                {booking.assignedDriverId && assigned
+                                  ? ` (${assigned.name})`
+                                  : ""}
+                              </SelectItem>
+                              {drivers.map((driver) => (
+                                <SelectItem key={driver.id} value={driver.id}>
+                                  {driver.name}
+                                  {driver.vehicle ? ` (${driver.vehicle})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          className="w-full"
+                          disabled={saving || !deliveryDate}
+                          onClick={() => void handleScheduleDelivery()}
+                        >
+                          {saving
+                            ? "Saving…"
+                            : hasDeliverySchedule(booking)
+                              ? "Update delivery"
+                              : "Schedule delivery"}
+                        </Button>
+                      </div>
+                    ) : hasDeliverySchedule(booking) ? (
+                      <div className="mt-[14px] grid grid-cols-1 gap-[10px]">
+                        <div>
+                          <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                            DELIVERY DATE
+                          </div>
+                          <p
+                            className="text-body mt-[4px]"
+                            style={{ color: "#32373c" }}
+                          >
+                            {formatCollectionLong(booking.deliveryDate!)}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                            TIME SLOT
+                          </div>
+                          <p
+                            className="text-body mt-[4px]"
+                            style={{ color: "#32373c" }}
+                          >
+                            {booking.deliverySlot}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="ds-card">
                   <div

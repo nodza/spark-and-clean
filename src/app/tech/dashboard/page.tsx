@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
 import { localCalendarDate } from "@/lib/localCalendarDate";
+import { jobStopDate, jobStopSlot } from "@/lib/deliverySchedule";
 import {
   technicianDoneToday,
   technicianTodayStops,
@@ -44,8 +45,8 @@ export default function TechDashboardPage() {
   const { morning, afternoon, done, upcoming } = useMemo(() => {
     const stops = technicianTodayStops(bookings, driverId, todaySa);
     return {
-      morning: stops.filter((job) => job.collectionSlot === "MORNING"),
-      afternoon: stops.filter((job) => job.collectionSlot === "AFTERNOON"),
+      morning: stops.filter((job) => jobStopSlot(job) === "MORNING"),
+      afternoon: stops.filter((job) => jobStopSlot(job) === "AFTERNOON"),
       done: technicianDoneToday(bookings, driverId, todaySa),
       upcoming: technicianUpcomingJobs(bookings, driverId, todaySa),
     };
@@ -256,19 +257,21 @@ function JobList({
                   {showCollectionDate ? (
                     <>
                       <div className="text-[11px] font-extrabold leading-tight text-navy">
-                        {formatUpcomingDate(job.collectionDate)}
+                        {formatUpcomingDate(
+                          jobStopDate(job) ?? job.collectionDate
+                        )}
                       </div>
                       <div className="mt-0.5 text-[11px] text-[#9aa0a6]">
-                        {slotTimeLabel(job.collectionSlot)}
+                        {slotTimeLabel(jobStopSlot(job))}
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="text-sm font-extrabold text-navy">
-                        {slotTimeLabel(job.collectionSlot)}
+                        {slotTimeLabel(jobStopSlot(job))}
                       </div>
                       <div className="mt-0.5 text-[11px] text-[#9aa0a6]">
-                        {slotWindowLabel(job.collectionSlot)}
+                        {slotWindowLabel(jobStopSlot(job))}
                       </div>
                     </>
                   )}

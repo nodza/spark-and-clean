@@ -133,6 +133,14 @@ const BookingSchema = new Schema(
       enum: ["MORNING", "AFTERNOON"],
       required: true,
     },
+    /** Return day once READY — optional until ops schedules delivery. */
+    deliveryDate: { type: String, trim: true },
+    deliverySlot: {
+      type: String,
+      enum: ["MORNING", "AFTERNOON"],
+    },
+    /** Return driver; when omitted, assignedDriverId is used. */
+    deliveryDriverId: { type: String, trim: true, index: true, sparse: true },
     rug: { type: RugSchema, required: true },
     addOns: { type: AddOnsSchema, default: () => ({}) },
     estimatedPriceMin: { type: Number, required: true },
@@ -174,6 +182,7 @@ const BookingSchema = new Schema(
 
 BookingSchema.index({ "customer.email": 1, status: 1 });
 BookingSchema.index({ "rug.tagCode": 1 }, { sparse: true });
+BookingSchema.index({ status: 1, deliveryDate: 1 });
 
 export type BookingDocument = InferSchemaType<typeof BookingSchema> & {
   _id: Schema.Types.ObjectId;

@@ -16,6 +16,7 @@ import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
+import { jobStopDate, jobStopSlot } from "@/lib/deliverySchedule";
 import {
   bookingAddOnLabels,
   formatBadgeDate,
@@ -572,8 +573,12 @@ function JobContent({
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               <span className="text-[11px] font-bold tabular-nums text-[#6b7280]">
-                <span className="sr-only">Collection date </span>
-                {formatBadgeDate(booking.collectionDate)}
+                <span className="sr-only">
+                  {booking.status === "READY" ? "Delivery date " : "Collection date "}
+                </span>
+                {formatBadgeDate(
+                  jobStopDate(booking) ?? booking.collectionDate
+                )}
               </span>
               <span
                 className={cn(
@@ -582,8 +587,8 @@ function JobContent({
                 )}
               >
                 <span className="sr-only">Slot </span>
-                {slotWindowLabel(booking.collectionSlot)} ·{" "}
-                {slotTimeLabel(booking.collectionSlot)}
+                {slotWindowLabel(jobStopSlot(booking))} ·{" "}
+                {slotTimeLabel(jobStopSlot(booking))}
               </span>
               <span
                 className={cn(
