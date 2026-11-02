@@ -6,6 +6,8 @@ Applies to **client**, **technician**, and **admin** accounts (one shared flow).
 
 1. `/forgot-password` (also linked from `/login` and `/tech` via **Forgot?**)
 2. User submits email → always sees the same message (no email enumeration)
+   - After 3 requests per email or IP within an hour, the page displays a
+     retry-after message instead of the success confirmation.
 3. If an active account exists: single-use token (hashed in DB), **60 minute** TTL, email link to `/reset-password?token=…`
 4. User sets new password (min 8 characters, matches Auth.dc.html signup) + confirm
 5. On success: password hash updated, token marked used, prior sessions invalidated, new session issued; role unchanged
