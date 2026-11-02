@@ -50,7 +50,7 @@ import {
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
-import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { bookingAddOnLabels, isDisplayablePhotoUrl, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import {
   formatAssignedDriverLine,
   resolveJobVehicles,
@@ -95,6 +95,35 @@ type DriverOption = {
 
 function addOnLabels(booking: Booking): string[] {
   return bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
+}
+
+function RugPhotoCard({
+  title,
+  photos,
+}: {
+  title: string;
+  photos?: string[];
+}) {
+  const visible = (photos ?? []).filter(isDisplayablePhotoUrl);
+  if (visible.length === 0) return null;
+  return (
+    <div className="ds-card">
+      <div className="text-card-title" style={{ color: "#000b49" }}>
+        {title}
+      </div>
+      <div className="mt-[14px] grid grid-cols-3 gap-[10px]">
+        {visible.map((photo, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`${photo}-${i}`}
+            src={photo}
+            alt={`${title} ${i + 1}`}
+            className="h-28 w-full rounded-[10px] border border-[#f0f2f6] object-cover"
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function formatCollectionLong(value: string) {
@@ -654,24 +683,8 @@ export default function AdminBookingDetail() {
                   ) : null}
                 </div>
 
-                {booking.rug.photos && booking.rug.photos.length > 0 && (
-                  <div className="ds-card">
-                    <div className="text-card-title" style={{ color: "#000b49" }}>
-                      Photos
-                    </div>
-                    <div className="mt-[14px] grid grid-cols-3 gap-[10px]">
-                      {booking.rug.photos.map((photo, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={`${photo}-${i}`}
-                          src={photo}
-                          alt={`Rug photo ${i + 1}`}
-                          className="rounded-[10px] border border-[#f0f2f6]"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <RugPhotoCard title="Condition photos" photos={booking.rug.photos} />
+                <RugPhotoCard title="Label photos" photos={booking.rug.labelPhotos} />
 
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>

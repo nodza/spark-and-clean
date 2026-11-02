@@ -8,6 +8,7 @@ import { toClientBooking } from "@/lib/serialize";
 import { isVanCollectStatus } from "@/lib/fieldStatus";
 import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
 import { getSession } from "@/lib/session";
+import { presentPhotoList } from "@/lib/s3RugPhotos";
 import type { BookingStatus } from "@/types/booking";
 
 const LOOKUP_FIELDS = { id: 1, customer: 1, rug: 1, status: 1 } as const;
@@ -57,15 +58,16 @@ export async function GET(request: Request) {
     if (ordered.length === 0) return NextResponse.json({ results: [] });
 
     const assetPhotos = asset?.photoUrls ?? [];
-    return NextResponse.json({
-      results: ordered.map((booking, index) => {
-        const thumbnails = [
+    const results = await Promise.all(
+      ordered.map(async (booking, index) => {
+        const stored = [
           ...(index === 0 ? assetPhotos : []),
           ...(booking.rug?.photos ?? []),
         ].filter(
           (photo, photoIndex, photos) =>
             Boolean(photo) && photos.indexOf(photo) === photoIndex
         );
+        const thumbnails = await presentPhotoList(stored);
         return {
           tagCode,
           customer: booking.customer?.name ?? "",
@@ -74,8 +76,9 @@ export async function GET(request: Request) {
           thumbnails,
           isCurrent: Boolean(current && booking.id === current.id),
         };
-      }),
-    });
+      })
+    );
+    return NextResponse.json({ results });
   } catch (err) {
     if (isHttpError(err)) {
       return NextResponse.json({ error: err.message }, { status: err.status });
