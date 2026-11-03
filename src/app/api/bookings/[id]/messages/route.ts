@@ -119,7 +119,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const { id } = await params;
 
-    const rate = checkRateLimit(
+    const rate = await checkRateLimit(
       `field-msg:${session.id}:${id}`,
       30,
       60 * 1000

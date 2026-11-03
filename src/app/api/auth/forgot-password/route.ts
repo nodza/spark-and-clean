@@ -10,8 +10,15 @@ import {
   hashResetToken,
 } from "@/lib/passwordReset";
 import { getAppBaseUrl, sendPasswordResetEmail } from "@/lib/mail";
+import {
+  checkRateLimit,
+  getClientIp,
+  tooManyAttemptsMessage,
+} from "@/lib/rateLimit";
 
 const PUBLIC_BODY = { message: FORGOT_PASSWORD_PUBLIC_MESSAGE };
+const FORGOT_PASSWORD_LIMIT = 3;
+const FORGOT_PASSWORD_WINDOW_MS = 60 * 60 * 1000;
 
 /**
  * Always returns the same public message (known vs unknown / disabled emails).
@@ -25,6 +32,35 @@ export async function POST(request: Request) {
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
+    const ip = getClientIp(request);
+    const limits = await Promise.all([
+      checkRateLimit(
+        `auth-forgot-password:ip:${ip}`,
+        FORGOT_PASSWORD_LIMIT,
+        FORGOT_PASSWORD_WINDOW_MS
+      ),
+      ...(email && email.includes("@")
+        ? [
+            checkRateLimit(
+              `auth-forgot-password:email:${email}`,
+              FORGOT_PASSWORD_LIMIT,
+              FORGOT_PASSWORD_WINDOW_MS
+            ),
+          ]
+        : []),
+    ]);
+    const limited = limits.find((result) => !result.allowed);
+    if (limited) {
+      await padTiming(started);
+      const retryAfterSeconds = Math.max(1, limited.retryAfterSeconds);
+      return NextResponse.json(
+        { error: tooManyAttemptsMessage(retryAfterSeconds) },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfterSeconds) },
+        }
+      );
+    }
 
     if (email && email.includes("@")) {
       await connectDB();
@@ -84,7 +120,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[api/auth/forgot-password]", err);
     await padTiming(started);
-    return NextResponse.json(PUBLIC_BODY);
+    return NextResponse.json(PUBLIC_BODY, { status: 503 });
   }
 }
 

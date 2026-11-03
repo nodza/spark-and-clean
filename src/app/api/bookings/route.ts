@@ -39,7 +39,14 @@ export async function GET() {
       if (!session.driverProfileId) {
         return NextResponse.json([]);
       }
-      filter.assignedDriverId = session.driverProfileId;
+      // Include READY returns where this tech is the delivery driver only.
+      filter.$or = [
+        { assignedDriverId: session.driverProfileId },
+        {
+          status: "READY",
+          deliveryDriverId: session.driverProfileId,
+        },
+      ];
     } else if (session.role === "admin") {
       if (session.mustChangePassword) {
         return NextResponse.json(

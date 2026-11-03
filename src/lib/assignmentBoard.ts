@@ -1,15 +1,25 @@
 import { ASSIGNMENT_SLOT_CAPACITY } from "@/config/assignmentBoard";
 import { isUnassignedDriver } from "@/lib/bookingAttention";
+import {
+  effectiveDeliveryDriverId,
+  hasDeliverySchedule,
+  isDeliveryStop,
+} from "@/lib/deliverySchedule";
 import { isBookingOnJohannesburgDay } from "@/lib/johannesburgDate";
 import type { Booking, BookingStatus } from "@/types/booking";
 
-export const ASSIGNMENT_BOARD_STATUSES: BookingStatus[] = [
+export const ASSIGNMENT_BOARD_COLLECTION_STATUSES: BookingStatus[] = [
   "BOOKED",
   "SCHEDULED",
 ];
 
+/** @deprecated Use ASSIGNMENT_BOARD_COLLECTION_STATUSES */
+export const ASSIGNMENT_BOARD_STATUSES = ASSIGNMENT_BOARD_COLLECTION_STATUSES;
+
 export const ASSIGNMENT_SLOTS = ["MORNING", "AFTERNOON"] as const;
 export type AssignmentSlot = (typeof ASSIGNMENT_SLOTS)[number];
+
+export type AssignmentStopKind = "collection" | "delivery";
 
 export type AssignmentBoardDriver = {
   id: string;
@@ -27,7 +37,14 @@ export type AssignmentBoardJob = Pick<
   | "assignedDriverId"
   | "collectionDate"
   | "collectionSlot"
->;
+  | "deliveryDate"
+  | "deliverySlot"
+  | "deliveryDriverId"
+> & {
+  stopKind: AssignmentStopKind;
+  boardSlot: AssignmentSlot;
+  boardDriverId?: string;
+};
 
 export type AssignmentBoardColumn = {
   key: string;
@@ -40,7 +57,7 @@ export type AssignmentBoardColumn = {
 export function isAssignmentBoardStatus(
   status: BookingStatus
 ): status is "BOOKED" | "SCHEDULED" {
-  return ASSIGNMENT_BOARD_STATUSES.includes(status);
+  return ASSIGNMENT_BOARD_COLLECTION_STATUSES.includes(status);
 }
 
 export function customerSurname(name: string): string {
@@ -48,14 +65,81 @@ export function customerSurname(name: string): string {
   return parts[parts.length - 1] || name.trim();
 }
 
-export function collectionsForAssignmentDay<T extends AssignmentBoardJob>(
-  bookings: T[],
-  day: string
-): T[] {
-  return bookings.filter(
-    (booking) =>
+function asBoardSlot(slot: string | undefined): AssignmentSlot {
+  return slot === "AFTERNOON" ? "AFTERNOON" : "MORNING";
+}
+
+/**
+ * Collections on the day plus READY deliveries scheduled for the day.
+ */
+export function jobsForAssignmentDay<
+  T extends Pick<
+    Booking,
+    | "id"
+    | "suburb"
+    | "customer"
+    | "status"
+    | "paymentStatus"
+    | "assignedDriverId"
+    | "collectionDate"
+    | "collectionSlot"
+    | "deliveryDate"
+    | "deliverySlot"
+    | "deliveryDriverId"
+  >,
+>(bookings: T[], day: string): AssignmentBoardJob[] {
+  const stops: AssignmentBoardJob[] = [];
+
+  for (const booking of bookings) {
+    if (
       isAssignmentBoardStatus(booking.status) &&
       isBookingOnJohannesburgDay(booking.collectionDate, day)
+    ) {
+      stops.push({
+        ...booking,
+        stopKind: "collection",
+        boardSlot: asBoardSlot(booking.collectionSlot),
+        boardDriverId: booking.assignedDriverId?.trim() || undefined,
+      });
+      continue;
+    }
+
+    if (
+      isDeliveryStop(booking.status) &&
+      hasDeliverySchedule(booking) &&
+      isBookingOnJohannesburgDay(booking.deliveryDate ?? "", day)
+    ) {
+      stops.push({
+        ...booking,
+        stopKind: "delivery",
+        boardSlot: asBoardSlot(booking.deliverySlot),
+        boardDriverId: effectiveDeliveryDriverId(booking),
+      });
+    }
+  }
+
+  return stops;
+}
+
+/** @deprecated Prefer jobsForAssignmentDay (includes deliveries). */
+export function collectionsForAssignmentDay<
+  T extends Pick<
+    Booking,
+    | "id"
+    | "suburb"
+    | "customer"
+    | "status"
+    | "paymentStatus"
+    | "assignedDriverId"
+    | "collectionDate"
+    | "collectionSlot"
+    | "deliveryDate"
+    | "deliverySlot"
+    | "deliveryDriverId"
+  >,
+>(bookings: T[], day: string): AssignmentBoardJob[] {
+  return jobsForAssignmentDay(bookings, day).filter(
+    (stop) => stop.stopKind === "collection"
   );
 }
 
@@ -77,9 +161,7 @@ function pushIntoSlot(
   slots: Record<AssignmentSlot, AssignmentBoardJob[]>,
   job: AssignmentBoardJob
 ) {
-  const slot: AssignmentSlot =
-    job.collectionSlot === "AFTERNOON" ? "AFTERNOON" : "MORNING";
-  slots[slot].push(job);
+  slots[job.boardSlot].push(job);
 }
 
 /**
@@ -99,7 +181,7 @@ export function buildAssignmentBoard(
   }
 
   for (const job of jobs) {
-    const driverId = job.assignedDriverId;
+    const driverId = job.boardDriverId;
     if (isUnassignedDriver(driverId) || !driverId || !byDriver.has(driverId)) {
       pushIntoSlot(unassigned, job);
       continue;

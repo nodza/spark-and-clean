@@ -77,6 +77,11 @@ function ForgotPasswordForm() {
             <span className="font-bold text-navy">{shownEmail}</span>, we&apos;ve
             sent a reset link. It expires in 60 minutes.
           </p>
+          <p className="text-body mt-3 leading-relaxed text-grey-600">
+            Didn&apos;t receive it? Check your spam folder and make sure the
+            email address is correct. For security, we can&apos;t confirm
+            whether an address has an account.
+          </p>
           <Button asChild className="mt-[26px] w-full justify-center py-[14px]">
             <Link href={backHref}>Back to log in</Link>
           </Button>

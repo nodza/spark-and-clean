@@ -47,6 +47,7 @@ export async function loginUser(input: {
 }): Promise<{
   user?: AuthUser;
   error?: string;
+  retryAfterSeconds?: number;
 }> {
   try {
     const res = await fetch("/api/auth/login", {
@@ -57,11 +58,19 @@ export async function loginUser(input: {
     });
     const data = await res.json();
     if (!res.ok) {
+      const retryHeader = Number(res.headers.get("Retry-After"));
+      const retryAfterSeconds =
+        res.status === 429
+          ? Number.isFinite(retryHeader) && retryHeader > 0
+            ? Math.ceil(retryHeader)
+            : 15 * 60
+          : undefined;
       return {
         error: toPublicApiError(
           data.error || "Login failed",
           "Login failed. Please try again."
         ),
+        ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
       };
     }
     notifyAuthChange();
@@ -164,6 +173,22 @@ export async function requestPasswordReset(
     });
     const data = await res.json();
     // API always returns the same public message (even on soft failures)
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      const minutes = Number.isFinite(retryAfter)
+        ? Math.max(1, Math.ceil(retryAfter / 60))
+        : 1;
+      return {
+        error: `Too many attempts. Try again in ${minutes} ${
+          minutes === 1 ? "minute" : "minutes"
+        }.`,
+      };
+    }
+    if (!res.ok) {
+      return {
+        error: "Could not process your request. Please try again later.",
+      };
+    }
     return {
       message:
         data.message ||
@@ -171,8 +196,7 @@ export async function requestPasswordReset(
     };
   } catch {
     return {
-      message:
-        "If an account exists for that email, we've sent a reset link.",
+      error: "Could not process your request. Please try again later.",
     };
   }
 }

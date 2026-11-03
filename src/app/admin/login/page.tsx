@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
+import { SignInLockNotice, useSignInLock } from "@/components/auth/SignInLock";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
   passwordChangePathForRole,
@@ -25,6 +26,7 @@ function AdminLoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { locked, remainingLabel, startLock } = useSignInLock();
 
   useEffect(() => {
     if (emailFromQuery) setEmail(emailFromQuery);
@@ -42,6 +44,7 @@ function AdminLoginForm() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (locked) return;
     setError(null);
 
     if (!email.trim() || !password) {
@@ -55,6 +58,11 @@ function AdminLoginForm() {
       password,
       role: "admin",
     });
+
+    if (result.retryAfterSeconds) {
+      startLock(result.retryAfterSeconds);
+      return;
+    }
 
     if (result.error || !result.user) {
       setLoading(false);
@@ -104,7 +112,7 @@ function AdminLoginForm() {
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              if (error) setError(null);
+              if (error && !locked) setError(null);
             }}
             aria-invalid={Boolean(error)}
             required
@@ -129,14 +137,15 @@ function AdminLoginForm() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            if (error) setError(null);
+            if (error && !locked) setError(null);
           }}
           aria-invalid={Boolean(error)}
           required
           minLength={6}
         />
 
-        {error ? (
+        {locked ? <SignInLockNotice /> : null}
+        {!locked && error ? (
           <div
             role="alert"
             className="mt-3.5 rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]"
@@ -147,10 +156,16 @@ function AdminLoginForm() {
 
         <Button
           type="submit"
-          className="mt-5 w-full justify-center py-[14px]"
-          disabled={loading}
+          className="mt-5 w-full justify-center py-[14px] tabular-nums"
+          disabled={loading || locked}
+          aria-disabled={loading || locked}
+          aria-describedby={locked ? "sign-in-lock" : undefined}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {locked
+            ? `Try again in ${remainingLabel}`
+            : loading
+              ? "Signing in…"
+              : "Sign in"}
         </Button>
       </form>
     </AuthLayout>

@@ -1,55 +1,160 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const findOne = vi.fn();
-
-vi.mock("@/lib/mongodb", () => ({
-  connectDB: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/lib/session", () => ({
+const mocks = vi.hoisted(() => ({
+  findOne: vi.fn(),
+  updateOne: vi.fn(),
+  checkRateLimit: vi.fn(),
+  clearRateLimit: vi.fn(),
+  compare: vi.fn(),
   createSessionToken: vi.fn(),
   setSessionCookie: vi.fn(),
+  failureCounts: new Map<string, number>(),
+  compareCalls: 0,
 }));
 
+vi.mock("@/lib/mongodb", () => ({ connectDB: vi.fn() }));
 vi.mock("@/models/User", () => ({
   User: {
-    findOne: (...args: unknown[]) => findOne(...args),
-    updateOne: vi.fn(),
+    findOne: (...args: unknown[]) => mocks.findOne(...args),
+    updateOne: (...args: unknown[]) => mocks.updateOne(...args),
   },
 }));
+vi.mock("@/lib/session", () => ({
+  createSessionToken: (...args: unknown[]) =>
+    mocks.createSessionToken(...args),
+  setSessionCookie: (...args: unknown[]) => mocks.setSessionCookie(...args),
+}));
+vi.mock("@/lib/rateLimit", () => ({
+  clearRateLimit: (...args: unknown[]) => mocks.clearRateLimit(...args),
+  getClientIp: () => "127.0.0.1",
+  checkRateLimit: (...args: unknown[]) => mocks.checkRateLimit(...args),
+  tooManyAttemptsMessage: (retryAfterSeconds: number) => {
+    const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+    return `Too many attempts. Try again in ${minutes} ${
+      minutes === 1 ? "minute" : "minutes"
+    }.`;
+  },
+}));
+vi.mock("bcryptjs", () => ({
+  default: { compare: (...args: unknown[]) => mocks.compare(...args) },
+}));
 
-function login(body: Record<string, unknown>) {
+import { POST } from "./route";
+
+function request(password: string, email = "person@example.com") {
   return new Request("http://localhost/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ email, password }),
   });
 }
 
-describe("POST /api/auth/login", () => {
-  beforeEach(() => {
-    findOne.mockReset();
-    findOne.mockReturnValue({
-      select: () => ({ lean: async () => null }),
-    });
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.failureCounts.clear();
+  mocks.compareCalls = 0;
+  mocks.findOne.mockReturnValue({
+    select: () => ({
+      lean: async () => ({
+        _id: { toString: () => "user-id" },
+        email: "person@example.com",
+        role: "client",
+        passwordHash: "hashed-password",
+      }),
+    }),
   });
+  mocks.updateOne.mockResolvedValue({});
+  mocks.checkRateLimit.mockImplementation(
+    async (key: string, limit: number) => {
+      const count = (mocks.failureCounts.get(key) ?? 0) + 1;
+      mocks.failureCounts.set(key, count);
+      const allowed = count <= limit;
+      return {
+        allowed,
+        retryAfterSeconds: allowed ? 0 : 900,
+      };
+    }
+  );
+  mocks.compare.mockImplementation(async () => ++mocks.compareCalls > 5);
+  mocks.createSessionToken.mockResolvedValue("session-token");
+  mocks.setSessionCookie.mockResolvedValue(undefined);
+});
 
+describe("POST /api/auth/login", () => {
   it("only looks up accounts that are still allowed to sign in", async () => {
-    const { POST } = await import("./route");
-    const res = await POST(
-      login({
-        email: "Ada@Example.com",
-        password: "secret123",
-        role: "admin",
+    const response = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "Ada@Example.com",
+          password: "secret123",
+          role: "admin",
+        }),
       })
     );
-    expect(res.status).toBe(401);
-    expect(findOne).toHaveBeenCalledWith(
+
+    expect(response.status).toBe(401);
+    expect(mocks.findOne).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "ada@example.com",
         disabledAt: null,
         $or: [{ isActive: true }, { isActive: { $exists: false } }],
+        role: { $in: ["admin", "ADMIN"] },
       })
     );
+  });
+
+  it("blocks a correct password after five failures for the email", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await POST(request("wrong-password"));
+      expect(response.status).toBe(401);
+    }
+
+    const response = await POST(request("correct-password"));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("900");
+    expect(await response.json()).toEqual({
+      error: "Too many attempts. Try again in 15 minutes.",
+    });
+    expect(mocks.compare).toHaveBeenCalledTimes(5);
+    expect(mocks.findOne).toHaveBeenCalledTimes(5);
+    expect(mocks.clearRateLimit).not.toHaveBeenCalled();
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "auth-login:email:person@example.com",
+      5,
+      15 * 60 * 1000
+    );
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      "auth-login:ip:127.0.0.1",
+      20,
+      15 * 60 * 1000
+    );
+  });
+
+  it("still checks a different email after one account has used its five attempts", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await POST(request("wrong-password"));
+      expect(response.status).toBe(401);
+    }
+
+    mocks.compare.mockResolvedValue(false);
+    mocks.findOne.mockReturnValue({
+      select: () => ({
+        lean: async () => ({
+          _id: { toString: () => "other-id" },
+          email: "other@example.com",
+          role: "client",
+          passwordHash: "hashed-password",
+        }),
+      }),
+    });
+
+    const response = await POST(request("wrong-password", "other@example.com"));
+
+    expect(response.status).toBe(401);
+    expect(mocks.compare).toHaveBeenCalledTimes(6);
+    expect(mocks.clearRateLimit).not.toHaveBeenCalled();
   });
 });
