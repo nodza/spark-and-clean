@@ -111,10 +111,13 @@ export interface Booking {
    */
   measuredQuote?: MeasuredQuote;
   /**
-   * Succeeded payments are higher than the amount due after a measurement.
-   * Ops still need to refund the difference.
+   * Cash still held is higher than the amount due after a measurement.
+   * Ops still need to refund the difference. A refund of the invoice itself
+   * does not set this.
    */
   refundRequired?: boolean;
+  /** Cents still held above the amount due. */
+  refundDueCents?: number;
   /** Kept for older screens. The charged discount is booking.promotion. */
   couponCode?: string;
   /** Ledger snapshot — optional until first succeeded transfer is recorded */

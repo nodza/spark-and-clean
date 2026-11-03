@@ -162,8 +162,10 @@ const BookingSchema = new Schema(
     estimatedPriceMin: { type: Number, required: true },
     estimatedPriceMax: { type: Number, required: true },
     measuredQuote: { type: MeasuredQuoteSchema },
-    /** Paid cents are above the measured amount due — ops refund the difference. */
+    /** Cash still held is above the amount due — ops refund the difference. */
     refundRequired: { type: Boolean, default: false },
+    /** Cents still held above the amount due. Zero when nothing is owed back. */
+    refundDueCents: { type: Number, min: 0, default: 0 },
     couponCode: { type: String, trim: true },
     billing: { type: BillingSchema },
     promotion: { type: PromotionSchema },

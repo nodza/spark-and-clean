@@ -26,6 +26,10 @@ export type RecordSuccessInput = {
   kind: PaymentKind;
   amountCents: number;
   currency?: string;
+  /** Stored on refund rows. Ignored when blank. */
+  reason?: string;
+  /** Original charge a refund applies to. Ignored when blank. */
+  sourceProviderRef?: string;
 };
 
 export type RecordSuccessResult =
@@ -120,13 +124,38 @@ export function isMongoDuplicateKeyError(err: unknown): boolean {
   return false;
 }
 
+export type SettlementCents = {
+  /** Deposits and balance payments. This is what settles the invoice. */
+  collectedCents: number;
+  /** Collected minus refunds. This is cash still held, never below zero. */
+  netCents: number;
+};
+
 /**
- * Net succeeded cents for a booking. Deposits and balance payments add;
- * refunds subtract. The booking snapshot never stores a negative paid total.
+ * A refund returns money. It does not reopen the invoice, so collected cents
+ * ignore refund rows. Net cents are what is still held, for refund limits
+ * and for the "refund the overpayment" flag.
  */
-export async function sumSucceededPaidCents(
+export function settlementFromRows(
+  rows: { amountCents?: number; kind?: string }[]
+): SettlementCents {
+  let collected = 0;
+  let refunded = 0;
+  for (const row of rows) {
+    const cents = Number(row.amountCents);
+    if (!Number.isFinite(cents) || cents < 0) continue;
+    if (row.kind === "REFUND") refunded += cents;
+    else if (row.kind === "DEPOSIT" || row.kind === "BALANCE") collected += cents;
+  }
+  return {
+    collectedCents: collected,
+    netCents: Math.max(0, collected - refunded),
+  };
+}
+
+export async function settlementForBooking(
   bookingId: string
-): Promise<number> {
+): Promise<SettlementCents> {
   await connectDB();
   const rows = await Payment.find({
     bookingId,
@@ -135,13 +164,88 @@ export async function sumSucceededPaidCents(
   })
     .select({ amountCents: 1, kind: 1 })
     .lean();
+  return settlementFromRows(rows);
+}
 
-  const net = rows.reduce((sum, row) => {
-    const cents = Number(row.amountCents);
-    if (!Number.isFinite(cents)) return sum;
-    return row.kind === "REFUND" ? sum - cents : sum + cents;
-  }, 0);
-  return Math.max(0, net);
+/** Cash still held after refunds. Used to cap how much can be refunded. */
+export async function sumSucceededPaidCents(
+  bookingId: string
+): Promise<number> {
+  const settlement = await settlementForBooking(bookingId);
+  return settlement.netCents;
+}
+
+/** Money collected toward the invoice. Refunds do not reduce this. */
+export async function sumCollectedCents(bookingId: string): Promise<number> {
+  const settlement = await settlementForBooking(bookingId);
+  return settlement.collectedCents;
+}
+
+/**
+ * Invoice fields from a ledger settlement.
+ * Collected cents settle the invoice. Refunds stay in the ledger and only
+ * reduce cash still held, so a refund cannot raise the balance still owed.
+ */
+export function invoiceFromSettlement(
+  settlement: SettlementCents,
+  amountDueCents: number
+): {
+  amountPaidCents: number;
+  paymentStatus: PaymentStatus;
+  refundRequired: boolean;
+  refundDueCents: number;
+} {
+  const due = Math.max(0, amountDueCents);
+  const amountPaidCents = settlement.collectedCents;
+  const refundDueCents = Math.max(0, settlement.netCents - due);
+  return {
+    amountPaidCents,
+    paymentStatus: derivePaymentStatus(amountPaidCents, due),
+    refundRequired: refundDueCents > 0,
+    refundDueCents,
+  };
+}
+
+/**
+ * Rewrite a booking whose stored amount paid was reduced by an older refund.
+ * No-ops when nothing has been refunded, or the snapshot already matches.
+ */
+export async function healInvoiceSettlement(bookingId: string): Promise<boolean> {
+  await connectDB();
+  const rows = await Payment.find({
+    bookingId,
+    status: "SUCCEEDED",
+    kind: { $in: ["DEPOSIT", "BALANCE", "REFUND"] },
+  })
+    .select({ amountCents: 1, kind: 1 })
+    .lean();
+  const settlement = settlementFromRows(rows);
+  if (settlement.collectedCents === settlement.netCents) return false;
+
+  const booking = (await Booking.findOne({ id: bookingId }).lean()) as
+    | (LedgerBooking & { paymentStatus?: string; refundRequired?: boolean; refundDueCents?: number })
+    | null;
+  if (!booking) return false;
+
+  const amountDueCents = resolveAmountDueCents(toPaymentInput(booking));
+  const next = invoiceFromSettlement(settlement, amountDueCents);
+  const currentDue = booking.billing?.amountDueCents;
+  const currentRefundDue =
+    typeof booking.refundDueCents === "number" && Number.isFinite(booking.refundDueCents)
+      ? Math.round(booking.refundDueCents)
+      : -1;
+  if (
+    resolveAmountPaidCents(booking) === next.amountPaidCents &&
+    booking.paymentStatus === next.paymentStatus &&
+    booking.refundRequired === next.refundRequired &&
+    currentDue === amountDueCents &&
+    currentRefundDue === next.refundDueCents
+  ) {
+    return false;
+  }
+
+  const applied = await applyLedgerToBooking(bookingId);
+  return applied.ok;
 }
 
 type LedgerBooking = BookingPaymentInput & {
@@ -185,9 +289,10 @@ async function applyLedgerToBooking(
     const snapshot = toPaymentInput(booking);
     const amountDueCents = resolveAmountDueCents(snapshot);
     const seenPaid = resolveAmountPaidCents(snapshot);
-    const amountPaidCents = await sumSucceededPaidCents(bookingId);
-    const paymentStatus = derivePaymentStatus(amountPaidCents, amountDueCents);
-    const refundRequired = amountPaidCents > amountDueCents;
+    const settlement = await settlementForBooking(bookingId);
+    const next = invoiceFromSettlement(settlement, amountDueCents);
+    const amountPaidCents = next.amountPaidCents;
+    const paymentStatus = next.paymentStatus;
     const billing: BookingBilling = {
       currency: LEDGER_CURRENCY,
       amountDueCents,
@@ -205,7 +310,14 @@ async function applyLedgerToBooking(
 
     const updated = await Booking.updateOne(
       { id: bookingId, $or: paidStillUnchanged },
-      { $set: { billing, paymentStatus, refundRequired } }
+      {
+        $set: {
+          billing,
+          paymentStatus,
+          refundRequired: next.refundRequired,
+          refundDueCents: next.refundDueCents,
+        },
+      }
     );
 
     if (updated.matchedCount > 0) {
@@ -228,15 +340,42 @@ type StoredPayment = {
   createdAt?: string;
 };
 
+type PreparedLedger =
+  | {
+      ok: false;
+      error: "invalid_amount" | "invalid_currency" | "booking_not_found";
+    }
+  | {
+      ok: true;
+      amountCents: number;
+      providerRef: string;
+      bookingId: string;
+      currency: string;
+      provider: string;
+      userId?: string;
+      annotations: { reason?: string; sourceProviderRef?: string };
+    };
+
+function ledgerAnnotations(input: RecordSuccessInput): {
+  reason?: string;
+  sourceProviderRef?: string;
+} {
+  const reason = input.reason?.trim().slice(0, 500) ?? "";
+  const sourceProviderRef = input.sourceProviderRef?.trim() ?? "";
+  return {
+    ...(reason ? { reason } : {}),
+    ...(sourceProviderRef ? { sourceProviderRef } : {}),
+  };
+}
+
 /**
- * Persist a succeeded transfer and recompute billing + paymentStatus.
- * A duplicate providerRef does not add the amount again. If that row already
- * succeeded for this booking, the booking snapshot is reconciled from the ledger
- * so a retry after a partial write still marks the booking paid.
+ * Shared checks for a ledger insert. Currency and amount are rejected before
+ * any booking read. A blank provider ref is an invalid amount, matching the
+ * original success path.
  */
-export async function recordSuccess(
+async function prepareLedgerWrite(
   input: RecordSuccessInput
-): Promise<RecordSuccessResult> {
+): Promise<PreparedLedger> {
   const amountCents = Number(input.amountCents);
   if (!Number.isFinite(amountCents) || amountCents < 0) {
     return { ok: false, error: "invalid_amount" };
@@ -269,10 +408,126 @@ export async function recordSuccess(
     return { ok: false, error: "invalid_currency" };
   }
 
+  const userId = ledgerUserId(input.userId) ?? ledgerUserId(booking.userId);
+  return {
+    ok: true,
+    amountCents: Math.round(amountCents),
+    providerRef,
+    bookingId,
+    currency,
+    provider: String(input.provider).trim(),
+    ...(userId ? { userId } : {}),
+    annotations: ledgerAnnotations(input),
+  };
+}
+
+export type RecordFailureResult =
+  | { ok: true; applied: boolean }
+  | {
+      ok: false;
+      error:
+        | "duplicate_provider_ref"
+        | "booking_not_found"
+        | "invalid_amount"
+        | "invalid_currency";
+    };
+
+/**
+ * Persist a failed attempt. Idempotent on providerRef.
+ * Does not change booking status or paymentStatus — failed cents are not paid cents.
+ * A later success for the same provider ref upgrades this row instead of inserting another.
+ */
+export async function recordFailure(
+  input: RecordSuccessInput
+): Promise<RecordFailureResult> {
+  if (input.kind !== "DEPOSIT" && input.kind !== "BALANCE") {
+    return { ok: false, error: "invalid_amount" };
+  }
+
+  const prepared = await prepareLedgerWrite(input);
+  if (!prepared.ok) return prepared;
+  if (prepared.amountCents <= 0) {
+    return { ok: false, error: "invalid_amount" };
+  }
+
   const createdAt = new Date().toISOString();
-  const userId =
-    ledgerUserId(input.userId) ?? ledgerUserId(booking.userId);
-  const provider = String(input.provider).trim();
+  try {
+    await Payment.create({
+      provider: prepared.provider,
+      providerRef: prepared.providerRef,
+      bookingId: prepared.bookingId,
+      ...(prepared.userId ? { userId: prepared.userId } : {}),
+      kind: input.kind,
+      amountCents: prepared.amountCents,
+      currency: prepared.currency,
+      status: "FAILED",
+      createdAt,
+      ...prepared.annotations,
+    });
+  } catch (err) {
+    if (!isMongoDuplicateKeyError(err)) throw err;
+    const existing = (await Payment.findOne({
+      providerRef: prepared.providerRef,
+    }).lean()) as StoredPayment | null;
+    if (!existing || existing.bookingId !== prepared.bookingId) {
+      return { ok: false, error: "duplicate_provider_ref" };
+    }
+    // Replay of the same failure, or a failure after the charge already succeeded.
+    // Leave the row and the booking as they are.
+    if (existing.status === "FAILED" || existing.status === "SUCCEEDED") {
+      return { ok: true, applied: false };
+    }
+    return { ok: false, error: "duplicate_provider_ref" };
+  }
+
+  return { ok: true, applied: true };
+}
+
+/**
+ * Succeeded deposit or balance for a provider id, used when a refund event
+ * has no booking metadata of its own.
+ */
+export async function findSucceededTransfer(providerRef: string): Promise<{
+  bookingId: string;
+  userId?: string;
+} | null> {
+  const ref = providerRef.trim();
+  if (!ref) return null;
+  await connectDB();
+  const row = (await Payment.findOne({
+    providerRef: ref,
+    status: "SUCCEEDED",
+    kind: { $in: ["DEPOSIT", "BALANCE"] },
+  }).lean()) as StoredPayment | null;
+  const bookingId = String(row?.bookingId || "").trim();
+  if (!bookingId) return null;
+  const userId = ledgerUserId(row?.userId);
+  return { bookingId, ...(userId ? { userId } : {}) };
+}
+
+/**
+ * Persist a succeeded transfer and recompute billing + paymentStatus.
+ * A duplicate providerRef does not add the amount again. If that row already
+ * succeeded for this booking and the same kind, the snapshot is reconciled
+ * from the ledger. A FAILED row for the same id is upgraded to SUCCEEDED so a
+ * declined card that is then paid does not block the receipt.
+ */
+export async function recordSuccess(
+  input: RecordSuccessInput
+): Promise<RecordSuccessResult> {
+  const prepared = await prepareLedgerWrite(input);
+  if (!prepared.ok) return prepared;
+
+  const {
+    amountCents,
+    providerRef,
+    bookingId,
+    currency,
+    provider,
+    annotations,
+  } = prepared;
+  const userId = prepared.userId;
+  const createdAt = new Date().toISOString();
 
   try {
     await Payment.create({
@@ -281,10 +536,11 @@ export async function recordSuccess(
       bookingId,
       ...(userId ? { userId } : {}),
       kind: input.kind,
-      amountCents: Math.round(amountCents),
+      amountCents,
       currency,
       status: "SUCCEEDED",
       createdAt,
+      ...annotations,
     });
   } catch (err) {
     if (!isMongoDuplicateKeyError(err)) throw err;
@@ -292,29 +548,65 @@ export async function recordSuccess(
     const existing = (await Payment.findOne({ providerRef }).lean()) as
       | StoredPayment
       | null;
-    if (
-      !existing ||
-      existing.bookingId !== bookingId ||
-      existing.status !== "SUCCEEDED"
-    ) {
+    if (!existing || existing.bookingId !== bookingId) {
+      return { ok: false, error: "duplicate_provider_ref" };
+    }
+
+    const kindMismatch = Boolean(existing.kind && existing.kind !== input.kind);
+    if (existing.status === "FAILED") {
+      if (kindMismatch) {
+        return { ok: false, error: "duplicate_provider_ref" };
+      }
+      const upgraded = await Payment.updateOne(
+        { providerRef, bookingId, status: "FAILED" },
+        {
+          $set: {
+            status: "SUCCEEDED",
+            amountCents,
+            currency,
+            kind: input.kind,
+            provider,
+            createdAt,
+          },
+        }
+      );
+      if (upgraded.matchedCount === 0) {
+        const again = (await Payment.findOne({ providerRef }).lean()) as
+          | StoredPayment
+          | null;
+        if (
+          !again ||
+          again.bookingId !== bookingId ||
+          again.status !== "SUCCEEDED" ||
+          (again.kind && again.kind !== input.kind)
+        ) {
+          return { ok: false, error: "duplicate_provider_ref" };
+        }
+      }
+    } else if (existing.status !== "SUCCEEDED" || kindMismatch) {
       return { ok: false, error: "duplicate_provider_ref" };
     }
 
     const applied = await applyLedgerToBooking(bookingId);
     if (!applied.ok) return applied;
 
+    const upgradedAmount = existing.status === "FAILED";
     return {
       ok: true,
       payment: {
         provider: String(existing.provider || provider),
         providerRef,
         bookingId,
-        ...(existing.userId ? { userId: existing.userId } : {}),
-        kind: existing.kind || input.kind,
-        amountCents: Math.round(Number(existing.amountCents) || 0),
+        ...(existing.userId || userId
+          ? { userId: existing.userId || userId }
+          : {}),
+        kind: existing.kind && !upgradedAmount ? existing.kind : input.kind,
+        amountCents: upgradedAmount
+          ? amountCents
+          : Math.round(Number(existing.amountCents) || 0),
         currency: LEDGER_CURRENCY,
         status: "SUCCEEDED",
-        createdAt: existing.createdAt || createdAt,
+        createdAt: upgradedAmount ? createdAt : existing.createdAt || createdAt,
       },
       billing: applied.billing,
       paymentStatus: applied.paymentStatus,
@@ -332,7 +624,7 @@ export async function recordSuccess(
       bookingId,
       ...(userId ? { userId } : {}),
       kind: input.kind,
-      amountCents: Math.round(amountCents),
+      amountCents,
       currency,
       status: "SUCCEEDED",
       createdAt,

@@ -24,6 +24,7 @@ type BookingRow = {
   estimatedPriceMin: number;
   estimatedPriceMax: number;
   paymentStatus: string;
+  status?: string;
   billing: {
     currency: string;
     amountDueCents: number;
@@ -284,5 +285,183 @@ describe("POST /api/webhooks/stripe", () => {
     expect(state.payments).toHaveLength(1);
     expect(state.booking?.paymentStatus).toBe("DEPOSIT");
     expect(state.booking?.billing.amountPaidCents).toBe(7500);
+  });
+
+  it("records a declined card once and does not change the booking", async () => {
+    state.booking = { ...unpaidBooking(), status: "CONFIRMED" };
+    const failed = JSON.stringify({
+      id: "evt_declined",
+      object: "event",
+      type: "payment_intent.payment_failed",
+      data: {
+        object: {
+          id: "pi_declined",
+          object: "payment_intent",
+          status: "requires_payment_method",
+          amount: 7500,
+          currency: "zar",
+          metadata: { bookingId: "SC-1", kind: "DEPOSIT" },
+        },
+      },
+    });
+
+    const res = await POST(signedRequest(failed));
+    expect(res.status).toBe(200);
+    expect(state.payments).toHaveLength(1);
+    expect(state.payments[0]).toMatchObject({
+      provider: "stripe",
+      providerRef: "pi_declined",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+      status: "FAILED",
+    });
+    expect(state.booking?.paymentStatus).toBe("UNPAID");
+    expect(state.booking?.status).toBe("CONFIRMED");
+    expect(state.booking?.billing.amountPaidCents).toBe(0);
+
+    const replay = await POST(signedRequest(failed));
+    expect(replay.status).toBe(200);
+    expect(state.payments).toHaveLength(1);
+    expect(state.booking?.paymentStatus).toBe("UNPAID");
+    expect(state.booking?.status).toBe("CONFIRMED");
+
+    const asyncFailed = JSON.stringify({
+      id: "evt_async_declined",
+      object: "event",
+      type: "checkout.session.async_payment_failed",
+      data: {
+        object: {
+          id: "cs_declined",
+          amount_total: 7500,
+          currency: "zar",
+          payment_intent: "pi_declined",
+          metadata: { bookingId: "SC-1", kind: "DEPOSIT" },
+        },
+      },
+    });
+    const sameIntent = await POST(signedRequest(asyncFailed));
+    expect(sameIntent.status).toBe(200);
+    expect(state.payments).toHaveLength(1);
+    expect(state.booking?.paymentStatus).toBe("UNPAID");
+  });
+
+  it("records a full refund once without reopening the balance", async () => {
+    state.booking = {
+      ...unpaidBooking(),
+      status: "CONFIRMED",
+      paymentStatus: "DEPOSIT",
+      billing: {
+        currency: "ZAR",
+        amountDueCents: 15000,
+        amountPaidCents: 7500,
+      },
+    };
+    state.payments.push({
+      provider: "stripe",
+      providerRef: "pi_test_deposit_replay",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+      currency: "ZAR",
+      status: "SUCCEEDED",
+      createdAt: "2026-10-01T00:00:00.000Z",
+    });
+    const refunded = JSON.stringify({
+      id: "evt_refund_full",
+      object: "event",
+      type: "charge.refunded",
+      data: {
+        object: {
+          id: "ch_deposit",
+          currency: "zar",
+          payment_intent: "pi_test_deposit_replay",
+          metadata: { bookingId: "SC-1", kind: "DEPOSIT" },
+          refunds: {
+            data: [
+              {
+                id: "re_full",
+                amount: 7500,
+                currency: "zar",
+                status: "succeeded",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const res = await POST(signedRequest(refunded));
+    expect(res.status).toBe(200);
+    expect(state.payments).toHaveLength(2);
+    expect(state.payments.find((row) => row.kind === "REFUND")).toMatchObject({
+      providerRef: "re_full",
+      amountCents: 7500,
+      status: "SUCCEEDED",
+      kind: "REFUND",
+    });
+    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
+    expect(state.booking?.status).toBe("CONFIRMED");
+
+    const replay = await POST(signedRequest(refunded));
+    expect(replay.status).toBe(200);
+    expect(state.payments).toHaveLength(2);
+    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
+  });
+
+  it("records a partial refund once without raising the balance", async () => {
+    state.booking = {
+      ...unpaidBooking(),
+      paymentStatus: "DEPOSIT",
+      billing: {
+        currency: "ZAR",
+        amountDueCents: 15000,
+        amountPaidCents: 7500,
+      },
+    };
+    state.payments.push({
+      provider: "stripe",
+      providerRef: "pi_test_deposit_replay",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+      currency: "ZAR",
+      status: "SUCCEEDED",
+      createdAt: "2026-10-01T00:00:00.000Z",
+    });
+    const refunded = JSON.stringify({
+      id: "evt_refund_partial",
+      object: "event",
+      type: "charge.refunded",
+      data: {
+        object: {
+          id: "ch_deposit",
+          currency: "zar",
+          payment_intent: "pi_test_deposit_replay",
+          metadata: { bookingId: "SC-1" },
+          refunds: {
+            data: [
+              {
+                id: "re_partial",
+                amount: 2500,
+                currency: "zar",
+                status: "succeeded",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const res = await POST(signedRequest(refunded));
+    expect(res.status).toBe(200);
+    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
+
+    await POST(signedRequest(refunded));
+    expect(state.payments.filter((row) => row.kind === "REFUND")).toHaveLength(1);
+    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
   });
 });

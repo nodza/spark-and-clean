@@ -21,7 +21,7 @@ Hide Instant EFT in the UI when any of `OZOW_SITE_CODE`, `OZOW_PRIVATE_KEY`, or 
 | Method | Path | Role |
 | --- | --- | --- |
 | `POST` | `/api/payments/create-session` | `{ bookingId, kind: "DEPOSIT" \| "BALANCE", provider: "OZOW" }` → `{ url }` |
-| `POST` | `/api/webhooks/ozow` | Ozow notify URL. Verifies `Hash`, then `ledger.recordSuccess({ provider: "ozow" })`. |
+| `POST` | `/api/webhooks/ozow` | Ozow notify URL. Verifies `Hash`. `Complete` calls `ledger.recordSuccess`. `Cancelled`, `Error`, and `Abandoned` record a `FAILED` row and do not change the booking. A full admin records an Ozow refund by hand, with the reference from Ozow. |
 | `GET` | `/api/payments/providers` | `{ stripe, ozow }` booleans for the PayButton chooser. |
 
 `providerRef` is Ozow's `TransactionId`, so a Stripe deposit and an Ozow balance on the same booking do not collide.

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordSuccess = vi.fn();
+const recordFailure = vi.fn();
 const verifyOzowNotificationHash = vi.fn();
 
 vi.mock("@/lib/payments/ledger", () => ({
   recordSuccess: (...args: unknown[]) => recordSuccess(...args),
+  recordFailure: (...args: unknown[]) => recordFailure(...args),
 }));
 
 vi.mock("@/lib/payments/ozow", async () => {
@@ -23,7 +25,9 @@ import { fulfillOzowNotification } from "@/lib/payments/ozowWebhook";
 describe("fulfillOzowNotification", () => {
   beforeEach(() => {
     recordSuccess.mockReset();
+    recordFailure.mockReset();
     verifyOzowNotificationHash.mockReset();
+    recordFailure.mockResolvedValue({ ok: true, applied: true });
     process.env.OZOW_SITE_CODE = "TSTSTE0001";
   });
 
@@ -72,10 +76,54 @@ describe("fulfillOzowNotification", () => {
     });
   });
 
-  it("acknowledges non-Complete statuses without recording", async () => {
+  it("records a FAILED row for Cancelled, Error, and Abandoned", async () => {
+    verifyOzowNotificationHash.mockReturnValue(true);
+    for (const status of ["Cancelled", "Error", "Abandoned"]) {
+      recordFailure.mockClear();
+      recordSuccess.mockClear();
+      const result = await fulfillOzowNotification({
+        SiteCode: "TSTSTE0001",
+        TransactionId: "ozow-tx-uuid",
+        Amount: "50.00",
+        Status: status,
+        Optional1: "SC-1",
+        Optional2: "DEPOSIT",
+        CurrencyCode: "ZAR",
+        Hash: "ok",
+      });
+      expect(result).toEqual({ ok: true, applied: true });
+      expect(recordSuccess).not.toHaveBeenCalled();
+      expect(recordFailure).toHaveBeenCalledWith({
+        provider: "ozow",
+        providerRef: "ozow-tx-uuid",
+        bookingId: "SC-1",
+        kind: "DEPOSIT",
+        amountCents: 5000,
+        currency: "ZAR",
+      });
+    }
+  });
+
+  it("acknowledges pending notifications without recording", async () => {
     verifyOzowNotificationHash.mockReturnValue(true);
     const result = await fulfillOzowNotification({
       SiteCode: "TSTSTE0001",
+      TransactionId: "ozow-tx-uuid",
+      Amount: "50.00",
+      Status: "Pending",
+      Optional1: "SC-1",
+      Optional2: "DEPOSIT",
+      Hash: "ok",
+    });
+    expect(result).toEqual({ ok: true, applied: false });
+    expect(recordSuccess).not.toHaveBeenCalled();
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("does not record a failure for the wrong site", async () => {
+    verifyOzowNotificationHash.mockReturnValue(true);
+    const result = await fulfillOzowNotification({
+      SiteCode: "OTHER",
       TransactionId: "ozow-tx-uuid",
       Amount: "50.00",
       Status: "Cancelled",
@@ -83,7 +131,7 @@ describe("fulfillOzowNotification", () => {
       Optional2: "DEPOSIT",
       Hash: "ok",
     });
-    expect(result).toEqual({ ok: true, applied: false });
-    expect(recordSuccess).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: "site_mismatch" });
+    expect(recordFailure).not.toHaveBeenCalled();
   });
 });
