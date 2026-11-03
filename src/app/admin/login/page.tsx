@@ -10,7 +10,10 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
 import { SignInLockNotice, useSignInLock } from "@/components/auth/SignInLock";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { resolvePostLoginPath } from "@/lib/accessControl";
+import {
+  passwordChangePathForRole,
+  resolvePostLoginPath,
+} from "@/lib/accessControl";
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -32,7 +35,9 @@ function AdminLoginForm() {
   useEffect(() => {
     if (ready && user?.role === "admin") {
       router.replace(
-        resolvePostLoginPath("admin", next, user.adminTier ?? null)
+        user.mustChangePassword
+          ? passwordChangePathForRole("admin") || "/admin/change-password"
+          : resolvePostLoginPath("admin", next, user.adminTier ?? null)
       );
     }
   }, [ready, user, router, next]);
@@ -53,7 +58,6 @@ function AdminLoginForm() {
       password,
       role: "admin",
     });
-    setLoading(false);
 
     if (result.retryAfterSeconds) {
       startLock(result.retryAfterSeconds);
@@ -61,18 +65,23 @@ function AdminLoginForm() {
     }
 
     if (result.error || !result.user) {
+      setLoading(false);
       setError(result.error || "Login failed");
       return;
     }
 
-    await refresh();
-    router.push(
-      resolvePostLoginPath(
-        result.user.role,
-        next,
-        result.user.adminTier ?? null
-      )
-    );
+    const destination = result.user.mustChangePassword
+      ? passwordChangePathForRole("admin") || "/admin/change-password"
+      : resolvePostLoginPath(
+          result.user.role,
+          next,
+          result.user.adminTier ?? null
+        );
+    if (!result.user.mustChangePassword) {
+      await refresh();
+      setLoading(false);
+    }
+    router.replace(destination);
   };
 
   return (

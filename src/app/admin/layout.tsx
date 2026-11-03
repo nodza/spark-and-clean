@@ -1,15 +1,14 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/requirePageSession";
-import {
-  isAdminFullOnlyPath,
-  isAdminLoginPath,
-} from "@/lib/accessControl";
+import { MustChangePasswordGate } from "@/components/auth/MustChangePasswordGate";
+import { passwordChangePathForRole, isAdminFullOnlyPath, isAdminLoginPath } from "@/lib/accessControl";
 
 /**
  * Admin segment layout.
  * /admin/login stays public; other /admin/* routes require an admin session.
  * Marketing-only admins are denied full-only ops routes (defense in depth with middleware).
+ * Temporary-password accounts are gated to /admin/change-password.
  */
 export default async function AdminLayout({
   children,
@@ -19,7 +18,7 @@ export default async function AdminLayout({
   const pathname = (await headers()).get("x-pathname") || "";
 
   // Public login — never run the ops guard here
-  if (isAdminLoginPath(pathname)) {
+  if (isAdminLoginPath(pathname) || pathname === passwordChangePathForRole("admin")) {
     return <>{children}</>;
   }
 
@@ -31,11 +30,18 @@ export default async function AdminLayout({
   });
 
   if (
+    session.mustChangePassword &&
+    pathname !== "/admin/change-password"
+  ) {
+    redirect("/admin/change-password");
+  }
+
+  if (
     isAdminFullOnlyPath(pathname) &&
     session.adminTier === "marketing-only"
   ) {
     redirect("/admin?access=denied");
   }
 
-  return <>{children}</>;
+  return <MustChangePasswordGate>{children}</MustChangePasswordGate>;
 }
