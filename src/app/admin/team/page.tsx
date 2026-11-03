@@ -454,16 +454,43 @@ function StatusPill({ active }: { active: boolean }) {
   );
 }
 
+function tierLockReason(isSelf: boolean, isLastActiveFull: boolean) {
+  if (isLastActiveFull) return "The last full admin cannot be downgraded.";
+  if (isSelf) return "You cannot change your own tier.";
+  return undefined;
+}
+
+function activeLockReason(
+  active: boolean,
+  isSelf: boolean,
+  isLastActiveFull: boolean
+) {
+  if (!active) return undefined;
+  if (isLastActiveFull) return "The last full admin cannot be deactivated.";
+  if (isSelf) return "You cannot deactivate your own account.";
+  return undefined;
+}
+
+function LockNote({ id, reason }: { id: string; reason?: string }) {
+  if (!reason) return null;
+  return (
+    <p id={id} className="mt-1 text-[12px] leading-snug text-[#6b7280]">
+      {reason}
+    </p>
+  );
+}
 function TierSelect({
   admin,
   locked,
   lockReason,
+  describedBy,
   busy,
   onTier,
 }: {
   admin: AdminRow;
   locked: boolean;
   lockReason?: string;
+  describedBy?: string;
   busy: boolean;
   onTier: (tier: AdminTier) => void;
 }) {
@@ -475,6 +502,7 @@ function TierSelect({
     >
       <SelectTrigger
         aria-label={`Tier for ${displayName(admin)}`}
+        aria-describedby={describedBy}
         title={lockReason}
         className="w-[8.5rem]"
       >
@@ -492,12 +520,14 @@ function ActiveButton({
   admin,
   locked,
   lockReason,
+  describedBy,
   busy,
   onActive,
 }: {
   admin: AdminRow;
   locked: boolean;
   lockReason?: string;
+  describedBy?: string;
   busy: boolean;
   onActive: (active: boolean) => void;
 }) {
@@ -509,6 +539,7 @@ function ActiveButton({
         size="sm"
         disabled={busy || locked}
         title={lockReason}
+        aria-describedby={describedBy}
         onClick={() => onActive(false)}
       >
         Deactivate
@@ -543,36 +574,40 @@ function AdminControls({
   onTier: (tier: AdminTier) => void;
   onActive: (active: boolean) => void;
 }) {
+  const tierReason = tierLockReason(isSelf, isLastActiveFull);
+  const deactivateReason = activeLockReason(
+    admin.active,
+    isSelf,
+    isLastActiveFull
+  );
+  const tierNoteId = `${admin.id}-tier-reason-mobile`;
+  const activeNoteId = `${admin.id}-active-reason-mobile`;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <TierSelect
-        admin={admin}
-        locked={isSelf || isLastActiveFull}
-        lockReason={
-          isLastActiveFull
-            ? "The last full admin cannot be downgraded."
-            : isSelf
-              ? "You cannot change your own tier."
-              : undefined
-        }
-        busy={busy}
-        onTier={onTier}
-      />
-      <ActiveButton
-        admin={admin}
-        locked={admin.active && (isSelf || isLastActiveFull)}
-        lockReason={
-          !admin.active
-            ? undefined
-            : isLastActiveFull
-              ? "The last full admin cannot be deactivated."
-              : isSelf
-                ? "You cannot deactivate your own account."
-                : undefined
-        }
-        busy={busy}
-        onActive={onActive}
-      />
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-start gap-2">
+        <div>
+          <TierSelect
+            admin={admin}
+            locked={isSelf || isLastActiveFull}
+            lockReason={tierReason}
+            describedBy={tierReason ? tierNoteId : undefined}
+            busy={busy}
+            onTier={onTier}
+          />
+          <LockNote id={tierNoteId} reason={tierReason} />
+        </div>
+        <div>
+          <ActiveButton
+            admin={admin}
+            locked={admin.active && (isSelf || isLastActiveFull)}
+            lockReason={deactivateReason}
+            describedBy={deactivateReason ? activeNoteId : undefined}
+            busy={busy}
+            onActive={onActive}
+          />
+          <LockNote id={activeNoteId} reason={deactivateReason} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -593,6 +628,14 @@ function AdminDesktopRow({
   onActive: (active: boolean) => void;
 }) {
   const label = displayName(admin);
+  const tierReason = tierLockReason(isSelf, isLastActiveFull);
+  const deactivateReason = activeLockReason(
+    admin.active,
+    isSelf,
+    isLastActiveFull
+  );
+  const tierNoteId = `${admin.id}-tier-reason`;
+  const activeNoteId = `${admin.id}-active-reason`;
   return (
     <div
       className="grid items-center px-[22px] py-[12px]"
@@ -619,35 +662,29 @@ function AdminDesktopRow({
       <div className="min-w-0 truncate text-body" style={{ color: "#32373c" }} title={admin.email}>
         {admin.email}
       </div>
-      <TierSelect
-        admin={admin}
-        locked={isSelf || isLastActiveFull}
-        lockReason={
-          isLastActiveFull
-            ? "The last full admin cannot be downgraded."
-            : isSelf
-              ? "You cannot change your own tier."
-              : undefined
-        }
-        busy={busy}
-        onTier={onTier}
-      />
+      <div>
+        <TierSelect
+          admin={admin}
+          locked={isSelf || isLastActiveFull}
+          lockReason={tierReason}
+          describedBy={tierReason ? tierNoteId : undefined}
+          busy={busy}
+          onTier={onTier}
+        />
+        <LockNote id={tierNoteId} reason={tierReason} />
+      </div>
       <StatusPill active={admin.active} />
-      <ActiveButton
-        admin={admin}
-        locked={admin.active && (isSelf || isLastActiveFull)}
-        lockReason={
-          !admin.active
-            ? undefined
-            : isLastActiveFull
-              ? "The last full admin cannot be deactivated."
-              : isSelf
-                ? "You cannot deactivate your own account."
-                : undefined
-        }
-        busy={busy}
-        onActive={onActive}
-      />
+      <div>
+        <ActiveButton
+          admin={admin}
+          locked={admin.active && (isSelf || isLastActiveFull)}
+          lockReason={deactivateReason}
+          describedBy={deactivateReason ? activeNoteId : undefined}
+          busy={busy}
+          onActive={onActive}
+        />
+        <LockNote id={activeNoteId} reason={deactivateReason} />
+      </div>
     </div>
   );
 }

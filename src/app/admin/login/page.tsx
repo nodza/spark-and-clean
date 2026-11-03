@@ -55,23 +55,25 @@ function AdminLoginForm() {
       password,
       role: "admin",
     });
-    setLoading(false);
 
     if (result.error || !result.user) {
+      setLoading(false);
       setError(result.error || "Login failed");
       return;
     }
 
-    await refresh();
-    router.push(
-      result.user.mustChangePassword
-        ? passwordChangePathForRole("admin") || "/admin/change-password"
-        : resolvePostLoginPath(
-            result.user.role,
-            next,
-            result.user.adminTier ?? null
-          )
-    );
+    const destination = result.user.mustChangePassword
+      ? passwordChangePathForRole("admin") || "/admin/change-password"
+      : resolvePostLoginPath(
+          result.user.role,
+          next,
+          result.user.adminTier ?? null
+        );
+    if (!result.user.mustChangePassword) {
+      await refresh();
+      setLoading(false);
+    }
+    router.replace(destination);
   };
 
   return (

@@ -16,6 +16,7 @@ import {
   requireFullAdminSession,
 } from "@/lib/adminAuth";
 import { isClientRole, isFullAccount } from "@/types/user";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
@@ -126,6 +127,13 @@ export async function GET(_request: Request, { params }: Params) {
       ) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+    }
+
+    if (session?.role === "admin" && session.mustChangePassword) {
+      return NextResponse.json(
+        { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+        { status: 403 }
+      );
     }
 
     if (session?.role === "admin" && session.adminTier === "marketing-only") {

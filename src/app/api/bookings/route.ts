@@ -14,6 +14,7 @@ import {
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
@@ -40,6 +41,12 @@ export async function GET() {
       }
       filter.assignedDriverId = session.driverProfileId;
     } else if (session.role === "admin") {
+      if (session.mustChangePassword) {
+        return NextResponse.json(
+          { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+          { status: 403 }
+        );
+      }
       // Operations booking list — full admin only (marketing-only denied)
       if (session.adminTier === "marketing-only") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

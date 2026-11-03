@@ -2,10 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/requirePageSession";
 import { MustChangePasswordGate } from "@/components/auth/MustChangePasswordGate";
-import {
-  isAdminFullOnlyPath,
-  isAdminLoginPath,
-} from "@/lib/accessControl";
+import { passwordChangePathForRole, isAdminFullOnlyPath, isAdminLoginPath } from "@/lib/accessControl";
 
 /**
  * Admin segment layout.
@@ -21,7 +18,7 @@ export default async function AdminLayout({
   const pathname = (await headers()).get("x-pathname") || "";
 
   // Public login — never run the ops guard here
-  if (isAdminLoginPath(pathname)) {
+  if (isAdminLoginPath(pathname) || pathname === passwordChangePathForRole("admin")) {
     return <>{children}</>;
   }
 

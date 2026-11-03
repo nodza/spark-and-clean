@@ -93,6 +93,22 @@ describe("accessControl", () => {
     expect(passwordChangePathForRole("client")).toBeNull();
   });
 
+  it("sends a temporary-password admin to the password page before other admin pages", () => {
+    const freshAdmin: SessionUser = {
+      ...adminMarketing,
+      mustChangePassword: true,
+    };
+    const team = canAccessPath(freshAdmin, "/admin/team");
+    expect(team.ok).toBe(false);
+    if (!team.ok) expect(team.redirectTo).toBe("/admin/change-password");
+    expect(canAccessPath(freshAdmin, "/admin/change-password").ok).toBe(true);
+
+    const freshTech: SessionUser = { ...tech, mustChangePassword: true };
+    const jobs = canAccessPath(freshTech, "/tech/dashboard");
+    expect(jobs.ok).toBe(false);
+    if (!jobs.ok) expect(jobs.redirectTo).toBe("/tech/change-password");
+  });
+
   it("honors next= only when role allows", () => {
     expect(resolvePostLoginPath("client", "/admin")).toBe("/portal");
     expect(resolvePostLoginPath("admin", "/admin/analytics", "full")).toBe(

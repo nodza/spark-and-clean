@@ -3,9 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSession = vi.fn();
 const findById = vi.fn();
 const countDocuments = vi.fn();
+const updateMany = vi.fn(() => ({
+  session: async () => ({}),
+}));
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/promotion/runInTransaction", () => ({
+  runInTransaction: async (work: (session: object) => Promise<unknown>) =>
+    work({}),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -16,6 +24,7 @@ vi.mock("@/models/User", () => ({
   User: {
     findById: (...args: unknown[]) => findById(...args),
     countDocuments: (...args: unknown[]) => countDocuments(...args),
+    updateMany: (...args: unknown[]) => updateMany(...args),
   },
 }));
 
@@ -63,6 +72,7 @@ describe("PATCH /api/admin/team/[id]", () => {
     getSession.mockReset();
     findById.mockReset();
     countDocuments.mockReset();
+    updateMany.mockClear();
     countDocuments.mockResolvedValue(1);
     getSession.mockResolvedValue(session());
   });
@@ -92,6 +102,7 @@ describe("PATCH /api/admin/team/[id]", () => {
     expect(doc.isActive).toBe(false);
     expect(doc.sessionsInvalidatedAt).toBeInstanceOf(Date);
     expect(doc.save).toHaveBeenCalledOnce();
+    expect(updateMany).toHaveBeenCalled();
     const body = await res.json();
     expect(body.admin).toEqual(
       expect.objectContaining({
