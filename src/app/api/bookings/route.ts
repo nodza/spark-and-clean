@@ -219,7 +219,7 @@ export async function POST(request: Request) {
       typeof payload.rug === "object" &&
       !Array.isArray(payload.rug)
     ) {
-      const rug = {
+      const rug: Record<string, unknown> = {
         ...(payload.rug as Record<string, unknown>),
         areaSqM: quoted.areaSqM,
       };
