@@ -15,6 +15,7 @@ import {
   Ticket,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
@@ -78,7 +79,7 @@ import {
   resolveJobVehicles,
 } from "@/lib/vehicle";
 import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
-import { amountDueCentsForBooking } from "@/lib/payments/deposit";
+import { amountDueCentsForBooking, refundOverageCents } from "@/lib/payments/deposit";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -269,6 +270,10 @@ function AssignedDriverSummary({
 export default function AdminBookingDetail() {
   const params = useParams();
   const id = String(params.id ?? "");
+  const { user, ready: authReady } = useAuth();
+  const canRefund =
+    authReady && user?.role === "admin" && user.adminTier === "full";
+  const [receiptNonce, setReceiptNonce] = useState(0);
   const {
     bookings,
     fetchBookingById,
@@ -744,25 +749,23 @@ export default function AdminBookingDetail() {
                   Refund needed
                 </p>
                 <p className="text-body mt-[6px]" style={{ color: "#7a2424" }}>
-                  {formatRandCents(booking.billing?.amountPaidCents ?? 0)} has been
-                  paid and the final amount due is{" "}
-                  {formatRandCents(amountDueCentsForBooking(booking))}. Refund the
-                  difference of{" "}
-                  {formatRandCents(
-                    Math.max(
-                      0,
-                      (booking.billing?.amountPaidCents ?? 0) -
-                        amountDueCentsForBooking(booking)
-                    )
-                  )}
-                  .
+                  The final amount due is{" "}
+                  {formatRandCents(amountDueCentsForBooking(booking))}. Refund{" "}
+                  {formatRandCents(refundOverageCents(booking))}, which is still held
+                  above that price.
                 </p>
               </div>
             ) : null}
 
             <BookingReceipts
               bookingId={booking.id}
-              refreshKey={booking.paymentStatus}
+              canRefund={canRefund}
+              suggestedCents={refundOverageCents(booking)}
+              refreshKey={`${booking.paymentStatus}:${booking.billing?.amountPaidCents ?? 0}:${receiptNonce}`}
+              onRefunded={() => {
+                setReceiptNonce((current) => current + 1);
+                void fetchBookingById(booking.id);
+              }}
             />
 
             <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,24rem)]">

@@ -7,8 +7,12 @@ import {
   recomputeBookingPaymentStatus,
   resolveAmountDueCents,
   resolveAmountPaidCents,
+  recordFailure,
   recordSuccess,
+  settlementFromRows,
+  invoiceFromSettlement,
 } from "@/lib/payments/ledger";
+import { remainingBalanceCents } from "@/lib/payments/deposit";
 
 vi.mock("@/lib/mongodb", () => ({
   connectDB: vi.fn(async () => undefined),
@@ -17,6 +21,7 @@ vi.mock("@/lib/mongodb", () => ({
 const paymentCreate = vi.fn();
 const paymentFind = vi.fn();
 const paymentFindOne = vi.fn();
+const paymentUpdateOne = vi.fn();
 const bookingFindOne = vi.fn();
 const bookingUpdateOne = vi.fn();
 
@@ -25,6 +30,7 @@ vi.mock("@/models/Payment", () => ({
     create: (...args: unknown[]) => paymentCreate(...args),
     find: (...args: unknown[]) => paymentFind(...args),
     findOne: (...args: unknown[]) => paymentFindOne(...args),
+    updateOne: (...args: unknown[]) => paymentUpdateOne(...args),
   },
   PAYMENT_KINDS: ["DEPOSIT", "BALANCE", "REFUND"],
 }));
@@ -185,7 +191,7 @@ describe("recordSuccess", () => {
     paymentCreate.mockResolvedValue({});
     paymentFind.mockReturnValue({
       select: () => ({
-        lean: async () => [{ amountCents: 7500 }],
+        lean: async () => [{ amountCents: 7500, kind: "DEPOSIT" }],
       }),
     });
     const result = await recordSuccess({
@@ -220,7 +226,10 @@ describe("recordSuccess", () => {
     paymentCreate.mockResolvedValue({});
     paymentFind.mockReturnValue({
       select: () => ({
-        lean: async () => [{ amountCents: 7500 }, { amountCents: 7500 }],
+        lean: async () => [
+          { amountCents: 7500, kind: "DEPOSIT" },
+          { amountCents: 7500, kind: "BALANCE" },
+        ],
       }),
     });
     const result = await recordSuccess({
@@ -312,7 +321,39 @@ describe("recordSuccess", () => {
     expect(paymentFind).not.toHaveBeenCalled();
   });
 
-  it("subtracts a succeeded refund from amount paid", async () => {
+  it("keeps the invoice settled when part of a payment is refunded", () => {
+    const due = 132_000;
+    const afterDepositRefund = settlementFromRows([
+      { amountCents: 66_000, kind: "DEPOSIT" },
+      { amountCents: 6_000, kind: "REFUND" },
+    ]);
+    expect(afterDepositRefund.collectedCents).toBe(66_000);
+    expect(remainingBalanceCents(due, afterDepositRefund.collectedCents)).toBe(66_000);
+    expect(invoiceFromSettlement(afterDepositRefund, due)).toMatchObject({
+      amountPaidCents: 66_000,
+      paymentStatus: "DEPOSIT",
+      refundRequired: false,
+      refundDueCents: 0,
+    });
+
+    const afterFullRefund = settlementFromRows([
+      { amountCents: 66_000, kind: "DEPOSIT" },
+      { amountCents: 66_000, kind: "BALANCE" },
+      { amountCents: 6_000, kind: "REFUND" },
+      { amountCents: 6_000, kind: "REFUND" },
+    ]);
+    expect(afterFullRefund.collectedCents).toBe(132_000);
+    expect(afterFullRefund.netCents).toBe(120_000);
+    expect(invoiceFromSettlement(afterFullRefund, due)).toMatchObject({
+      amountPaidCents: 132_000,
+      paymentStatus: "PAID",
+      refundRequired: false,
+      refundDueCents: 0,
+    });
+    expect(remainingBalanceCents(due, afterFullRefund.collectedCents)).toBe(0);
+  });
+
+  it("records a refund without lowering the amount that settles the invoice", async () => {
     bookingFindOne.mockReturnValue({
       lean: async () => ({
         id: "SC-1",
@@ -345,8 +386,8 @@ describe("recordSuccess", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.billing.amountPaidCents).toBe(7500);
-    expect(result.paymentStatus).toBe("DEPOSIT");
+    expect(result.billing.amountPaidCents).toBe(15000);
+    expect(result.paymentStatus).toBe("PAID");
   });
 
   it("rejects a non-ZAR currency before writing a payment", async () => {
@@ -439,5 +480,196 @@ describe("recordSuccess", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.payment.userId).toBe("user-sarah");
+  });
+
+  it("rejects a duplicate providerRef that is a different kind", async () => {
+    bookingUpdateOne.mockClear();
+    paymentUpdateOne.mockClear();
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+      }),
+    });
+    paymentCreate.mockRejectedValue({ code: 11000 });
+    paymentFindOne.mockReturnValue({
+      lean: async () => ({
+        providerRef: "pi_1",
+        bookingId: "SC-1",
+        status: "SUCCEEDED",
+        kind: "DEPOSIT",
+        amountCents: 7500,
+      }),
+    });
+
+    const result = await recordSuccess({
+      provider: "stripe",
+      providerRef: "pi_1",
+      bookingId: "SC-1",
+      kind: "REFUND",
+      amountCents: 7500,
+    });
+
+    expect(result).toEqual({ ok: false, error: "duplicate_provider_ref" });
+    expect(bookingUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it("upgrades a failed row when the same Stripe id later succeeds", async () => {
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+        paymentStatus: "UNPAID",
+      }),
+    });
+    paymentCreate.mockRejectedValue({ code: 11000 });
+    paymentFindOne.mockReturnValue({
+      lean: async () => ({
+        provider: "stripe",
+        providerRef: "pi_retry",
+        bookingId: "SC-1",
+        status: "FAILED",
+        kind: "DEPOSIT",
+        amountCents: 7500,
+      }),
+    });
+    paymentUpdateOne.mockResolvedValue({ matchedCount: 1 });
+    paymentFind.mockReturnValue({
+      select: () => ({
+        lean: async () => [{ amountCents: 7500, kind: "DEPOSIT" }],
+      }),
+    });
+    bookingUpdateOne.mockResolvedValue({ matchedCount: 1 });
+
+    const result = await recordSuccess({
+      provider: "stripe",
+      providerRef: "pi_retry",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+    });
+
+    expect(paymentUpdateOne).toHaveBeenCalledWith(
+      { providerRef: "pi_retry", bookingId: "SC-1", status: "FAILED" },
+      expect.objectContaining({
+        $set: expect.objectContaining({ status: "SUCCEEDED", amountCents: 7500 }),
+      })
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.paymentStatus).toBe("DEPOSIT");
+    expect(result.billing.amountPaidCents).toBe(7500);
+  });
+});
+
+describe("recordFailure", () => {
+  beforeEach(() => {
+    paymentCreate.mockReset();
+    paymentFind.mockReset();
+    paymentFindOne.mockReset();
+    paymentUpdateOne.mockReset();
+    bookingFindOne.mockReset();
+    bookingUpdateOne.mockReset();
+  });
+
+  it("writes a FAILED row and does not change the booking", async () => {
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        status: "CONFIRMED",
+        paymentStatus: "UNPAID",
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+      }),
+    });
+    paymentCreate.mockResolvedValue({});
+
+    const result = await recordFailure({
+      provider: "stripe",
+      providerRef: "pi_declined",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+      currency: "zar",
+    });
+
+    expect(result).toEqual({ ok: true, applied: true });
+    expect(paymentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerRef: "pi_declined",
+        status: "FAILED",
+        kind: "DEPOSIT",
+        amountCents: 7500,
+        currency: "ZAR",
+      })
+    );
+    expect(bookingUpdateOne).not.toHaveBeenCalled();
+    expect(paymentFind).not.toHaveBeenCalled();
+  });
+
+  it("does not add a second row when the same failure is replayed", async () => {
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+      }),
+    });
+    paymentCreate.mockRejectedValue({ code: 11000 });
+    paymentFindOne.mockReturnValue({
+      lean: async () => ({
+        providerRef: "pi_declined",
+        bookingId: "SC-1",
+        status: "FAILED",
+        kind: "DEPOSIT",
+        amountCents: 7500,
+      }),
+    });
+
+    const result = await recordFailure({
+      provider: "stripe",
+      providerRef: "pi_declined",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+    });
+
+    expect(result).toEqual({ ok: true, applied: false });
+    expect(bookingUpdateOne).not.toHaveBeenCalled();
+    expect(paymentUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade a succeeded charge when a failure is replayed", async () => {
+    bookingFindOne.mockReturnValue({
+      lean: async () => ({
+        id: "SC-1",
+        estimatedPriceMin: 100,
+        estimatedPriceMax: 200,
+      }),
+    });
+    paymentCreate.mockRejectedValue({ code: 11000 });
+    paymentFindOne.mockReturnValue({
+      lean: async () => ({
+        providerRef: "pi_paid",
+        bookingId: "SC-1",
+        status: "SUCCEEDED",
+        kind: "DEPOSIT",
+        amountCents: 7500,
+      }),
+    });
+
+    const result = await recordFailure({
+      provider: "ozow",
+      providerRef: "pi_paid",
+      bookingId: "SC-1",
+      kind: "DEPOSIT",
+      amountCents: 7500,
+    });
+
+    expect(result).toEqual({ ok: true, applied: false });
+    expect(paymentUpdateOne).not.toHaveBeenCalled();
+    expect(bookingUpdateOne).not.toHaveBeenCalled();
   });
 });

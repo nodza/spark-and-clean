@@ -5,7 +5,12 @@ import { Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { APP_TIMEZONE } from "@/lib/localCalendarDate";
+import { refundedCentsForSource } from "@/lib/payments/refundAmount";
 import { cn } from "@/lib/utils";
+import {
+  RefundPaymentDialog,
+  type RefundTarget,
+} from "@/components/admin/RefundPaymentDialog";
 
 type Receipt = {
   id: string;
@@ -16,6 +21,8 @@ type Receipt = {
   currency: string;
   status: string;
   createdAt: string;
+  reason?: string;
+  sourceProviderRef?: string;
 };
 
 type LoadState = "loading" | "ready" | "error";
@@ -101,7 +108,22 @@ function toReceipt(value: unknown, index: number): Receipt | null {
     currency: String(row.currency || "ZAR"),
     status: String(row.status || ""),
     createdAt: String(row.createdAt || ""),
+    ...(String(row.reason || "").trim()
+      ? { reason: String(row.reason).trim() }
+      : {}),
+    ...(String(row.sourceProviderRef || "").trim()
+      ? { sourceProviderRef: String(row.sourceProviderRef).trim() }
+      : {}),
   };
+}
+
+function canRefundReceipt(receipt: Receipt) {
+  const kind = receipt.kind.trim().toUpperCase();
+  return (
+    receipt.status.trim().toUpperCase() === "SUCCEEDED" &&
+    (kind === "DEPOSIT" || kind === "BALANCE") &&
+    Boolean(receipt.providerRef)
+  );
 }
 
 function GatewayReference({ value }: { value: string }) {
@@ -161,10 +183,19 @@ function GatewayReference({ value }: { value: string }) {
   );
 }
 
-function ReceiptRow({ receipt }: { receipt: Receipt }) {
+function ReceiptRow({
+  receipt,
+  refundableCents,
+  onRefund,
+}: {
+  receipt: Receipt;
+  refundableCents: number;
+  onRefund?: (target: RefundTarget) => void;
+}) {
   const refund = isRefund(receipt);
   const amount = formatAmount(receipt.amountCents, receipt.currency);
   const when = formatReceiptDate(receipt.createdAt);
+  const showRefund = Boolean(onRefund) && canRefundReceipt(receipt) && refundableCents > 0;
 
   return (
     <li className="min-w-0 rounded-[10px] border border-[#f0f2f6] bg-[#f7f9fb] px-3 py-3 sm:px-4">
@@ -211,6 +242,15 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
         </div>
       </div>
 
+      {receipt.reason ? (
+        <div className="mt-3 min-w-0">
+          <div className="text-eyebrow text-[#9aa0a6]">Reason</div>
+          <p className="text-body mt-1 break-words whitespace-pre-wrap text-[#32373c]">
+            {receipt.reason}
+          </p>
+        </div>
+      ) : null}
+
       {receipt.providerRef ? (
         <GatewayReference value={receipt.providerRef} />
       ) : (
@@ -219,6 +259,35 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
           <p className="text-body mt-1 text-[#32373c]">—</p>
         </div>
       )}
+
+      {showRefund ? (
+        <div className="mt-3 border-t border-[#e8ebf0] pt-3">
+          {refundableCents < receipt.amountCents ? (
+            <p className="text-meta mb-2 text-[#6b7280]">
+              {formatAmount(refundableCents, receipt.currency)} of {amount} can
+              still be refunded.
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="min-h-11 w-full sm:w-auto"
+            aria-label={`Refund ${kindLabel(receipt.kind).toLowerCase()} of ${formatAmount(refundableCents, receipt.currency)}`}
+            onClick={() =>
+              onRefund?.({
+                provider: receipt.provider,
+                providerRef: receipt.providerRef,
+                kind: receipt.kind,
+                currency: receipt.currency,
+                refundableCents,
+              })
+            }
+          >
+            Refund
+          </Button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -226,11 +295,18 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
 export function BookingReceipts({
   bookingId,
   refreshKey,
+  canRefund = false,
+  suggestedCents = 0,
+  onRefunded,
 }: {
   bookingId: string;
   refreshKey?: string;
+  canRefund?: boolean;
+  suggestedCents?: number;
+  onRefunded?: () => void;
 }) {
   const [receipts, setReceipts] = useState<Receipt[] | null>(null);
+  const [refundTarget, setRefundTarget] = useState<RefundTarget | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -301,6 +377,13 @@ export function BookingReceipts({
   }, [bookingId, refreshKey, load]);
 
   const showSkeleton = loadState === "loading" && receipts === null;
+  const showRefundHint =
+    canRefund &&
+    (receipts?.some((row) => {
+      if (!canRefundReceipt(row)) return false;
+      return row.amountCents - refundedCentsForSource(receipts, row.providerRef) > 0;
+    }) ??
+      false);
 
   return (
     <section
@@ -313,9 +396,14 @@ export function BookingReceipts({
           <h2 id="booking-receipts-title" className="text-card-title text-[#000b49]">
             Receipts
           </h2>
-          <p className="text-meta mt-[6px] text-[#9aa0a6]">
-            Gateway payments recorded for this booking.
+          <p className="text-meta mt-[6px] max-w-prose text-[#9aa0a6]">
+            Payments, failed attempts, and refunds recorded for this booking.
           </p>
+          {showRefundHint ? (
+            <p className="text-meta mt-2 max-w-prose text-[#6b7280]">
+              Refund a card through Stripe, or record an Ozow refund you already sent.
+            </p>
+          ) : null}
         </div>
         <Button
           type="button"
@@ -361,11 +449,39 @@ export function BookingReceipts({
 
       {receipts && receipts.length > 0 ? (
         <ul className="mt-[16px] flex min-w-0 flex-col gap-3" aria-label="Gateway receipts">
-          {receipts.map((receipt) => (
-            <ReceiptRow key={receipt.id} receipt={receipt} />
-          ))}
+          {receipts.map((receipt) => {
+            const refundable = canRefundReceipt(receipt)
+              ? Math.max(
+                  0,
+                  receipt.amountCents -
+                    refundedCentsForSource(receipts, receipt.providerRef)
+                )
+              : 0;
+            return (
+              <ReceiptRow
+                key={receipt.id}
+                receipt={receipt}
+                refundableCents={refundable}
+                onRefund={canRefund ? setRefundTarget : undefined}
+              />
+            );
+          })}
         </ul>
       ) : null}
+
+      <RefundPaymentDialog
+        bookingId={bookingId}
+        target={refundTarget}
+        suggestedCents={suggestedCents}
+        open={refundTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) setRefundTarget(null);
+        }}
+        onRefunded={() => {
+          void load(receipts === null ? "initial" : "refresh");
+          onRefunded?.();
+        }}
+      />
     </section>
   );
 }

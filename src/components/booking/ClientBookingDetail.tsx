@@ -15,6 +15,7 @@ import {
   amountDueCentsForBooking,
   balanceAmountCents,
   depositAmountCents,
+  refundOverageCents,
   DEPOSIT_FRACTION,
 } from "@/lib/payments/deposit";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
@@ -139,6 +140,7 @@ export function ClientBookingDetail({
   const amountDueCents = amountDueCentsForBooking(booking);
   const depositCents = depositAmountCents(amountDueCents);
   const outstandingCents = balanceAmountCents(booking);
+  const refundDueCents = refundOverageCents(booking);
   const afterDepositCents = Math.max(0, amountDueCents - depositCents);
   const depositPercent = Math.round(DEPOSIT_FRACTION * 100);
   const payment = paymentStatusPresentation(booking.paymentStatus);
@@ -431,13 +433,8 @@ export function ClientBookingDetail({
             >
               <p className="text-[15px] font-extrabold text-[#b33232]">Refund due</p>
               <p className="mt-1 text-[13px] leading-relaxed text-[#7a2424]">
-                You&apos;ve paid {formatRand(booking.billing?.amountPaidCents ?? 0)} and
-                the final price is {formatRand(amountDueCents)}. We&apos;ll refund the
-                difference of{" "}
-                {formatRand(
-                  Math.max(0, (booking.billing?.amountPaidCents ?? 0) - amountDueCents)
-                )}
-                .
+                The final price is {formatRand(amountDueCents)}. We&apos;ll refund{" "}
+                {formatRand(refundDueCents)}, which is still held above that price.
               </p>
             </div>
           ) : null}

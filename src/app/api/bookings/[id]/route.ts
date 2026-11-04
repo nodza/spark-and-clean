@@ -21,6 +21,7 @@ import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
+import { healInvoiceSettlement } from "@/lib/payments/ledger";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
@@ -120,6 +121,12 @@ export async function GET(_request: Request, { params }: Params) {
     const session = await getSession();
 
     await connectDB();
+    try {
+      await healInvoiceSettlement(id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "invoice heal failed";
+      console.error("[api/bookings GET] invoice heal", message);
+    }
     const doc = await Booking.findOne({ id }).lean();
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

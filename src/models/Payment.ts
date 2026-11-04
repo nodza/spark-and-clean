@@ -40,6 +40,10 @@ const PaymentSchema = new Schema(
       index: true,
     },
     createdAt: { type: String, required: true },
+    /** Why an admin recorded a refund. Gateway charges leave this empty. */
+    reason: { type: String, trim: true, maxlength: 500 },
+    /** Original charge this refund applies to (PaymentIntent or Ozow transaction id). */
+    sourceProviderRef: { type: String, trim: true },
   },
   {
     timestamps: { createdAt: false, updatedAt: true },
