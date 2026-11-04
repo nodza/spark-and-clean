@@ -1,4 +1,9 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
   buildRugPhotoKey,
@@ -53,7 +58,10 @@ function s3Client(): { client: S3Client; bucket: string } {
   return { client, bucket: settings.bucket };
 }
 
-export async function createRugPhotoUpload(contentType: RugPhotoContentType) {
+export async function createRugPhotoUpload(
+  contentType: RugPhotoContentType,
+  size: number
+) {
   const { client: s3, bucket } = s3Client();
   const key = buildRugPhotoKey(contentType);
   const uploadUrl = await getSignedUrl(
@@ -62,10 +70,21 @@ export async function createRugPhotoUpload(contentType: RugPhotoContentType) {
       Bucket: bucket,
       Key: key,
       ContentType: contentType,
+      ContentLength: size,
     }),
     { expiresIn: RUG_PHOTO_PUT_TTL_SECONDS }
   );
   return { key, uploadUrl, contentType };
+}
+
+export async function deleteRugPhoto(key: string): Promise<void> {
+  if (!isRugPhotoKey(key)) {
+    throw new Error("Invalid rug photo key");
+  }
+  const { client: s3, bucket } = s3Client();
+  await s3.send(
+    new DeleteObjectCommand({ Bucket: bucket, Key: key.trim() })
+  );
 }
 
 export async function presignRugPhotoGet(key: string): Promise<string> {
@@ -101,7 +120,19 @@ export async function presentPhotoList(
   values: string[] | undefined
 ): Promise<string[]> {
   if (!values?.length) return [];
-  const shown = await Promise.all(values.map((value) => presentStoredPhoto(value)));
+  const shown = await Promise.all(
+    values.map(async (value) => {
+      try {
+        return await presentStoredPhoto(value);
+      } catch (err) {
+        console.error(
+          "[rug-photos] could not sign photo",
+          err instanceof Error ? err.message : err
+        );
+        return null;
+      }
+    })
+  );
   return shown.filter((value): value is string => Boolean(value));
 }
 

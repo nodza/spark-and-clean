@@ -67,7 +67,23 @@ export async function GET(request: Request) {
           (photo, photoIndex, photos) =>
             Boolean(photo) && photos.indexOf(photo) === photoIndex
         );
-        const thumbnails = await presentPhotoList(stored);
+        let thumbnails: string[] = [];
+        try {
+          thumbnails = await presentPhotoList(stored);
+        } catch (err) {
+          console.error(
+            "[api/rugs] could not sign photos",
+            err instanceof Error ? err.message : err
+          );
+          thumbnails = stored.filter((photo) => {
+            const value = photo.trim();
+            return (
+              (value.startsWith("/") && !value.startsWith("//")) ||
+              value.startsWith("http://") ||
+              value.startsWith("https://")
+            );
+          });
+        }
         return {
           tagCode,
           customer: booking.customer?.name ?? "",

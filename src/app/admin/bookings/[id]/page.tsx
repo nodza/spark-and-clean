@@ -51,6 +51,7 @@ import {
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { bookingAddOnLabels, isDisplayablePhotoUrl, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { RugPhotoGallery } from "@/components/booking/RugPhotoGallery";
 import {
   formatAssignedDriverLine,
   resolveJobVehicles,
@@ -111,16 +112,8 @@ function RugPhotoCard({
       <div className="text-card-title" style={{ color: "#000b49" }}>
         {title}
       </div>
-      <div className="mt-[14px] grid grid-cols-3 gap-[10px]">
-        {visible.map((photo, i) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={`${photo}-${i}`}
-            src={photo}
-            alt={`${title} ${i + 1}`}
-            className="h-28 w-full rounded-[10px] border border-[#f0f2f6] object-cover"
-          />
-        ))}
+      <div className="mt-[14px]">
+        <RugPhotoGallery title={title} photos={visible} />
       </div>
     </div>
   );

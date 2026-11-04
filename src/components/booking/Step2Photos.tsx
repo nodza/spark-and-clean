@@ -209,7 +209,14 @@ export function Step2Photos({ data, update, onUploadGateChange }: StepProps) {
     if (removed.previewUrl.startsWith("blob:")) {
       URL.revokeObjectURL(removed.previewUrl);
     }
-    if (removed.key) previewByKey.delete(removed.key);
+    if (removed.key) {
+      previewByKey.delete(removed.key);
+      void fetch("/api/uploads/rug-photos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: removed.key }),
+      }).catch(() => undefined);
+    }
     setFiles(entries.filter((_, i) => i !== index));
     setError(null);
   };
@@ -435,7 +442,7 @@ function PhotoDropzone({
                 type="button"
                 onClick={() => onRemove(index)}
                 aria-label={`Remove ${title} ${index + 1}`}
-                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity hover:bg-black/80 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <X className="h-4 w-4" />
               </button>
