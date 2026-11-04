@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useBookingStore } from "@/store/useBookingStore";
 import { Badge } from "@/components/ui/badge";
 import { AccessDeniedBanner } from "@/components/auth/AccessDeniedBanner";
 import {
@@ -11,15 +10,10 @@ import {
   AdminSearchTopbar,
 } from "@/components/admin/AdminPortalShell";
 import type { OpsAlert } from "@/types/opsAlert";
-import {
-  formatBookingCollection,
-  isBookingOnLocalDay,
-  localCalendarDate,
-} from "@/lib/localCalendarDate";
-import { isBookingDeactivated } from "@/lib/adminBookingDetails";
-import { isActionableUnassignedToday, isUnassignedDriver } from "@/lib/bookingAttention";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
+import { isUnassignedDriver } from "@/lib/bookingAttention";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
-import type { Booking, Driver } from "@/types/booking";
+import type { Driver } from "@/types/booking";
 
 const HIGH_VOLUME_THRESHOLD = 5;
 const ALERT_POLL_MS = 12_000;
@@ -28,13 +22,9 @@ const ALERT_POLL_MS = 12_000;
 function StatTile({
   label,
   value,
-  delta,
-  deltaColor = "#0a7a63",
 }: {
   label: string;
   value: string | number;
-  delta: string;
-  deltaColor?: string;
 }) {
   return (
     <div className="ds-card">
@@ -45,10 +35,39 @@ function StatTile({
       >
         {value}
       </div>
-      <div className="text-meta mt-[7px]" style={{ color: deltaColor }}>{delta}</div>
     </div>
   );
 }
+
+type AdminMetrics = {
+  totalBookings: number;
+  scheduledToday: number;
+  activeJobs: number;
+  unpaidBookings: number;
+  unassignedToday: number;
+  revenueThisWeekCents: number;
+  revenueByDay: { date: string; amountCents: number }[];
+  todayJobs: TodayJob[];
+  recentBookings: {
+    id: string;
+    customer: { name: string };
+    suburb: string;
+    collectionDate: string;
+    collectionSlot: "MORNING" | "AFTERNOON";
+    status: string;
+  }[];
+};
+
+type TodayJob = {
+  id: string;
+  collectionDate: string;
+  collectionSlot: "MORNING" | "AFTERNOON";
+  status: string;
+  customer: { name: string };
+  suburb: string;
+  rug: { type: string };
+  assignedDriverId?: string;
+};
 
 // ─── Status badge mapping ────────────────────────────────────────────────────
 function statusVariant(status: string): React.ComponentProps<typeof Badge>["variant"] {
@@ -62,7 +81,8 @@ function statusVariant(status: string): React.ComponentProps<typeof Badge>["vari
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
-  const { bookings, fetchBookings, isLoading } = useBookingStore();
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [metricsError, setMetricsError] = useState(false);
   const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -70,6 +90,21 @@ export default function AdminDashboard() {
     "loading" | "ready" | "unavailable"
   >("loading");
   const knownAlertIdsRef = useRef<Set<string> | null>(null);
+
+  const loadMetrics = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/metrics", {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Could not load admin metrics");
+      const data = (await response.json()) as AdminMetrics;
+      setMetrics(data);
+      setMetricsError(false);
+    } catch {
+      setMetrics(null);
+      setMetricsError(true);
+    }
+  }, []);
 
   const loadAlerts = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
@@ -112,7 +147,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    void fetchBookings();
+    void loadMetrics();
     void loadAlerts();
     void fetch("/api/drivers", { credentials: "include" })
       .then(async (r) => {
@@ -139,57 +174,26 @@ export default function AdminDashboard() {
         setDrivers([]);
         setDriversStatus("unavailable");
       });
-  }, [fetchBookings, loadAlerts]);
+  }, [loadAlerts, loadMetrics]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadAlerts({ silent: true });
-      void fetchBookings({ silent: true });
+      void loadMetrics();
     }, ALERT_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [loadAlerts, fetchBookings]);
+  }, [loadAlerts, loadMetrics]);
 
-  const today = localCalendarDate();
-  const todaysPickups = bookings.filter(
-    (b) =>
-      !isBookingDeactivated(b) &&
-      isBookingOnLocalDay(b.collectionDate, today) &&
-      b.status === "SCHEDULED"
-  ).length;
-  const activeJobs = bookings.filter(
-    (b) =>
-      !isBookingDeactivated(b) &&
-      ["COLLECTED", "CLEANING", "DRYING", "READY"].includes(b.status)
-  ).length;
-  const unpaidCount = bookings.filter(
-    (b) => !isBookingDeactivated(b) && b.paymentStatus === "UNPAID"
-  ).length;
-  const unassignedTodayCount = bookings.filter((b) =>
-    isActionableUnassignedToday(b, today)
-  ).length;
-  // Include deactivated rows so soft-remove does not rewrite revenue history.
-  const revenue = bookings.reduce(
-    (acc, b) => acc + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
-    0
-  );
-  const lateCount = 2; // placeholder until LATE/OVERDUE statuses are added to the type
-  const todayJobs = bookings
-    .filter(
-      (b) =>
-        !isBookingDeactivated(b) &&
-        isBookingOnLocalDay(b.collectionDate, today) &&
-        b.status !== "CANCELLED"
-    )
-    .sort((a, b) => {
-      const slot = a.collectionSlot === b.collectionSlot ? 0 : a.collectionSlot === "MORNING" ? -1 : 1;
-      if (slot !== 0) return slot;
-      return a.id.localeCompare(b.id);
-    });
+  const activeJobs = metrics?.activeJobs ?? 0;
+  const unpaidCount = metrics?.unpaidBookings ?? 0;
+  const unassignedTodayCount = metrics?.unassignedToday ?? 0;
+  const todayJobs = metrics?.todayJobs ?? [];
+  const recentBookings = metrics?.recentBookings ?? [];
 
-  const driverLine = (booking: Booking) => {
-    if (isUnassignedDriver(booking.assignedDriverId)) return "Unassigned";
+  const driverLine = (job: TodayJob) => {
+    if (isUnassignedDriver(job.assignedDriverId)) return "Unassigned";
     if (driversStatus === "unavailable") return "Driver details unavailable";
-    const driver = drivers.find((d) => d.id === booking.assignedDriverId);
+    const driver = drivers.find((d) => d.id === job.assignedDriverId);
     if (!driver) return "Assigned driver";
     return formatAssignedDriverLine(driver.name, driver.vehicle);
   };
@@ -207,10 +211,9 @@ export default function AdminDashboard() {
   const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
   const hasActionable =
     unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
-  const bookingsSettled = !(isLoading && bookings.length === 0);
-  const attentionReady = !alertsLoading && bookingsSettled;
+  const attentionReady = !alertsLoading && metrics !== null;
   const showAttentionLoading =
-    !attentionReady && !hasActionable && !showHighVolume;
+    !metricsError && !attentionReady && !hasActionable && !showHighVolume;
   const showEmpty = attentionReady && !hasActionable && !showHighVolume;
 
   const dismissAlert = async (alertId: string) => {
@@ -234,16 +237,11 @@ export default function AdminDashboard() {
     }
   };
 
-  const capacityTotal = 48;
-  const capacityFilled = 34;
-  const capacityOpen = capacityTotal - capacityFilled;
-  const capacityPct = Math.round((capacityFilled / capacityTotal) * 100);
-
   return (
     <AdminPortalShell
       pageTitle="Overview"
       active="overview"
-      bookingsBadge={bookings.length || undefined}
+      bookingsBadge={metrics?.totalBookings || undefined}
       topbarActions={<AdminSearchTopbar />}
     >
       <div className="portal-page flex flex-col gap-[18px]">
@@ -252,21 +250,29 @@ export default function AdminDashboard() {
         </Suspense>
 
         {/* ── KPI row ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-[14px] lg:grid-cols-4">
-          <StatTile label="BOOKINGS TODAY" value={todaysPickups} delta="+4 vs yesterday" />
-          <StatTile label="IN CLEANING" value={activeJobs} delta="across 2 facilities" deltaColor="#9aa0a6" />
+        <div className="grid grid-cols-2 gap-[14px] lg:grid-cols-3">
+          <StatTile
+            label="BOOKINGS TODAY"
+            value={metrics ? metrics.scheduledToday : "—"}
+          />
+          <StatTile label="IN CLEANING" value={metrics ? activeJobs : "—"} />
           <StatTile
             label="REVENUE THIS WEEK"
-            value={`R${Math.round(revenue).toLocaleString()}`}
-            delta="+12% vs last week"
-          />
-          <StatTile
-            label="LATE DELIVERIES"
-            value={lateCount}
-            delta="needs rescheduling"
-            deltaColor="#b3261e"
+            value={
+              metrics
+                ? `R${(metrics.revenueThisWeekCents / 100).toLocaleString("en-ZA", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`
+                : "—"
+            }
           />
         </div>
+        {metricsError ? (
+          <p role="status" className="text-sm text-red-700">
+            Dashboard metrics are currently unavailable.
+          </p>
+        ) : null}
 
         {/* ── Main 2-col layout ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-[18px] items-stretch xl:flex-row xl:items-start">
@@ -299,14 +305,22 @@ export default function AdminDashboard() {
                 <button className="ds-text-action">Full calendar</button>
               </div>
               <div>
-                {todayJobs.length === 0 ? (
+                {metrics === null && !metricsError ? (
+                  <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
+                    Loading today&apos;s schedule…
+                  </div>
+                ) : metricsError ? (
+                  <div role="status" className="px-[22px] py-[40px] text-center text-meta text-red-700">
+                    Today&apos;s schedule is currently unavailable.
+                  </div>
+                ) : todayJobs.length === 0 ? (
                   <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
                     No jobs scheduled today.
                   </div>
                 ) : (
                   todayJobs.map((job, i) => {
                     const meta = jobTag(job.status);
-                    const time = job.collectionSlot === "MORNING" ? "09:00" : "14:00";
+                    const period = job.collectionSlot === "MORNING" ? "AM" : "PM";
                     const tech = driverLine(job);
                     return (
                       <Link
@@ -317,7 +331,7 @@ export default function AdminDashboard() {
                       >
                         <div className="w-[44px] flex-none">
                           <div className="tabular text-[14px] font-extrabold" style={{ color: "#000b49" }}>
-                            {time}
+                            {period}
                           </div>
                         </div>
                         <div
@@ -369,7 +383,7 @@ export default function AdminDashboard() {
                       <div key={h} className="text-th">{h}</div>
                     ))}
                   </div>
-                  {bookings.slice(0, 5).map((booking) => (
+                  {recentBookings.map((booking) => (
                     <Link
                       key={booking.id}
                       href={`/admin/bookings/${booking.id}`}
@@ -404,7 +418,11 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
-              {bookings.length === 0 && !isLoading ? (
+              {metrics === null && !metricsError ? (
+                <div className="px-[22px] py-[30px] text-center text-meta" style={{ color: "#9aa0a6" }}>
+                  Loading bookings…
+                </div>
+              ) : metrics !== null && recentBookings.length === 0 ? (
                 <div className="px-[22px] py-[40px] text-center text-meta" style={{ color: "#9aa0a6" }}>
                   No bookings yet.
                 </div>
@@ -413,7 +431,7 @@ export default function AdminDashboard() {
 
           </div>
 
-          {/* Right: alerts + capacity */}
+          {/* Right: alerts */}
           <div className="flex w-full flex-none flex-col gap-[14px] xl:w-[280px]">
 
             <div className="ds-card p-0 overflow-hidden">
@@ -439,6 +457,17 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
                       No unpaid or unassigned work
+                    </div>
+                  </div>
+                ) : null}
+
+                {metricsError ? (
+                  <div className="px-[20px] py-[18px]">
+                    <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                      Metrics unavailable
+                    </div>
+                    <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                      Could not load unpaid or unassigned work
                     </div>
                   </div>
                 ) : null}
@@ -547,28 +576,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ) : null}
-              </div>
-            </div>
-
-            <div className="ds-panel-navy">
-              <div className="text-eyebrow" style={{ color: "#6cf3d5" }}>CAPACITY TODAY</div>
-              <div
-                className="tabular mt-[10px]"
-                style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}
-              >
-                {capacityFilled} / {capacityTotal} slots
-              </div>
-              <div
-                className="mt-[12px] h-[6px] w-full overflow-hidden rounded-full"
-                style={{ background: "rgba(255,255,255,.12)" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${capacityPct}%`, background: "#6cf3d5" }}
-                />
-              </div>
-              <div className="text-meta mt-[10px]" style={{ color: "rgba(255,255,255,.55)" }}>
-                {capacityOpen} open · {capacityPct}% filled
               </div>
             </div>
           </div>
