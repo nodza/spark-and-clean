@@ -12,6 +12,7 @@ import {
   Phone,
   ShieldAlert,
 } from "lucide-react";
+import { RugPhotoGallery } from "@/components/booking/RugPhotoGallery";
 import { TechAppShell } from "@/components/layout/TechAppShell";
 import { Button } from "@/components/ui/button";
 import { useRequireAuth } from "@/hooks/useRequireClientAuth";
@@ -394,35 +395,6 @@ function JobBlockedState({
   );
 }
 
-function PhotoRow({
-  label,
-  photos,
-  onError,
-}: {
-  label: string;
-  photos: string[];
-  onError: (url: string) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 text-[11px] font-bold text-[#6b7280]">{label}</div>
-      <ul className="flex gap-2 overflow-x-auto">
-        {photos.map((photo, i) => (
-          <li key={`${label}-${i}`} className="shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo}
-              alt={`${label} photo ${i + 1}`}
-              className="size-20 rounded-[9px] object-cover"
-              onError={() => onError(photo)}
-            />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function JobPhotos({
   conditionPhotos,
   labelPhotos,
@@ -430,23 +402,17 @@ function JobPhotos({
   conditionPhotos: string[];
   labelPhotos: string[];
 }) {
-  const [failed, setFailed] = useState<string[]>([]);
-  const hide = (url: string) =>
-    setFailed((prev) => (prev.includes(url) ? prev : [...prev, url]));
-  const visibleCondition = conditionPhotos.filter((url) => !failed.includes(url));
-  const visibleLabel = labelPhotos.filter((url) => !failed.includes(url));
-
-  if (visibleCondition.length === 0 && visibleLabel.length === 0) {
+  if (conditionPhotos.length === 0 && labelPhotos.length === 0) {
     return <p className="mt-1 text-xs text-[#9aa0a6]">No photos uploaded</p>;
   }
 
   return (
     <div className="mt-2 space-y-3">
-      {visibleCondition.length > 0 ? (
-        <PhotoRow label="Condition" photos={visibleCondition} onError={hide} />
+      {conditionPhotos.length > 0 ? (
+        <RugPhotoGallery title="Condition" label="Condition" photos={conditionPhotos} />
       ) : null}
-      {visibleLabel.length > 0 ? (
-        <PhotoRow label="Label" photos={visibleLabel} onError={hide} />
+      {labelPhotos.length > 0 ? (
+        <RugPhotoGallery title="Label" label="Label" photos={labelPhotos} />
       ) : null}
     </div>
   );

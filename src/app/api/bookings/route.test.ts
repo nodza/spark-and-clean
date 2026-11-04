@@ -385,4 +385,41 @@ describe("POST /api/bookings confirm coupon", () => {
     );
     expect(writtenPayload().userId).toBe(sarahId);
   });
+
+  it("stores an uploaded photo key and rejects a blob or outside link", async () => {
+    const key =
+      "rug-photos/2026/10/11111111-1111-4111-8111-111111111111.jpg";
+    const rug = {
+      type: "Persian",
+      widthM: 2,
+      lengthM: 3,
+      areaSqM: 6,
+      photos: [key],
+      labelPhotos: [] as string[],
+    };
+
+    const { POST } = await import("./route");
+    const saved = await POST(post({ rug }));
+    expect(saved.status).toBe(200);
+    expect((writtenPayload().rug as { photos: string[] }).photos).toEqual([key]);
+
+    const blob = await POST(
+      post({ rug: { ...rug, photos: ["blob:http://localhost/photo"] } })
+    );
+    expect(blob.status).toBe(400);
+    expect(await blob.json()).toEqual({
+      error: "Rug photos must be images uploaded for this booking.",
+    });
+
+    const outside = await POST(
+      post({
+        rug: {
+          ...rug,
+          labelPhotos: ["https://cdn.example/label.jpg"],
+        },
+      })
+    );
+    expect(outside.status).toBe(400);
+    expect(bookingCreate).toHaveBeenCalledTimes(1);
+  });
 });

@@ -21,6 +21,7 @@ import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
+import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { creditReferrerOnce } from "@/lib/referral";
 import {
@@ -152,7 +153,10 @@ export async function GET(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const withVehicles = await withJobVehicles(booking, session);
+    const withVehicles = await rugPhotosForSession(
+      await withJobVehicles(booking, session),
+      session
+    );
     const technician = await customerTechnician(withVehicles.assignedDriverId);
     const sharedTechnician =
       technician?.phone &&

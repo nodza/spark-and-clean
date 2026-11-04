@@ -47,6 +47,18 @@ vi.mock("@/lib/vehicleDay", () => ({
 vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
+vi.mock("@/lib/s3RugPhotos", () => ({
+  presentPhotoList: async (values?: string[]) =>
+    (values ?? []).flatMap((value) => {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("rug-photos/")) {
+        return [`https://signed.example/${trimmed}?expires=900`];
+      }
+      if (trimmed.startsWith("blob:")) return [];
+      if (trimmed.startsWith("/") || /^https?:\/\//.test(trimmed)) return [trimmed];
+      return [];
+    }),
+}));
 
 import { GET, PATCH } from "./route";
 
@@ -446,5 +458,79 @@ describe("GET /api/bookings/[id] job vehicles", () => {
     expect(payload.standingVehicle).toBeNull();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+const RUG_KEY =
+  "rug-photos/2026/10/11111111-1111-4111-8111-111111111111.jpg";
+
+describe("GET /api/bookings/[id] rug photos", () => {
+  beforeEach(() => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          rug: {
+            type: "Persian",
+            areaSqM: 6,
+            photos: [RUG_KEY],
+            labelPhotos: [RUG_KEY],
+          },
+        })
+      )
+    );
+  });
+
+  it("gives a full admin a short-lived photo URL", async () => {
+    const res = await get();
+    const payload = await res.json();
+    expect(res.status).toBe(200);
+    expect(payload.rug.photos).toEqual([
+      `https://signed.example/${RUG_KEY}?expires=900`,
+    ]);
+    expect(payload.rug.labelPhotos).toEqual(payload.rug.photos);
+    expect(JSON.stringify(payload)).not.toContain(`"${RUG_KEY}"`);
+  });
+
+  it("gives the assigned technician and the owning client the same kind of URL", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+    const tech = await (await get()).json();
+    expect(tech.rug.photos[0]).toContain("https://signed.example/");
+
+    mocks.getSession.mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+    const owner = await (await get()).json();
+    expect(owner.rug.photos[0]).toContain("https://signed.example/");
+  });
+
+  it("does not give a photo URL to another client, another technician, or a public link", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "507f1f77bcf86cd799439099",
+      email: "other@example.com",
+      role: "client",
+    });
+    expect((await get()).status).toBe(403);
+
+    mocks.getSession.mockResolvedValue({
+      id: "tech-2",
+      email: "other-tech@example.com",
+      role: "technician",
+      driverProfileId: "driver_other",
+    });
+    expect((await get()).status).toBe(403);
+
+    mocks.getSession.mockResolvedValue(null);
+    const payload = await (await get()).json();
+    expect(payload.rug.photos).toEqual([]);
+    expect(payload.rug.labelPhotos).toEqual([]);
+    expect(JSON.stringify(payload)).not.toContain("rug-photos/");
+    expect(JSON.stringify(payload)).not.toContain("signed.example");
   });
 });

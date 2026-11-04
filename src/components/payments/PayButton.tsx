@@ -161,6 +161,7 @@ export function PayButton({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const onPaidRef = useRef(onPaid);
   const submittedRef = useRef(false);
+  const checkoutScope = useRef<{ kind: PayKind; bookingId: string } | null>(null);
   useEffect(() => {
     onPaidRef.current = onPaid;
   }, [onPaid]);
@@ -236,8 +237,19 @@ export function PayButton({
     };
   }, [bookingId, kind]);
 
+  function finishCheckout() {
+    checkoutScope.current = null;
+    setClientSecret(null);
+    setError(null);
+  }
+
   useEffect(() => {
     if (!clientSecret) return;
+    const scope = checkoutScope.current;
+    if (!scope || scope.kind !== kind || scope.bookingId !== bookingId) {
+      finishCheckout();
+      return;
+    }
     const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
     if (!publishableKey || !window.Stripe) return;
 
@@ -254,9 +266,18 @@ export function PayButton({
     const form = checkout.createForm({ layout: "expanded" });
     form.mount(`#checkout-form-${kind.toLowerCase()}`);
 
-    void checkout.loadActions().then((loadActionsResult) => {
+    void checkout.loadActions().then(async (loadActionsResult) => {
       if (!alive) return;
       if (loadActionsResult.type !== "success") {
+        const status = await readStoredPaymentStatus(bookingId, clientSecret).catch(
+          () => null
+        );
+        if (!alive) return;
+        if (status && storedStatusMeansPaid(kind, status)) {
+          finishCheckout();
+          onPaidRef.current?.();
+          return;
+        }
         setError("Checkout could not be prepared. Please refresh and try again.");
         return;
       }
@@ -293,6 +314,7 @@ export function PayButton({
             if (!alive) return;
             setWaiting(false);
             if (status && storedStatusMeansPaid(kind, status)) {
+              finishCheckout();
               onPaidRef.current?.();
               return;
             }
@@ -358,6 +380,7 @@ export function PayButton({
         setPending(false);
         return;
       }
+      checkoutScope.current = { kind, bookingId };
       setClientSecret(data.client_secret);
       setPending(false);
     } catch {
