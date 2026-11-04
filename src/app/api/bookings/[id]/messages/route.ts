@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { Booking } from "@/models/Booking";
 import { getSession } from "@/lib/session";
 import { isHttpError } from "@/lib/adminAuth";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { canAccessFieldThread } from "@/lib/fieldMessageAuth";
 import { checkRateLimit } from "@/lib/rateLimit";
 import {
@@ -39,6 +40,12 @@ export async function GET(_request: Request, { params }: Params) {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (session.role === "admin" && session.mustChangePassword) {
+      return NextResponse.json(
+        { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+        { status: 403 }
+      );
     }
 
     const { id } = await params;
@@ -93,6 +100,12 @@ export async function POST(request: Request, { params }: Params) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (session.role === "admin" && session.mustChangePassword) {
+      return NextResponse.json(
+        { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+        { status: 403 }
+      );
+    }
 
     const isFullAdmin =
       session.role === "admin" && session.adminTier === "full";
@@ -106,7 +119,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const { id } = await params;
 
-    const rate = checkRateLimit(
+    const rate = await checkRateLimit(
       `field-msg:${session.id}:${id}`,
       30,
       60 * 1000

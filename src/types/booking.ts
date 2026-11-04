@@ -18,6 +18,19 @@ export interface BookingBilling {
 }
 
 /**
+ * Price after a driver measurement or an admin size correction.
+ * `estimatedPriceMin` / `estimatedPriceMax` on the booking stay the original quote.
+ */
+export interface MeasuredQuote {
+  estimatedPriceMin: number;
+  estimatedPriceMax: number;
+  amountDueCents: number;
+  discountCents: number;
+  /** ISO time of the latest measurement or correction. */
+  measuredAt: string;
+}
+
+/**
  * E8 promotion snapshot (optional). When amountDueCents is set, the ledger
  * uses it instead of the estimate midpoint. Confirm fills this from a server
  * coupon re-check, not from the client's posted total.
@@ -74,6 +87,17 @@ export interface Booking {
   /** Calendar day `yyyy-MM-dd` (legacy rows may still store ISO timestamps). */
   collectionDate: string;
   collectionSlot: "MORNING" | "AFTERNOON";
+  /**
+   * Return window once the rug is READY. Optional until ops schedules delivery.
+   * Calendar day `yyyy-MM-dd`.
+   */
+  deliveryDate?: string;
+  deliverySlot?: "MORNING" | "AFTERNOON";
+  /**
+   * Driver who returns the rug. When omitted, the collecting assignedDriverId
+   * is used.
+   */
+  deliveryDriverId?: string;
   rug: RugDetails;
   addOns: {
     odourRemoval: boolean;
@@ -81,6 +105,16 @@ export interface Booking {
   };
   estimatedPriceMin: number;
   estimatedPriceMax: number;
+  /**
+   * Set when a size is saved at collection or corrected by a full admin.
+   * The original quote stays on estimatedPriceMin / estimatedPriceMax.
+   */
+  measuredQuote?: MeasuredQuote;
+  /**
+   * Succeeded payments are higher than the amount due after a measurement.
+   * Ops still need to refund the difference.
+   */
+  refundRequired?: boolean;
   /** Kept for older screens. The charged discount is booking.promotion. */
   couponCode?: string;
   /** Ledger snapshot — optional until first succeeded transfer is recorded */
@@ -101,10 +135,10 @@ export interface Booking {
   };
   /**
    * Computed for ops/tech display only — not stored on the booking.
-   * Day-log vehicles for assignedDriverId on the collection date.
+   * Day-log vehicles for the active stop's driver and date (collection or delivery).
    */
   dayVehicles?: { label: string; plate: string }[];
-  /** Standing register bakkie for the assigned driver (ops/tech display). */
+  /** Standing register bakkie for the active stop's driver (ops/tech display). */
   standingVehicle?: { label: string; plate: string } | null;
   updatedAt?: string;
   createdAt: string;

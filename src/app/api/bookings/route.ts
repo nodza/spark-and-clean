@@ -14,6 +14,7 @@ import {
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
@@ -40,8 +41,21 @@ export async function GET() {
       if (!session.driverProfileId) {
         return NextResponse.json([]);
       }
-      filter.assignedDriverId = session.driverProfileId;
+      // Include READY returns where this tech is the delivery driver only.
+      filter.$or = [
+        { assignedDriverId: session.driverProfileId },
+        {
+          status: "READY",
+          deliveryDriverId: session.driverProfileId,
+        },
+      ];
     } else if (session.role === "admin") {
+      if (session.mustChangePassword) {
+        return NextResponse.json(
+          { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+          { status: 403 }
+        );
+      }
       // Operations booking list — full admin only (marketing-only denied)
       if (session.adminTier === "marketing-only") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

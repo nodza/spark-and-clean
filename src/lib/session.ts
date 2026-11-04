@@ -36,8 +36,10 @@ export async function clearSessionCookie() {
 }
 
 /**
- * Rejects JWTs issued before the user's sessionsInvalidatedAt (password reset).
- * Refreshes mustChangePassword from the DB for non-guest sessions.
+ * Rejects JWTs issued before sessionsInvalidatedAt (password reset or
+ * deactivation) and accounts that are switched off.
+ * Refreshes mustChangePassword and adminTier from the DB so a tier change
+ * applies on the next request, even if the cookie still carries the old tier.
  */
 export async function getSession(): Promise<SessionUser | null> {
   const jar = await cookies();
@@ -54,15 +56,22 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     await connectDB();
     const user = await User.findById(session.id)
-      .select("sessionsInvalidatedAt disabledAt mustChangePassword")
+      .select(
+        "sessionsInvalidatedAt disabledAt isActive mustChangePassword adminTier"
+      )
       .lean();
 
-    if (!user || user.disabledAt) {
+    if (!user || user.disabledAt || user.isActive === false) {
       await clearSessionCookie();
       return null;
     }
 
     session.mustChangePassword = user.mustChangePassword === true;
+    if (session.role === "admin") {
+      const tier = user.adminTier;
+      session.adminTier =
+        tier === "full" || tier === "marketing-only" ? tier : null;
+    }
 
     const invalidatedAt = user.sessionsInvalidatedAt as Date | null | undefined;
     if (

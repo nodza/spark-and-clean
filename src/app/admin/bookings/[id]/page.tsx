@@ -1,22 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import {
+  CalendarDays,
+  Clock,
+  Layers,
+  MapPin,
+  Ruler,
+  Sparkles,
+  Ticket,
+  type LucideIcon,
+} from "lucide-react";
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
 import {
+  effectiveDeliveryDriverId,
+  hasDeliverySchedule,
+} from "@/lib/deliverySchedule";
+import {
   bookingCalendarDate,
   formatBookingCollection,
+  localCalendarDate,
 } from "@/lib/localCalendarDate";
 import type { ClientVehicleDayUse } from "@/lib/vehicleDay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -49,14 +65,20 @@ import {
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
+import { MeasuredSizeEditor } from "@/components/admin/MeasuredSizeCard";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
-import { bookingAddOnLabels, isDisplayablePhotoUrl, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { 
+  bookingAddOnLabels, 
+  isDisplayablePhotoUrl, 
+  OPS_ADD_ON_COPY, 
+  rugDimensionLabel } from "@/lib/techUi";
 import { RugPhotoGallery } from "@/components/booking/RugPhotoGallery";
 import {
   formatAssignedDriverLine,
   resolveJobVehicles,
 } from "@/lib/vehicle";
-import { rugDimensionLabel } from "@/lib/techUi";
+import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
+import { amountDueCentsForBooking } from "@/lib/payments/deposit";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -93,6 +115,24 @@ type DriverOption = {
   phone?: string;
   isActive?: boolean;
 };
+
+function JobDetailLabel({
+  icon: Icon,
+  children,
+  action,
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="text-eyebrow flex items-center gap-1.5" style={{ color: "#9aa0a6" }}>
+      <Icon className="size-3.5 shrink-0" aria-hidden />
+      <span>{children}</span>
+      {action}
+    </div>
+  );
+}
 
 function addOnLabels(booking: Booking): string[] {
   return bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
@@ -235,6 +275,7 @@ export default function AdminBookingDetail() {
     updateBookingStatus,
     updatePaymentStatus,
     assignDriver,
+    scheduleDelivery,
   } = useBookingStore();
   const booking = bookings.find((candidate) => candidate.id === id);
 
@@ -262,6 +303,11 @@ export default function AdminBookingDetail() {
   const [dayVehicles, setDayVehicles] = useState<
     { label: string; plate: string }[]
   >([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliverySlot, setDeliverySlot] = useState<"MORNING" | "AFTERNOON">(
+    "MORNING"
+  );
+  const [deliveryDriverId, setDeliveryDriverId] = useState("unassigned");
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -368,10 +414,41 @@ export default function AdminBookingDetail() {
     : null;
 
   useEffect(() => {
-    const driverId = booking?.assignedDriverId?.trim();
-    const day = booking?.collectionDate
-      ? bookingCalendarDate(booking.collectionDate)
-      : null;
+    if (!booking) return;
+    if (hasDeliverySchedule(booking)) {
+      setDeliveryDate(bookingCalendarDate(booking.deliveryDate!) ?? "");
+      setDeliverySlot(
+        booking.deliverySlot === "AFTERNOON" ? "AFTERNOON" : "MORNING"
+      );
+      setDeliveryDriverId(effectiveDeliveryDriverId(booking) || "unassigned");
+      return;
+    }
+    setDeliveryDate(localCalendarDate());
+    setDeliverySlot("MORNING");
+    setDeliveryDriverId(booking.assignedDriverId || "unassigned");
+  }, [
+    booking?.id,
+    booking?.deliveryDate,
+    booking?.deliverySlot,
+    booking?.deliveryDriverId,
+    booking?.assignedDriverId,
+    booking?.status,
+  ]);
+
+  useEffect(() => {
+    if (!booking) {
+      setDayVehicles([]);
+      return;
+    }
+    const deliveryLeg =
+      booking.status === "READY" && hasDeliverySchedule(booking);
+    const driverId = deliveryLeg
+      ? effectiveDeliveryDriverId(booking)
+      : booking.assignedDriverId?.trim();
+    const dayRaw = deliveryLeg
+      ? booking.deliveryDate
+      : booking.collectionDate;
+    const day = dayRaw ? bookingCalendarDate(dayRaw) : null;
     if (!driverId || !day) {
       setDayVehicles([]);
       return;
@@ -411,8 +488,12 @@ export default function AdminBookingDetail() {
       cancelled = true;
     };
   }, [
+    booking,
     booking?.assignedDriverId,
     booking?.collectionDate,
+    booking?.deliveryDate,
+    booking?.deliveryDriverId,
+    booking?.status,
     dayVehiclesFromPayload,
     dayVehiclesKey,
   ]);
@@ -486,6 +567,33 @@ export default function AdminBookingDetail() {
         val === "unassigned" ? null : val
       );
       if (error) toast.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleScheduleDelivery = async () => {
+    if (!booking || saving) return;
+    if (!deliveryDate) {
+      toast.error("Enter a delivery date");
+      return;
+    }
+    if (
+      deliveryDriverId !== "unassigned" &&
+      !drivers.some((driver) => driver.id === deliveryDriverId)
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const error = await scheduleDelivery(booking.id, {
+        deliveryDate,
+        deliverySlot,
+        deliveryDriverId:
+          deliveryDriverId === "unassigned" ? null : deliveryDriverId,
+      });
+      if (error) toast.error(error);
+      else toast.success("Delivery scheduled");
     } finally {
       setSaving(false);
     }
@@ -580,65 +688,141 @@ export default function AdminBookingDetail() {
                   </a>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="tabular text-[22px] font-extrabold" style={{ color: "#000b49" }}>
-                  R{booking.estimatedPriceMin} – R{booking.estimatedPriceMax}
-                </div>
-                <div className="text-meta" style={{ color: "#9aa0a6" }}>
-                  Estimated total
-                </div>
+              <div className="min-w-0 w-full text-left sm:w-auto sm:max-w-xs sm:text-right">
+                {booking.measuredQuote ? (
+                  <>
+                    <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                      Original estimate
+                    </p>
+                    <p
+                      className="tabular text-[15px] font-bold break-words"
+                      style={{ color: "#6b7280" }}
+                    >
+                      {formatQuoteRange(
+                        booking.estimatedPriceMin,
+                        booking.estimatedPriceMax
+                      )}
+                    </p>
+                    <p className="mt-[8px] text-[12.5px] font-extrabold" style={{ color: "#0a7a63" }}>
+                      Final price after measurement
+                    </p>
+                    <p
+                      className="tabular text-[22px] font-extrabold leading-tight break-words"
+                      style={{ color: "#000b49" }}
+                    >
+                      {formatQuoteRange(
+                        booking.measuredQuote.estimatedPriceMin,
+                        booking.measuredQuote.estimatedPriceMax
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p
+                      className="tabular text-[22px] font-extrabold break-words"
+                      style={{ color: "#000b49" }}
+                    >
+                      {formatQuoteRange(
+                        booking.estimatedPriceMin,
+                        booking.estimatedPriceMax
+                      )}
+                    </p>
+                    <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                      Estimated total
+                    </p>
+                  </>
+                )}
               </div>
             </div>
+
+            {booking.refundRequired ? (
+              <div
+                className="rounded-[14px] border border-[#f6c9c9] bg-[#fdecec] px-4 py-3.5 sm:px-[22px]"
+                role="status"
+              >
+                <p className="text-card-title" style={{ color: "#b33232" }}>
+                  Refund needed
+                </p>
+                <p className="text-body mt-[6px]" style={{ color: "#7a2424" }}>
+                  {formatRandCents(booking.billing?.amountPaidCents ?? 0)} has been
+                  paid and the final amount due is{" "}
+                  {formatRandCents(amountDueCentsForBooking(booking))}. Refund the
+                  difference of{" "}
+                  {formatRandCents(
+                    Math.max(
+                      0,
+                      (booking.billing?.amountPaidCents ?? 0) -
+                        amountDueCentsForBooking(booking)
+                    )
+                  )}
+                  .
+                </p>
+              </div>
+            ) : null}
 
             <BookingReceipts
               bookingId={booking.id}
               refreshKey={booking.paymentStatus}
             />
 
-            <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,24rem)]">
               <div className="flex min-w-0 flex-col gap-[18px]">
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>
                     Job details
                   </div>
-                  <div className="mt-[16px] grid grid-cols-2 gap-[14px]">
+                  <div className="mt-[16px] grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        RUG TYPE
-                      </div>
+                      <JobDetailLabel icon={Layers}>Rug type</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {booking.rug.type}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        DIMENSIONS
-                      </div>
+                      <JobDetailLabel
+                        icon={Ruler}
+                        action={
+                          <MeasuredSizeEditor
+                            booking={booking}
+                            onUpdated={(next) => {
+                              useBookingStore.setState((state) => ({
+                                bookings: state.bookings.map((row) =>
+                                  row.id === next.id
+                                    ? {
+                                        ...next,
+                                        dayVehicles: row.dayVehicles ?? next.dayVehicles,
+                                        standingVehicle:
+                                          row.standingVehicle ?? next.standingVehicle,
+                                        technician: row.technician ?? next.technician,
+                                      }
+                                    : row
+                                ),
+                              }));
+                            }}
+                          />
+                        }
+                      >
+                        Dimensions
+                      </JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {rugDimensionLabel(booking.rug)}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        COLLECTION DATE
-                      </div>
+                      <JobDetailLabel icon={CalendarDays}>Collection date</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {formatCollectionLong(booking.collectionDate)}
                       </p>
                     </div>
                     <div>
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        TIME SLOT
-                      </div>
+                      <JobDetailLabel icon={Clock}>Time slot</JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {booking.collectionSlot}
                       </p>
                     </div>
                   </div>
                   <div className="mt-[16px]">
-                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                      ADDRESS
-                    </div>
+                    <JobDetailLabel icon={MapPin}>Address</JobDetailLabel>
                     <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                       {booking.addressLine1}
                     </p>
@@ -647,9 +831,7 @@ export default function AdminBookingDetail() {
                     </p>
                   </div>
                   <div className="mt-[16px]">
-                    <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                      ADD-ONS
-                    </div>
+                    <JobDetailLabel icon={Sparkles}>Add-ons</JobDetailLabel>
                     <div className="mt-[8px] flex flex-wrap gap-[8px]">
                       {addOnLabels(booking).length === 0 ? (
                         <span className="text-meta" style={{ color: "#9aa0a6" }}>
@@ -664,13 +846,11 @@ export default function AdminBookingDetail() {
                       )}
                     </div>
                   </div>
-                  {booking.couponCode ? (
+                  {booking.couponCode || booking.promotion?.code ? (
                     <div className="mt-[16px]">
-                      <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
-                        COUPON
-                      </div>
+                      <JobDetailLabel icon={Ticket}>Coupon</JobDetailLabel>
                       <p className="text-body mt-[4px] tabular" style={{ color: "#32373c" }}>
-                        {booking.couponCode}
+                        {booking.promotion?.code || booking.couponCode}
                       </p>
                     </div>
                   ) : null}
@@ -877,6 +1057,120 @@ export default function AdminBookingDetail() {
                     </Button>
                   ) : null}
                 </div>
+
+                {booking.status === "READY" ||
+                booking.status === "DELIVERED" ||
+                hasDeliverySchedule(booking) ? (
+                  <div className="ds-card">
+                    <div className="text-card-title" style={{ color: "#000b49" }}>
+                      Delivery
+                    </div>
+                    <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+                      {hasDeliverySchedule(booking)
+                        ? "Return window for the customer and the driver’s Today list."
+                        : "Set a date and slot so this READY job leaves the to-schedule list and appears on the driver’s Today list."}
+                    </p>
+                    {booking.status === "READY" ? (
+                      <div className="mt-[14px] space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="delivery-date">Delivery date</Label>
+                          <Input
+                            id="delivery-date"
+                            type="date"
+                            value={deliveryDate}
+                            disabled={saving}
+                            onChange={(event) =>
+                              setDeliveryDate(event.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Time slot</Label>
+                          <Select
+                            value={deliverySlot}
+                            disabled={saving}
+                            onValueChange={(val) =>
+                              setDeliverySlot(
+                                val === "AFTERNOON" ? "AFTERNOON" : "MORNING"
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MORNING">Morning</SelectItem>
+                              <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Delivery driver</Label>
+                          <Select
+                            value={deliveryDriverId}
+                            disabled={saving}
+                            onValueChange={setDeliveryDriverId}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Collecting driver" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72 overflow-y-auto">
+                              <SelectItem value="unassigned">
+                                Collecting driver
+                                {booking.assignedDriverId && assigned
+                                  ? ` (${assigned.name})`
+                                  : ""}
+                              </SelectItem>
+                              {drivers.map((driver) => (
+                                <SelectItem key={driver.id} value={driver.id}>
+                                  {driver.name}
+                                  {driver.vehicle ? ` (${driver.vehicle})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          className="w-full"
+                          disabled={saving || !deliveryDate}
+                          onClick={() => void handleScheduleDelivery()}
+                        >
+                          {saving
+                            ? "Saving…"
+                            : hasDeliverySchedule(booking)
+                              ? "Update delivery"
+                              : "Schedule delivery"}
+                        </Button>
+                      </div>
+                    ) : hasDeliverySchedule(booking) ? (
+                      <div className="mt-[14px] grid grid-cols-1 gap-[10px]">
+                        <div>
+                          <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                            DELIVERY DATE
+                          </div>
+                          <p
+                            className="text-body mt-[4px]"
+                            style={{ color: "#32373c" }}
+                          >
+                            {formatCollectionLong(booking.deliveryDate!)}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="text-eyebrow" style={{ color: "#9aa0a6" }}>
+                            TIME SLOT
+                          </div>
+                          <p
+                            className="text-body mt-[4px]"
+                            style={{ color: "#32373c" }}
+                          >
+                            {booking.deliverySlot}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="ds-card">
                   <div

@@ -63,6 +63,19 @@ describe("requireFullAdminSession", () => {
     expect(result.role).toBe("admin");
     expect(result.adminTier).toBe("full");
   });
+
+  it("returns 403 until an admin replaces a temporary password", () => {
+    try {
+      requireFullAdminSession(
+        session({ role: "admin", adminTier: "full", mustChangePassword: true })
+      );
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(403);
+      expect((err as HttpError).message).toMatch(/new password/i);
+    }
+  });
 });
 
 describe("requireAdminSession", () => {

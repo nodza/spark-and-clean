@@ -8,6 +8,7 @@ import {
   MapPinned,
   PackageSearch,
   Route,
+  ShieldCheck,
   Tag,
   Truck,
   Users,
@@ -29,7 +30,8 @@ export type AdminNavKey =
   | "vehicles"
   | "analytics"
   | "pickupZones"
-  | "vehicle-days";
+  | "vehicle-days"
+  | "team";
 
 export type AdminNavItem = {
   key: AdminNavKey;
@@ -144,6 +146,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     icon: CalendarClock,
     match: (p) => p.startsWith("/admin/vehicle-days"),
   },
+  {
+    key: "team",
+    label: "Team",
+    href: "/admin/team",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: ShieldCheck,
+    match: (p) => p.startsWith("/admin/team"),
+  },
 ];
 
 export const ADMIN_PAGE_TITLES: Record<string, string> = {
@@ -158,6 +169,7 @@ export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin/analytics": "Analytics",
   "/admin/pickup-zones": "Pickup zones",
   "/admin/vehicle-days": "Day sheet",
+  "/admin/team": "Team",
 };
 
 export function resolveAdminNavKey(pathname: string): AdminNavKey | null {

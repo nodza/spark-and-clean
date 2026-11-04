@@ -8,8 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
+import { SignInLockNotice, useSignInLock } from "@/components/auth/SignInLock";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { resolvePostLoginPath } from "@/lib/accessControl";
+import {
+  passwordChangePathForRole,
+  resolvePostLoginPath,
+} from "@/lib/accessControl";
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -22,6 +26,7 @@ function AdminLoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { locked, remainingLabel, startLock } = useSignInLock();
 
   useEffect(() => {
     if (emailFromQuery) setEmail(emailFromQuery);
@@ -30,13 +35,16 @@ function AdminLoginForm() {
   useEffect(() => {
     if (ready && user?.role === "admin") {
       router.replace(
-        resolvePostLoginPath("admin", next, user.adminTier ?? null)
+        user.mustChangePassword
+          ? passwordChangePathForRole("admin") || "/admin/change-password"
+          : resolvePostLoginPath("admin", next, user.adminTier ?? null)
       );
     }
   }, [ready, user, router, next]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (locked) return;
     setError(null);
 
     if (!email.trim() || !password) {
@@ -50,21 +58,30 @@ function AdminLoginForm() {
       password,
       role: "admin",
     });
-    setLoading(false);
+
+    if (result.retryAfterSeconds) {
+      startLock(result.retryAfterSeconds);
+      return;
+    }
 
     if (result.error || !result.user) {
+      setLoading(false);
       setError(result.error || "Login failed");
       return;
     }
 
-    await refresh();
-    router.push(
-      resolvePostLoginPath(
-        result.user.role,
-        next,
-        result.user.adminTier ?? null
-      )
-    );
+    const destination = result.user.mustChangePassword
+      ? passwordChangePathForRole("admin") || "/admin/change-password"
+      : resolvePostLoginPath(
+          result.user.role,
+          next,
+          result.user.adminTier ?? null
+        );
+    if (!result.user.mustChangePassword) {
+      await refresh();
+      setLoading(false);
+    }
+    router.replace(destination);
   };
 
   return (
@@ -95,7 +112,7 @@ function AdminLoginForm() {
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              if (error) setError(null);
+              if (error && !locked) setError(null);
             }}
             aria-invalid={Boolean(error)}
             required
@@ -120,14 +137,15 @@ function AdminLoginForm() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            if (error) setError(null);
+            if (error && !locked) setError(null);
           }}
           aria-invalid={Boolean(error)}
           required
           minLength={6}
         />
 
-        {error ? (
+        {locked ? <SignInLockNotice /> : null}
+        {!locked && error ? (
           <div
             role="alert"
             className="mt-3.5 rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]"
@@ -138,10 +156,16 @@ function AdminLoginForm() {
 
         <Button
           type="submit"
-          className="mt-5 w-full justify-center py-[14px]"
-          disabled={loading}
+          className="mt-5 w-full justify-center py-[14px] tabular-nums"
+          disabled={loading || locked}
+          aria-disabled={loading || locked}
+          aria-describedby={locked ? "sign-in-lock" : undefined}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {locked
+            ? `Try again in ${remainingLabel}`
+            : loading
+              ? "Signing in…"
+              : "Sign in"}
         </Button>
       </form>
     </AuthLayout>

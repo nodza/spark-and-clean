@@ -9,6 +9,16 @@ import {
   type AdminTier,
 } from "@/types/user";
 import { toPublicApiError } from "@/lib/publicApiError";
+import {
+  checkRateLimit,
+  clearRateLimit,
+  getClientIp,
+  tooManyAttemptsMessage,
+} from "@/lib/rateLimit";
+
+const LOGIN_EMAIL_LIMIT = 5;
+const LOGIN_IP_LIMIT = 20;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 function sessionFromUser(user: {
   _id: { toString(): string };
@@ -66,6 +76,27 @@ export async function POST(request: Request) {
       );
     }
 
+    const ip = getClientIp(request);
+    const emailKey = `auth-login:email:${email}`;
+    const ipKey = `auth-login:ip:${ip}`;
+    const [emailLimit, ipLimit] = await Promise.all([
+      checkRateLimit(emailKey, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW_MS),
+      checkRateLimit(ipKey, LOGIN_IP_LIMIT, LOGIN_WINDOW_MS),
+    ]);
+    const blocked = [emailLimit, ipLimit].filter((result) => !result.allowed);
+    if (blocked.length > 0) {
+      const retryAfterSeconds = Math.max(
+        ...blocked.map((result) => result.retryAfterSeconds)
+      );
+      return NextResponse.json(
+        { error: tooManyAttemptsMessage(retryAfterSeconds) },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryAfterSeconds) },
+        }
+      );
+    }
+
     await connectDB();
 
     const query: Record<string, unknown> = {
@@ -110,6 +141,7 @@ export async function POST(request: Request) {
       );
     }
 
+    await Promise.all([clearRateLimit(emailKey), clearRateLimit(ipKey)]);
     await User.updateOne(
       { _id: user._id },
       { $set: { lastLoginAt: new Date() } }

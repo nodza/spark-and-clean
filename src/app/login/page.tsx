@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { loginUser } from "@/lib/authClient";
+import { SignInLockNotice, useSignInLock } from "@/components/auth/SignInLock";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { resolvePostLoginPath } from "@/lib/accessControl";
 import { isFullAccount, type UserRole } from "@/types/user";
@@ -32,6 +33,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { locked, remainingLabel, startLock } = useSignInLock();
 
   const ref = searchParams.get("ref");
   const signupParams = new URLSearchParams({
@@ -56,6 +58,7 @@ function LoginForm() {
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (locked) return;
     setError(null);
 
     if (!email.trim() || !password) {
@@ -66,6 +69,11 @@ function LoginForm() {
     setLoading(true);
     const result = await loginUser({ email, password });
     setLoading(false);
+
+    if (result.retryAfterSeconds) {
+      startLock(result.retryAfterSeconds);
+      return;
+    }
 
     if (result.error || !result.user) {
       setError(result.error || "Login failed");
@@ -112,7 +120,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              if (error) setError(null);
+              if (error && !locked) setError(null);
             }}
             aria-invalid={Boolean(error)}
             required
@@ -137,28 +145,35 @@ function LoginForm() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            if (error) setError(null);
+            if (error && !locked) setError(null);
           }}
           aria-invalid={Boolean(error)}
           required
           minLength={MIN_PASSWORD_LENGTH}
         />
 
-        {error && (
+        {locked ? <SignInLockNotice /> : null}
+        {!locked && error ? (
           <div
             role="alert"
             className="mt-3.5 rounded-[10px] border-[1.5px] border-[#f2b8b0] bg-[#fdecea] px-3 py-2.5 text-[12.5px] text-[#b3261e]"
           >
             {error}
           </div>
-        )}
+        ) : null}
 
         <Button
           type="submit"
-          className="mt-5 w-full justify-center py-[14px]"
-          disabled={loading}
+          className="mt-5 w-full justify-center py-[14px] tabular-nums"
+          disabled={loading || locked}
+          aria-disabled={loading || locked}
+          aria-describedby={locked ? "sign-in-lock" : undefined}
         >
-          {loading ? "Logging in…" : "Log in"}
+          {locked
+            ? `Try again in ${remainingLabel}`
+            : loading
+              ? "Logging in…"
+              : "Log in"}
         </Button>
       </form>
 

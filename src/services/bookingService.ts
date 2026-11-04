@@ -90,6 +90,35 @@ class BookingService {
     return res.json();
   }
 
+  /** Assigned driver corrects metres while the job is still scheduled. */
+  async saveMeasuredSize(
+    id: string,
+    size: { widthM: number; lengthM: number }
+  ): Promise<Booking> {
+    const res = await fetch(`/api/bookings/${id}/measurement`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        widthM: size.widthM,
+        lengthM: size.lengthM,
+      }),
+    });
+    if (res.status === 401) {
+      throw httpError("Unauthorized", 401);
+    }
+    if (res.status === 403) {
+      throw httpError("You can only update your own jobs", 403);
+    }
+    if (!res.ok) {
+      throw httpError(
+        await readError(res, "Could not save the measured size."),
+        res.status
+      );
+    }
+    return res.json();
+  }
+
   async updatePaymentStatus(
     id: string,
     status: PaymentStatus
@@ -118,6 +147,37 @@ class BookingService {
       }),
     });
     if (!res.ok) throw new Error(await readError(res, "Failed to assign driver"));
+    return res.json();
+  }
+
+  /** Full admin: set return date/slot and optional delivery driver. */
+  async scheduleDelivery(
+    id: string,
+    input: {
+      deliveryDate: string;
+      deliverySlot: "MORNING" | "AFTERNOON";
+      deliveryDriverId?: string | null;
+    }
+  ): Promise<Booking> {
+    const payload: Record<string, unknown> = {
+      deliveryDate: input.deliveryDate,
+      deliverySlot: input.deliverySlot,
+    };
+    if (Object.prototype.hasOwnProperty.call(input, "deliveryDriverId")) {
+      payload.deliveryDriverId =
+        input.deliveryDriverId && input.deliveryDriverId.length > 0
+          ? input.deliveryDriverId
+          : null;
+    }
+    const res = await fetch(`/api/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(await readError(res, "Failed to schedule delivery"));
+    }
     return res.json();
   }
 }
