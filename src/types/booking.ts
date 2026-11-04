@@ -64,7 +64,7 @@ export interface RugDetails {
   widthM: number | null;
   lengthM: number | null;
   areaSqM: number;
-  photos?: string[]; // local URLs for mock
+  photos?: string[]; // private S3 keys, or a short-lived view URL in API responses
   labelPhotos?: string[]; // back-of-label / tag photos
   tagCode?: string;
   assetId?: string;

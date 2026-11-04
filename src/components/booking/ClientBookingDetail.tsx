@@ -706,6 +706,7 @@ function InvoicePayment({
       ) : null}
       {canPay ? (
         <PayButton
+          key={payKind}
           bookingId={booking.id}
           amountCents={payCents}
           kind={payKind}

@@ -14,6 +14,9 @@ import {
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
+import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
+import { parseRugPhotoKeys } from "@/lib/rugPhotos";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 
 export async function GET() {
@@ -47,6 +50,12 @@ export async function GET() {
         },
       ];
     } else if (session.role === "admin") {
+      if (session.mustChangePassword) {
+        return NextResponse.json(
+          { error: PASSWORD_CHANGE_REQUIRED_MESSAGE },
+          { status: 403 }
+        );
+      }
       // Operations booking list — full admin only (marketing-only denied)
       if (session.adminTier === "marketing-only") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -60,9 +69,15 @@ export async function GET() {
       // Admin list default: newest createdAt. Client list may re-sort by collectionDate.
       .sort({ createdAt: -1 })
       .lean();
-    return NextResponse.json(
-      docs.map((d) => toClientBooking(d as Record<string, unknown>))
+    const bookings = await Promise.all(
+      docs.map((doc) =>
+        rugPhotosForSession(
+          toClientBooking(doc as Record<string, unknown>),
+          session
+        )
+      )
     );
+    return NextResponse.json(bookings);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch bookings";
     console.error("[api/bookings GET]", message);
@@ -204,10 +219,21 @@ export async function POST(request: Request) {
       typeof payload.rug === "object" &&
       !Array.isArray(payload.rug)
     ) {
-      payload.rug = {
+      const rug: Record<string, unknown> = {
         ...(payload.rug as Record<string, unknown>),
         areaSqM: quoted.areaSqM,
       };
+      const photos = parseRugPhotoKeys(rug.photos);
+      const labelPhotos = parseRugPhotoKeys(rug.labelPhotos);
+      if (photos === null || labelPhotos === null) {
+        return NextResponse.json(
+          { error: "Rug photos must be images uploaded for this booking." },
+          { status: 400 }
+        );
+      }
+      if (photos) rug.photos = photos;
+      if (labelPhotos) rug.labelPhotos = labelPhotos;
+      payload.rug = rug;
     }
 
     if (quoted.promotion) {
@@ -270,8 +296,9 @@ export async function POST(request: Request) {
       throw writeErr;
     }
 
-    const clientBooking = toClientBooking(
-      created.toObject() as Record<string, unknown>
+    const clientBooking = await rugPhotosForSession(
+      toClientBooking(created.toObject() as Record<string, unknown>),
+      session
     );
 
     // In-app ops alert only on create — no WhatsApp / SMS / email.

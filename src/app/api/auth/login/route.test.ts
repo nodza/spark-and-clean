@@ -41,11 +41,11 @@ vi.mock("bcryptjs", () => ({
 
 import { POST } from "./route";
 
-function request(password: string) {
+function request(password: string, email = "person@example.com") {
   return new Request("http://localhost/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "person@example.com", password }),
+    body: JSON.stringify({ email, password }),
   });
 }
 
@@ -80,7 +80,31 @@ beforeEach(() => {
   mocks.setSessionCookie.mockResolvedValue(undefined);
 });
 
-describe("POST /api/auth/login rate limiting", () => {
+describe("POST /api/auth/login", () => {
+  it("only looks up accounts that are still allowed to sign in", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "Ada@Example.com",
+          password: "secret123",
+          role: "admin",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(mocks.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "ada@example.com",
+        disabledAt: null,
+        $or: [{ isActive: true }, { isActive: { $exists: false } }],
+        role: { $in: ["admin", "ADMIN"] },
+      })
+    );
+  });
+
   it("blocks a correct password after five failures for the email", async () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const response = await POST(request("wrong-password"));
@@ -127,16 +151,7 @@ describe("POST /api/auth/login rate limiting", () => {
       }),
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: "other@example.com",
-          password: "wrong-password",
-        }),
-      })
-    );
+    const response = await POST(request("wrong-password", "other@example.com"));
 
     expect(response.status).toBe(401);
     expect(mocks.compare).toHaveBeenCalledTimes(6);
