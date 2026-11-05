@@ -15,7 +15,6 @@ import { isUnassignedDriver } from "@/lib/bookingAttention";
 import { formatAssignedDriverLine } from "@/lib/vehicle";
 import type { Driver } from "@/types/booking";
 
-const HIGH_VOLUME_THRESHOLD = 5;
 const ALERT_POLL_MS = 12_000;
 
 // ─── KPI stat tile ───────────────────────────────────────────────────────────
@@ -208,13 +207,12 @@ export default function AdminDashboard() {
     return { tag: "Collect", variant: "status-new" as const, accent: "#ffdc39" };
   };
 
-  const showHighVolume = activeJobs > HIGH_VOLUME_THRESHOLD;
   const hasActionable =
     unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
   const attentionReady = !alertsLoading && metrics !== null;
   const showAttentionLoading =
-    !metricsError && !attentionReady && !hasActionable && !showHighVolume;
-  const showEmpty = attentionReady && !hasActionable && !showHighVolume;
+    !metricsError && !attentionReady && !hasActionable;
+  const showEmpty = attentionReady && !hasActionable;
 
   const dismissAlert = async (alertId: string) => {
     const prev = opsAlerts;
@@ -560,22 +558,6 @@ export default function AdminDashboard() {
                   </div>
                 ))}
 
-                {showHighVolume ? (
-                  <div className="flex items-start gap-[12px] px-[20px] py-[14px]">
-                    <div
-                      className="mt-[5px] size-[8px] flex-none rounded-full"
-                      style={{ background: "#0a7a63" }}
-                    />
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
-                        High volume
-                      </div>
-                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
-                        {activeJobs} active jobs — consider capacity
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
           </div>

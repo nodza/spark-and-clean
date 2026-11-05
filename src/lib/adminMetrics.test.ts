@@ -93,4 +93,18 @@ describe("admin metrics", () => {
       ],
     });
   });
+
+  it("counts active BOOKED and SCHEDULED jobs for today and keeps active job statuses focused on in-cleaning states", async () => {
+    await getAdminMetrics(new Date("2026-11-04T12:00:00.000Z"));
+
+    const bookingPipeline = mocks.bookingAggregate.mock.calls[0][0];
+    const summaryFields = bookingPipeline[2].$facet.summary[0].$group;
+
+    expect(summaryFields.scheduledToday.$sum.$cond[0].$and[2]).toEqual({
+      $in: ["$status", ["BOOKED", "SCHEDULED"]],
+    });
+    expect(summaryFields.activeJobs.$sum.$cond[0].$and[1]).toEqual({
+      $in: ["$status", ["COLLECTED", "CLEANING", "DRYING", "READY"]],
+    });
+  });
 });

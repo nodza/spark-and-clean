@@ -148,7 +148,7 @@ export async function getAdminMetrics(now: Date = new Date()) {
                             ],
                           },
                           { $eq: ["$collectionDay", range.today] },
-                          { $eq: ["$status", "SCHEDULED"] },
+                          { $in: ["$status", ["BOOKED", "SCHEDULED"]] },
                         ],
                       },
                       1,
