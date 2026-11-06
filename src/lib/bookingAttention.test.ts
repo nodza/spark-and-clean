@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isActionableUnassignedToday,
   isExcludedFromUnassignedQueue,
+  isReadyNeedingDeliverySchedule,
   isUnassignedDriver,
 } from "@/lib/bookingAttention";
 import type { Booking } from "@/types/booking";
@@ -55,5 +56,23 @@ describe("isExcludedFromUnassignedQueue", () => {
     expect(isExcludedFromUnassignedQueue("CANCELLED")).toBe(true);
     expect(isExcludedFromUnassignedQueue("DELIVERED")).toBe(true);
     expect(isExcludedFromUnassignedQueue("BOOKED")).toBe(false);
+  });
+});
+
+describe("isReadyNeedingDeliverySchedule", () => {
+  it("lists READY rugs without a delivery window", () => {
+    expect(
+      isReadyNeedingDeliverySchedule({
+        status: "READY",
+        assignedDriverId: "driver_1",
+      })
+    ).toBe(true);
+    expect(
+      isReadyNeedingDeliverySchedule({
+        status: "READY",
+        deliveryDate: "2026-09-14",
+        deliverySlot: "MORNING",
+      })
+    ).toBe(false);
   });
 });

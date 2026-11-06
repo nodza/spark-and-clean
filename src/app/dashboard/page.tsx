@@ -10,6 +10,7 @@ import { ReferralCard } from "@/components/portal/ReferralCard";
 import { BOOKING_STATUS_STEPS } from "@/components/booking/BookingStatusTimeline";
 import { useRequireClientAuth } from "@/hooks/useRequireClientAuth";
 import { useBookingsLiveList } from "@/hooks/useBookingsLiveList";
+import { formatClientDeliveryLine } from "@/lib/deliverySchedule";
 import { formatBookingCollection } from "@/lib/localCalendarDate";
 import { amountDueCentsForBooking, balanceAmountCents } from "@/lib/payments/deposit";
 import { cn } from "@/lib/utils";
@@ -111,9 +112,10 @@ function nextUpCopy(booking: Booking) {
     };
   }
   if (booking.status === "READY") {
+    const deliveryLine = formatClientDeliveryLine(booking);
     return {
       title: "Delivery back to you",
-      detail: "Delivery window to be confirmed",
+      detail: deliveryLine ?? "Delivery window to be confirmed",
       note: "We'll SMS you a one-hour window the morning of delivery.",
     };
   }

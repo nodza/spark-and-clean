@@ -45,6 +45,9 @@ export async function POST(request: Request) {
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     user.mustChangePassword = false;
+    // One second ago so this request's new cookie (second-precision iat) stays valid
+    // and every earlier cookie, including the temporary password, is rejected.
+    user.sessionsInvalidatedAt = new Date(Date.now() - 1000);
     await user.save();
 
     const role = normalizeUserRole(user.role);

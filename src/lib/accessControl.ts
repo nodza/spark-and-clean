@@ -37,7 +37,33 @@ export function isAdminFullOnlyPath(pathname: string): boolean {
   if (pathname.startsWith("/admin/vehicles")) return true;
   if (pathname.startsWith("/admin/vehicle-days")) return true;
   if (pathname.startsWith("/admin/rugs")) return true;
+  if (pathname.startsWith("/admin/team")) return true;
   return false;
+}
+
+/** First-login temporary password screen for that role, if any. */
+export function passwordChangePathForRole(
+  role: UserRole | undefined
+): string | null {
+  if (role === "technician") return "/tech/change-password";
+  if (role === "admin") return "/admin/change-password";
+  return null;
+}
+
+export const PASSWORD_CHANGE_REQUIRED_MESSAGE =
+  "Choose a new password before continuing.";
+
+/** Where to send a temporary-password session, or null when this path is allowed. */
+export function temporaryPasswordRedirect(
+  session: SessionUser | null,
+  pathname: string
+): string | null {
+  if (!session?.mustChangePassword) return null;
+  const target = passwordChangePathForRole(session.role);
+  if (!target || pathname === target) return null;
+  if (session.role === "admin" && isAdminPath(pathname)) return target;
+  if (session.role === "technician" && isTechAppPath(pathname)) return target;
+  return null;
 }
 
 export function isPublicPath(pathname: string): boolean {
@@ -156,6 +182,10 @@ export function canAccessPath(
         redirectTo: `${homeForRole(session.role)}?access=denied`,
       };
     }
+    const adminPasswordChange = temporaryPasswordRedirect(session, pathname);
+    if (adminPasswordChange) {
+      return { ok: false, redirectTo: adminPasswordChange };
+    }
     if (
       isAdminFullOnlyPath(pathname) &&
       session.adminTier === "marketing-only"
@@ -178,6 +208,10 @@ export function canAccessPath(
         redirectTo: `${homeForRole(session.role)}?access=denied`,
       };
     }
+    const techPasswordChange = temporaryPasswordRedirect(session, pathname);
+    if (techPasswordChange) {
+      return { ok: false, redirectTo: techPasswordChange };
+    }
     return { ok: true };
   }
 
@@ -191,6 +225,13 @@ export function requireFullAdmin(session: SessionUser | null): {
   error?: string;
 } {
   if (!session) return { ok: false, status: 401, error: "Unauthorized" };
+  if (session.role === "admin" && session.mustChangePassword) {
+    return {
+      ok: false,
+      status: 403,
+      error: PASSWORD_CHANGE_REQUIRED_MESSAGE,
+    };
+  }
   if (session.role !== "admin") {
     return { ok: false, status: 403, error: "Forbidden" };
   }

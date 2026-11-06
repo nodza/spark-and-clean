@@ -55,6 +55,11 @@ type AdminMetrics = {
     collectionSlot: "MORNING" | "AFTERNOON";
     status: string;
   }[];
+  readyNeedingDeliveryScheduleCount: number;
+  readyNeedingDeliverySchedule: {
+    id: string;
+    customer: { name: string };
+  }[];
 };
 
 type TodayJob = {
@@ -188,6 +193,8 @@ export default function AdminDashboard() {
   const unassignedTodayCount = metrics?.unassignedToday ?? 0;
   const todayJobs = metrics?.todayJobs ?? [];
   const recentBookings = metrics?.recentBookings ?? [];
+  const toScheduleCount = metrics?.readyNeedingDeliveryScheduleCount ?? 0;
+  const toScheduleDeliveries = metrics?.readyNeedingDeliverySchedule ?? [];
 
   const driverLine = (job: TodayJob) => {
     if (isUnassignedDriver(job.assignedDriverId)) return "Unassigned";
@@ -208,7 +215,10 @@ export default function AdminDashboard() {
   };
 
   const hasActionable =
-    unpaidCount > 0 || unassignedTodayCount > 0 || opsAlerts.length > 0;
+    unpaidCount > 0 ||
+    unassignedTodayCount > 0 ||
+    toScheduleCount > 0 ||
+    opsAlerts.length > 0;
   const attentionReady = !alertsLoading && metrics !== null;
   const showAttentionLoading =
     !metricsError && !attentionReady && !hasActionable;
@@ -443,7 +453,7 @@ export default function AdminDashboard() {
                       Checking…
                     </div>
                     <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
-                      Loading unpaid and unassigned work
+                      Loading unpaid, unassigned, and delivery work
                     </div>
                   </div>
                 ) : null}
@@ -454,7 +464,7 @@ export default function AdminDashboard() {
                       You&apos;re clear
                     </div>
                     <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
-                      No unpaid or unassigned work
+                      No unpaid, unassigned, or unscheduled delivery work
                     </div>
                   </div>
                 ) : null}
@@ -465,7 +475,7 @@ export default function AdminDashboard() {
                       Metrics unavailable
                     </div>
                     <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
-                      Could not load unpaid or unassigned work
+                      Could not load unpaid, unassigned, or delivery work
                     </div>
                   </div>
                 ) : null}
@@ -519,6 +529,43 @@ export default function AdminDashboard() {
                     >
                       Assign
                     </Link>
+                  </div>
+                ) : null}
+
+                {toScheduleCount > 0 ? (
+                  <div
+                    className="flex items-start gap-[12px] px-[20px] py-[14px]"
+                    style={{ borderBottom: "1px solid #f0f2f6" }}
+                  >
+                    <div
+                      className="mt-[5px] size-[8px] flex-none rounded-full"
+                      style={{ background: "#2c4fa6" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold leading-[1.35]" style={{ color: "#000b49" }}>
+                        {toScheduleCount} ready to schedule
+                      </div>
+                      <div className="text-meta mt-[3px]" style={{ color: "#9aa0a6" }}>
+                        READY rugs need a delivery date
+                      </div>
+                      <ul className="mt-[8px] flex flex-col gap-[6px]">
+                        {toScheduleDeliveries.slice(0, 5).map((booking) => (
+                          <li key={booking.id}>
+                            <Link
+                              href={`/admin/bookings/${booking.id}`}
+                              className="ds-text-action text-[12.5px]"
+                            >
+                              {booking.id} · {booking.customer.name}
+                            </Link>
+                          </li>
+                        ))}
+                        {toScheduleCount > 5 ? (
+                          <li className="text-meta" style={{ color: "#9aa0a6" }}>
+                            +{toScheduleCount - 5} more
+                          </li>
+                        ) : null}
+                      </ul>
+                    </div>
                   </div>
                 ) : null}
 

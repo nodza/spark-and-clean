@@ -41,6 +41,8 @@ type BookingMetrics = {
     collectionSlot: "MORNING" | "AFTERNOON";
     status: string;
   }[];
+  readyNeedingDeliveryScheduleCount: { count: number }[];
+  readyNeedingDeliverySchedule: { id: string; customer: { name: string } }[];
   bookingsByArea: { name: string; value: number }[];
   bookingsByType: { name: string; value: number }[];
   driverPerformance: {
@@ -77,6 +79,27 @@ export function getAdminMetricsDateRange(now: Date = new Date()) {
 export async function getAdminMetrics(now: Date = new Date()) {
   await connectDB();
   const range = getAdminMetricsDateRange(now);
+  const readyNeedingDeliveryScheduleMatch = {
+    deactivatedAt: null,
+    status: "READY",
+    $expr: {
+      $not: [
+        {
+          $and: [
+            {
+              $regexMatch: {
+                input: { $ifNull: ["$deliveryDate", ""] },
+                regex: "^\\d{4}-\\d{2}-\\d{2}",
+              },
+            },
+            {
+              $in: ["$deliverySlot", ["MORNING", "AFTERNOON"]],
+            },
+          ],
+        },
+      ],
+    },
+  };
 
   const [bookingMetricsRows, ledgerMetricsRows] = await Promise.all([
     Booking.aggregate<BookingMetrics>([
@@ -275,6 +298,24 @@ export async function getAdminMetrics(now: Date = new Date()) {
               },
             },
           ],
+          readyNeedingDeliverySchedule: [
+            {
+              $match: readyNeedingDeliveryScheduleMatch,
+            },
+            { $sort: { createdAt: 1, id: 1 } },
+            { $limit: 5 },
+            {
+              $project: {
+                _id: 0,
+                id: 1,
+                "customer.name": 1,
+              },
+            },
+          ],
+          readyNeedingDeliveryScheduleCount: [
+            { $match: readyNeedingDeliveryScheduleMatch },
+            { $count: "count" },
+          ],
           bookingsByArea: [
             { $group: { _id: "$suburb", value: { $sum: 1 } } },
             { $project: { _id: 0, name: "$_id", value: 1 } },
@@ -434,6 +475,9 @@ export async function getAdminMetrics(now: Date = new Date()) {
     unassignedToday: counts.unassignedToday,
     todayJobs: bookingMetrics?.todayJobs ?? [],
     recentBookings: bookingMetrics?.recentBookings ?? [],
+    readyNeedingDeliveryScheduleCount:
+      bookingMetrics?.readyNeedingDeliveryScheduleCount[0]?.count ?? 0,
+    readyNeedingDeliverySchedule: bookingMetrics?.readyNeedingDeliverySchedule ?? [],
     bookingsByArea: bookingMetrics?.bookingsByArea ?? [],
     bookingsByType: bookingMetrics?.bookingsByType ?? [],
     driverPerformance: bookingMetrics?.driverPerformance ?? [],

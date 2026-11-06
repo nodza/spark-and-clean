@@ -47,6 +47,7 @@ export async function loginUser(input: {
 }): Promise<{
   user?: AuthUser;
   error?: string;
+  retryAfterSeconds?: number;
 }> {
   try {
     const res = await fetch("/api/auth/login", {
@@ -57,11 +58,19 @@ export async function loginUser(input: {
     });
     const data = await res.json();
     if (!res.ok) {
+      const retryHeader = Number(res.headers.get("Retry-After"));
+      const retryAfterSeconds =
+        res.status === 429
+          ? Number.isFinite(retryHeader) && retryHeader > 0
+            ? Math.ceil(retryHeader)
+            : 15 * 60
+          : undefined;
       return {
         error: toPublicApiError(
           data.error || "Login failed",
           "Login failed. Please try again."
         ),
+        ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
       };
     }
     notifyAuthChange();

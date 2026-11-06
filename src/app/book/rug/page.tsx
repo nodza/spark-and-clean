@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Step1Details } from "@/components/booking/Step1Details";
 import { Step2Photos } from "@/components/booking/Step2Photos";
@@ -103,6 +103,15 @@ export default function BookingWizard() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [photoGate, setPhotoGate] = useState({ busy: false, failed: false });
+  const onPhotoGate = useCallback(
+    (gate: { busy: boolean; failed: boolean }) => {
+      setPhotoGate((prev) =>
+        prev.busy === gate.busy && prev.failed === gate.failed ? prev : gate
+      );
+    },
+    []
+  );
   const [formData, setFormData] = useState<Partial<Booking>>({
     rug: { type: "", widthM: null, lengthM: null, areaSqM: 0, photos: [] },
     addOns: {
@@ -208,6 +217,16 @@ export default function BookingWizard() {
         return;
       }
     }
+
+    if (step === 2 && (photoGate.busy || photoGate.failed)) {
+      setSubmitError(
+        photoGate.busy
+          ? "Wait for photos to finish uploading."
+          : "Retry or remove photos that failed to upload."
+      );
+      return;
+    }
+    if (step === 2) setSubmitError(null);
 
     if (step === 3) {
       const contactErrors = validateStep3Contact(formData);
@@ -363,7 +382,9 @@ export default function BookingWizard() {
       : estimateQuoteMidpointCents(quotedMin, quotedMax);
 
   const isLastStep = step === totalSteps;
-  const continueDisabled = isLastStep && (!termsAccepted || isSubmitting);
+  const photosBlocking = step === 2 && (photoGate.busy || photoGate.failed);
+  const continueDisabled =
+    photosBlocking || (isLastStep && (!termsAccepted || isSubmitting));
 
   return (
     <BookingWizardShell
@@ -407,11 +428,15 @@ export default function BookingWizard() {
       }
       continueDisabled={continueDisabled}
       continueHint={
-        isLastStep && !termsAccepted
-          ? "Accept the terms below to confirm your booking."
-          : isSubmitting
-            ? "Saving your booking."
-            : undefined
+        step === 2 && photoGate.busy
+          ? "Uploading photos."
+          : step === 2 && photoGate.failed
+            ? "Retry or remove photos that failed to upload."
+            : isLastStep && !termsAccepted
+              ? "Accept the terms below to confirm your booking."
+              : isSubmitting
+                ? "Saving your booking."
+                : undefined
       }
     >
       {step === 1 && (
@@ -426,7 +451,13 @@ export default function BookingWizard() {
           onSizeSkippedChange={setSizeSkipped}
         />
       )}
-      {step === 2 && <Step2Photos data={formData} update={updateFormData} />}
+      {step === 2 && (
+        <Step2Photos
+          data={formData}
+          update={updateFormData}
+          onUploadGateChange={onPhotoGate}
+        />
+      )}
       {step === 3 && (
         <Step3Location
           data={formData}

@@ -33,6 +33,8 @@ beforeEach(() => {
       ],
       todayJobs: [],
       recentBookings: [],
+      readyNeedingDeliveryScheduleCount: [],
+      readyNeedingDeliverySchedule: [],
       bookingsByArea: [],
       bookingsByType: [],
       driverPerformance: [],
@@ -105,6 +107,35 @@ describe("admin metrics", () => {
     });
     expect(summaryFields.activeJobs.$sum.$cond[0].$and[1]).toEqual({
       $in: ["$status", ["COLLECTED", "CLEANING", "DRYING", "READY"]],
+    });
+  });
+
+  it("returns active READY bookings that still need a delivery schedule", async () => {
+    mocks.bookingAggregate.mockResolvedValue([
+      {
+        summary: [],
+        todayJobs: [],
+        recentBookings: [],
+        readyNeedingDeliveryScheduleCount: [{ count: 6 }],
+        readyNeedingDeliverySchedule: [
+          { id: "BK-1", customer: { name: "Customer" } },
+        ],
+        bookingsByArea: [],
+        bookingsByType: [],
+        driverPerformance: [],
+      },
+    ]);
+
+    const metrics = await getAdminMetrics(new Date("2026-11-04T12:00:00.000Z"));
+
+    expect(metrics.readyNeedingDeliveryScheduleCount).toBe(6);
+    expect(metrics.readyNeedingDeliverySchedule).toEqual([
+      { id: "BK-1", customer: { name: "Customer" } },
+    ]);
+    const bookingPipeline = mocks.bookingAggregate.mock.calls[0][0];
+    expect(bookingPipeline[2].$facet.readyNeedingDeliverySchedule[0].$match).toMatchObject({
+      deactivatedAt: null,
+      status: "READY",
     });
   });
 });

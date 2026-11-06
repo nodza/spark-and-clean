@@ -10,14 +10,14 @@ import {
 } from "@/types/user";
 import { toPublicApiError } from "@/lib/publicApiError";
 import {
+  checkRateLimit,
   clearRateLimit,
   getClientIp,
-  getRateLimitStatus,
-  recordRateLimitFailure,
   tooManyAttemptsMessage,
 } from "@/lib/rateLimit";
 
-const LOGIN_LIMIT = 5;
+const LOGIN_EMAIL_LIMIT = 5;
+const LOGIN_IP_LIMIT = 20;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 function sessionFromUser(user: {
@@ -80,16 +80,19 @@ export async function POST(request: Request) {
     const emailKey = `auth-login:email:${email}`;
     const ipKey = `auth-login:ip:${ip}`;
     const [emailLimit, ipLimit] = await Promise.all([
-      getRateLimitStatus(emailKey, LOGIN_LIMIT),
-      getRateLimitStatus(ipKey, LOGIN_LIMIT),
+      checkRateLimit(emailKey, LOGIN_EMAIL_LIMIT, LOGIN_WINDOW_MS),
+      checkRateLimit(ipKey, LOGIN_IP_LIMIT, LOGIN_WINDOW_MS),
     ]);
-    const limited = [emailLimit, ipLimit].find((result) => !result.allowed);
-    if (limited) {
+    const blocked = [emailLimit, ipLimit].filter((result) => !result.allowed);
+    if (blocked.length > 0) {
+      const retryAfterSeconds = Math.max(
+        ...blocked.map((result) => result.retryAfterSeconds)
+      );
       return NextResponse.json(
-        { error: tooManyAttemptsMessage(limited.retryAfterSeconds) },
+        { error: tooManyAttemptsMessage(retryAfterSeconds) },
         {
           status: 429,
-          headers: { "Retry-After": String(limited.retryAfterSeconds) },
+          headers: { "Retry-After": String(retryAfterSeconds) },
         }
       );
     }
@@ -114,10 +117,6 @@ export async function POST(request: Request) {
     const user = await User.findOne(query).select("+passwordHash").lean();
 
     if (!user) {
-      await Promise.all([
-        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -128,10 +127,6 @@ export async function POST(request: Request) {
       typeof user.passwordHash !== "string" ||
       !(await bcrypt.compare(password, user.passwordHash))
     ) {
-      await Promise.all([
-        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
@@ -140,10 +135,6 @@ export async function POST(request: Request) {
 
     const role = normalizeUserRole(user.role);
     if (roleFilter && !isClientRole(roleFilter) && role !== roleFilter) {
-      await Promise.all([
-        recordRateLimitFailure(emailKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-        recordRateLimitFailure(ipKey, LOGIN_LIMIT, LOGIN_WINDOW_MS),
-      ]);
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }

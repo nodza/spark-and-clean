@@ -1,4 +1,5 @@
 import { getSession, type SessionUser } from "@/lib/session";
+import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 
 export class HttpError extends Error {
   status: number;
@@ -17,6 +18,9 @@ export function requireFullAdminSession(
   if (!session) {
     throw new HttpError(401, "Unauthorized");
   }
+  if (session.role === "admin" && session.mustChangePassword) {
+    throw new HttpError(403, PASSWORD_CHANGE_REQUIRED_MESSAGE);
+  }
   if (session.role !== "admin" || session.adminTier !== "full") {
     throw new HttpError(403, "Forbidden");
   }
@@ -34,6 +38,9 @@ export async function requireFullAdmin(): Promise<SessionUser> {
 export function requireAdminSession(session: SessionUser | null): SessionUser {
   if (!session) {
     throw new HttpError(401, "Unauthorized");
+  }
+  if (session.role === "admin" && session.mustChangePassword) {
+    throw new HttpError(403, PASSWORD_CHANGE_REQUIRED_MESSAGE);
   }
   if (
     session.role !== "admin" ||

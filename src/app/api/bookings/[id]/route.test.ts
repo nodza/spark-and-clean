@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   driverFindOne: vi.fn(),
+  paymentFind: vi.fn(),
+  couponFindOne: vi.fn(),
   punchOnce: vi.fn(),
   creditReferrerOnce: vi.fn(),
   deliveryClientId: vi.fn(),
@@ -26,6 +28,12 @@ vi.mock("@/models/Booking", () => ({
 vi.mock("@/models/Driver", () => ({
   Driver: { findOne: mocks.driverFindOne },
 }));
+vi.mock("@/models/Payment", () => ({
+  Payment: { find: mocks.paymentFind },
+}));
+vi.mock("@/models/Coupon", () => ({
+  Coupon: { findOne: mocks.couponFindOne },
+}));
 vi.mock("@/lib/promotion/loyalty", () => ({
   punchOnce: mocks.punchOnce,
   deliveryClientId: (...args: unknown[]) => mocks.deliveryClientId(...args),
@@ -38,6 +46,18 @@ vi.mock("@/lib/vehicleDay", () => ({
 }));
 vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
+}));
+vi.mock("@/lib/s3RugPhotos", () => ({
+  presentPhotoList: async (values?: string[]) =>
+    (values ?? []).flatMap((value) => {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("rug-photos/")) {
+        return [`https://signed.example/${trimmed}?expires=900`];
+      }
+      if (trimmed.startsWith("blob:")) return [];
+      if (trimmed.startsWith("/") || /^https?:\/\//.test(trimmed)) return [trimmed];
+      return [];
+    }),
 }));
 
 import { GET, PATCH } from "./route";
@@ -106,6 +126,12 @@ beforeEach(() => {
     async (booking: { userId?: unknown }) => booking.userId ?? null
   );
   mocks.bookingUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.paymentFind.mockReturnValue({
+    select: () => ({ lean: async () => [] }),
+  });
+  mocks.couponFindOne.mockReturnValue({
+    select: () => ({ lean: async () => null }),
+  });
   mocks.getSession.mockResolvedValue({
     id: "admin-1",
     email: "ops@example.com",
@@ -184,6 +210,12 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("billing");
   });
 
   it("lets a full admin mark a job collected without a rug tag", async () => {
@@ -267,6 +299,77 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/bookings/[id] measured size", () => {
+  function technician() {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+  }
+
+  it("does not save a size when the driver marks the rug collected", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          rug: {
+            type: "Persian",
+            widthM: null,
+            lengthM: null,
+            areaSqM: 0,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const res = await patch({
+      status: "COLLECTED",
+      widthM: 2,
+      lengthM: 3,
+      estimatedPriceMin: 1,
+      amountDueCents: 1,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Correct the size on the job before you mark it collected.",
+    });
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("marks a scheduled job collected without changing the saved size", async () => {
+    technician();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          status: "SCHEDULED",
+          rug: {
+            type: "Persian",
+            widthM: 5,
+            lengthM: 4,
+            areaSqM: 20,
+            tagCode: "SC-RUG-1",
+          },
+        })
+      )
+    );
+
+    const res = await patch({ status: "COLLECTED" });
+
+    expect(res.status).toBe(200);
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    expect(update.$set).toEqual({ status: "COLLECTED" });
+    expect(update.$set).not.toHaveProperty("measuredQuote");
+    expect(update.$set).not.toHaveProperty("rug.widthM");
   });
 });
 
@@ -355,5 +458,79 @@ describe("GET /api/bookings/[id] job vehicles", () => {
     expect(payload.standingVehicle).toBeNull();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+const RUG_KEY =
+  "rug-photos/2026/10/11111111-1111-4111-8111-111111111111.jpg";
+
+describe("GET /api/bookings/[id] rug photos", () => {
+  beforeEach(() => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          rug: {
+            type: "Persian",
+            areaSqM: 6,
+            photos: [RUG_KEY],
+            labelPhotos: [RUG_KEY],
+          },
+        })
+      )
+    );
+  });
+
+  it("gives a full admin a short-lived photo URL", async () => {
+    const res = await get();
+    const payload = await res.json();
+    expect(res.status).toBe(200);
+    expect(payload.rug.photos).toEqual([
+      `https://signed.example/${RUG_KEY}?expires=900`,
+    ]);
+    expect(payload.rug.labelPhotos).toEqual(payload.rug.photos);
+    expect(JSON.stringify(payload)).not.toContain(`"${RUG_KEY}"`);
+  });
+
+  it("gives the assigned technician and the owning client the same kind of URL", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+    const tech = await (await get()).json();
+    expect(tech.rug.photos[0]).toContain("https://signed.example/");
+
+    mocks.getSession.mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+    const owner = await (await get()).json();
+    expect(owner.rug.photos[0]).toContain("https://signed.example/");
+  });
+
+  it("does not give a photo URL to another client, another technician, or a public link", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "507f1f77bcf86cd799439099",
+      email: "other@example.com",
+      role: "client",
+    });
+    expect((await get()).status).toBe(403);
+
+    mocks.getSession.mockResolvedValue({
+      id: "tech-2",
+      email: "other-tech@example.com",
+      role: "technician",
+      driverProfileId: "driver_other",
+    });
+    expect((await get()).status).toBe(403);
+
+    mocks.getSession.mockResolvedValue(null);
+    const payload = await (await get()).json();
+    expect(payload.rug.photos).toEqual([]);
+    expect(payload.rug.labelPhotos).toEqual([]);
+    expect(JSON.stringify(payload)).not.toContain("rug-photos/");
+    expect(JSON.stringify(payload)).not.toContain("signed.example");
   });
 });
