@@ -37,6 +37,14 @@ describe("suburbOrCityCentroid", () => {
     expect(suburbOrCityCentroid("Rosebank")).toEqual([-26.146, 28.0436]);
   });
 
+  it("keeps a Pretoria address in Gauteng when the suburb is unknown", () => {
+    const [lat, lng] = suburbOrCityCentroid("Unknownville", "Pretoria");
+    expect(lat).toBeGreaterThan(-26.2);
+    expect(lat).toBeLessThan(-25.4);
+    expect(lng).toBeGreaterThan(27.8);
+    expect(lng).toBeLessThan(28.6);
+  });
+
   it("falls back to city centroid when suburb is unknown", () => {
     expect(suburbOrCityCentroid("Unknownville", "Johannesburg")).toEqual([
       -26.2041, 28.0473,

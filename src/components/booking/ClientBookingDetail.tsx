@@ -186,8 +186,8 @@ export function ClientBookingDetail({
           <p className="mt-2 flex items-start gap-2 break-words text-[14.5px] text-[#6b7280]">
             <MapPin className="mt-0.5 size-4 shrink-0 text-[#0a7a63]" aria-hidden />
             <span>
-              {[booking.addressLine1, booking.suburb, booking.city]
-                .map((part) => part.trim())
+              {[booking.addressLine1, booking.suburb, booking.city, booking.postalCode]
+                .map((part) => part?.trim() ?? "")
                 .filter(Boolean)
                 .join(", ")}
             </span>

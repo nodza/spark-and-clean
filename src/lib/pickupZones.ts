@@ -4,6 +4,7 @@ import {
   suburbOrCityCentroid,
   type LatLngTuple,
 } from "@/lib/jobMapCoords";
+import { placeRegion } from "@/lib/serviceArea";
 import type { Booking, BookingStatus } from "@/types/booking";
 
 /** A pickup joins a zone only when it is this close to that zone's first stop. */
@@ -156,14 +157,13 @@ export function serviceMetro(
   booking: Pick<PickupZoneBooking, "suburb" | "city" | "coordinates">
 ): ServiceMetro {
   const city = booking.city.trim();
+  const suburb = booking.suburb.trim();
+  const named = placeRegion(city) ?? placeRegion(suburb);
+  if (named === "gauteng") return "Johannesburg";
+  if (named === "cape-town") return "Cape Town";
+
   if (/johannesburg|sandton|jhb/i.test(city)) return "Johannesburg";
   if (/cape town/i.test(city)) return "Cape Town";
-
-  if (
-    /sandton|rosebank|fourways|randburg|bryanston|midrand/i.test(booking.suburb)
-  ) {
-    return "Johannesburg";
-  }
 
   const [lat] = pickupPosition(booking);
   return lat > JOHANNESBURG_LATITUDE_SPLIT ? "Johannesburg" : "Cape Town";

@@ -1,5 +1,6 @@
 import type { Booking, Coordinates } from "@/types/booking";
 import { technicianTodayStops } from "@/lib/technicianJobs";
+import { centroidForPlace, placeRegion } from "@/lib/serviceArea";
 
 /** Leaflet-style [lat, lng]. */
 export type LatLngTuple = [number, number];
@@ -22,8 +23,7 @@ const CITY_CENTROIDS: Record<string, LatLngTuple> = {
  * Fixed suburb centroids (CPT + JHB). Keys are lowercased for lookup.
  * No jitter — pins stay put across reloads.
  */
-const SUBURB_CENTROIDS: Record<string, LatLngTuple> = {
-  // Cape Town
+const CAPE_TOWN_SUBURBS: Record<string, LatLngTuple> = {
   durbanville: [-33.8333, 18.65],
   "sea point": [-33.9167, 18.3833],
   "city bowl": [-33.9249, 18.4241],
@@ -38,7 +38,9 @@ const SUBURB_CENTROIDS: Record<string, LatLngTuple> = {
   observatory: [-33.9333, 18.4667],
   gardens: [-33.9333, 18.4167],
   fresnaye: [-33.925, 18.3833],
-  // Johannesburg
+};
+
+const JOHANNESBURG_SUBURBS: Record<string, LatLngTuple> = {
   sandton: [-26.1076, 28.0567],
   rosebank: [-26.146, 28.0436],
   fourways: [-26.0207, 28.0074],
@@ -47,8 +49,24 @@ const SUBURB_CENTROIDS: Record<string, LatLngTuple> = {
   midrand: [-25.989, 28.128],
 };
 
+const SUBURB_CENTROIDS: Record<string, LatLngTuple> = {
+  ...CAPE_TOWN_SUBURBS,
+  ...JOHANNESBURG_SUBURBS,
+};
+
+export type MappedServiceCity = "Cape Town" | "Johannesburg";
+
 function normalizeKey(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Known service-area suburb, used when a geocoder puts the suburb in the city field. */
+export function suburbServiceCity(suburb: string): MappedServiceCity | null {
+  const key = normalizeKey(suburb);
+  if (!key) return null;
+  if (key in JOHANNESBURG_SUBURBS) return "Johannesburg";
+  if (key in CAPE_TOWN_SUBURBS) return "Cape Town";
+  return null;
 }
 
 export function hasValidCoordinates(
@@ -76,14 +94,20 @@ export function suburbOrCityCentroid(
   if (suburbHit) return suburbHit;
 
   const cityKey = normalizeKey(city);
-  const cityHit = CITY_CENTROIDS[cityKey];
+  const cityHit = CITY_CENTROIDS[cityKey] ?? centroidForPlace(city);
   if (cityHit) return cityHit;
 
   if (
+    placeRegion(city) === "gauteng" ||
+    placeRegion(suburb) === "gauteng" ||
     /johannesburg|sandton|jhb/i.test(city) ||
     /sandton|rosebank|fourways|randburg|bryanston|midrand/i.test(suburb)
   ) {
     return CITY_CENTROIDS.johannesburg;
+  }
+
+  if (placeRegion(city) === "cape-town" || placeRegion(suburb) === "cape-town") {
+    return DEFAULT_MAP_CENTER;
   }
 
   return DEFAULT_MAP_CENTER;

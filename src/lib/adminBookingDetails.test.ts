@@ -37,6 +37,17 @@ describe("sanitizeBookingDetailsPatch", () => {
     });
   });
 
+  it("accepts a Gauteng town and still rejects Durban", () => {
+    const pretoria = sanitizeBookingDetailsPatch({
+      ...validBody,
+      suburb: "Hatfield",
+      city: "Pretoria",
+    });
+    expect(pretoria.ok).toBe(true);
+    if (!pretoria.ok) return;
+    expect(pretoria.patch.city).toBe("Pretoria");
+  });
+
   it("rejects an invalid city or slot", () => {
     expect(
       sanitizeBookingDetailsPatch({ ...validBody, city: "Durban" }).ok

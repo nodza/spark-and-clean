@@ -64,7 +64,9 @@ function mapsUrl(booking: Booking): string {
   }
 
   const query = encodeURIComponent(
-    [booking.addressLine1, booking.suburb, booking.city].filter(Boolean).join(", ")
+    [booking.addressLine1, booking.suburb, booking.city, booking.postalCode]
+      .filter(Boolean)
+      .join(", ")
   );
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
@@ -598,6 +600,7 @@ function JobContent({
             <br />
             {booking.suburb}
             {booking.city ? `, ${booking.city}` : null}
+            {booking.postalCode ? ` ${booking.postalCode}` : null}
           </p>
 
           <div className="mt-4 flex gap-2">

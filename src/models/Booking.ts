@@ -142,6 +142,7 @@ const BookingSchema = new Schema(
     suburb: { type: String, required: true, trim: true },
     addressLine1: { type: String, required: true, trim: true },
     city: { type: String, required: true, trim: true, index: true },
+    postalCode: { type: String, trim: true, maxlength: 12 },
     coordinates: { type: CoordinatesSchema },
     collectionDate: { type: String, required: true },
     collectionSlot: {

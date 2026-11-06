@@ -67,7 +67,6 @@ import {
   type ListPagination,
   type PageSize,
 } from "@/lib/listPagination";
-import { SERVICE_CITIES } from "@/types/user";
 import type { Booking, Driver } from "@/types/booking";
 import { compactVehicleFromDisplay } from "@/lib/vehicle";
 
@@ -93,25 +92,20 @@ function emptyEditForm(): EditFormState {
     email: "",
     addressLine1: "",
     suburb: "",
-    city: SERVICE_CITIES[0],
+    city: "",
     collectionDate: "",
     collectionSlot: "MORNING",
   };
 }
 
 function editFormFromBooking(booking: Booking): EditFormState {
-  const city = SERVICE_CITIES.includes(
-    booking.city as (typeof SERVICE_CITIES)[number]
-  )
-    ? booking.city
-    : SERVICE_CITIES[0];
   return {
     name: booking.customer.name || "",
     phone: booking.customer.phone || "",
     email: booking.customer.email || "",
     addressLine1: booking.addressLine1 || "",
     suburb: booking.suburb || "",
-    city,
+    city: booking.city || "",
     collectionDate:
       bookingCalendarDate(booking.collectionDate) ||
       booking.collectionDate.slice(0, 10),
@@ -856,23 +850,19 @@ function AdminBookingsList() {
               </div>
               <div>
                 <Label htmlFor="edit-booking-city">City</Label>
-                <Select
+                <Input
+                  id="edit-booking-city"
                   value={editForm.city}
-                  onValueChange={(city) =>
-                    setEditForm((current) => ({ ...current, city }))
+                  placeholder="Pretoria"
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      city: event.target.value,
+                    }))
                   }
-                >
-                  <SelectTrigger id="edit-booking-city" className="mt-1.5">
-                    <SelectValue placeholder="City" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SERVICE_CITIES.map((city) => (
-                      <SelectItem key={city} value={city}>
-                        {city}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                  className="mt-1.5"
+                />
               </div>
               <div>
                 <Label htmlFor="edit-booking-date">Collection date</Label>

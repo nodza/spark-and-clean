@@ -38,6 +38,7 @@ type BookingWizardShellProps = {
   continueLabel: ReactNode;
   continueDisabled?: boolean;
   continueHint?: string;
+  backDisabled?: boolean;
   showBack: boolean;
   children: ReactNode;
 };
@@ -109,6 +110,7 @@ export function BookingWizardShell({
   continueLabel,
   continueDisabled = false,
   continueHint,
+  backDisabled = false,
   showBack,
   children,
 }: BookingWizardShellProps) {
@@ -160,6 +162,7 @@ export function BookingWizardShell({
               variant="outline"
               size="sm"
               onClick={onBack}
+              disabled={backDisabled}
               className="h-9 min-h-9 rounded-full border-[1.5px] border-navy px-4 text-[13px] font-bold"
             >
               Back

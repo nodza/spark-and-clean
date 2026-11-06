@@ -3,6 +3,8 @@
  * Pure helpers — no React. Used by Step 1 / Step 3 and the wizard gate.
  */
 
+import { isOutsideCollectionPlace } from "@/lib/serviceArea";
+
 export const MAX_RUG_DIMENSION_M = 20;
 export const MIN_RUG_DIMENSION_M = 0.1;
 
@@ -136,6 +138,11 @@ export function validateStep3Contact(data: {
   }
   if (!data.city?.trim()) {
     errors.city = "Enter a city.";
+  } else if (
+    isOutsideCollectionPlace(data.city) ||
+    isOutsideCollectionPlace(data.suburb ?? "")
+  ) {
+    errors.city = "We collect in Cape Town and across Gauteng.";
   }
 
   const nameErr = validateCustomerName(customer.name || "");
