@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +18,10 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { AddressAutocomplete } from "@/components/booking/AddressAutocomplete";
+import {
+  LocationPinMap,
+  type PinCommit,
+} from "@/components/booking/LocationPinMap";
 import { FieldError } from "@/components/booking/FieldError";
 import { Booking } from "@/types/booking";
 import { CalendarIcon } from "lucide-react";
@@ -35,6 +39,10 @@ import {
   validateSaPhone,
   type FieldErrors,
 } from "@/lib/bookingValidation";
+import { geocodeTypedAddress } from "@/lib/addressAutocomplete";
+import { enrichFreeTextAddress, preciseCoordinates } from "@/lib/geocode/address";
+import { coordinateInCollectionArea } from "@/lib/serviceArea";
+import { hasValidCoordinates } from "@/lib/jobMapCoords";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -42,23 +50,107 @@ interface StepProps {
   emailReadOnly?: boolean;
   errors?: FieldErrors;
   onClearError?: (field: string) => void;
+  locating?: boolean;
 }
 
-export function Step3Location({
-  data,
-  update,
-  emailReadOnly = false,
-  errors = {},
-  onClearError,
-}: StepProps) {
+export type Step3LocationHandle = {
+  /** Geocode the typed address. A manual pin is kept. A failed lookup leaves coordinates unset. */
+  prepareAddress: () => Promise<Partial<Booking>>;
+};
+
+export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
+  function Step3Location(
+    {
+      data,
+      update,
+      emailReadOnly = false,
+      errors = {},
+      onClearError,
+      locating = false,
+    },
+    ref
+  ) {
   const customer = data.customer || { id: "", name: "", email: "", phone: "" };
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const manualRef = useRef(false);
   const [latInput, setLatInput] = useState(
     data.coordinates?.lat != null ? String(data.coordinates.lat) : ""
   );
   const [lngInput, setLngInput] = useState(
     data.coordinates?.lng != null ? String(data.coordinates.lng) : ""
   );
+  const latRef = useRef(latInput);
+  const lngRef = useRef(lngInput);
+  latRef.current = latInput;
+  lngRef.current = lngInput;
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [searchConnected, setSearchConnected] = useState<boolean | null>(null);
+  const [pinStatus, setPinStatus] = useState<"idle" | "pinned" | "approximate">(
+    "idle"
+  );
+
+  useEffect(() => {
+    setLatInput(
+      data.coordinates?.lat != null ? String(data.coordinates.lat) : ""
+    );
+    setLngInput(
+      data.coordinates?.lng != null ? String(data.coordinates.lng) : ""
+    );
+  }, [data.coordinates?.lat, data.coordinates?.lng]);
+
+  useImperativeHandle(ref, () => ({
+    prepareAddress: async () => {
+      const current = dataRef.current;
+      const enriched = enrichFreeTextAddress({
+        addressLine1: current.addressLine1,
+        suburb: current.suburb,
+        city: current.city,
+        postalCode: current.postalCode,
+      });
+      const draft: Partial<Booking> = { ...current, ...enriched };
+      if (manualRef.current) {
+        const latRaw = latRef.current.trim();
+        const lngRaw = lngRef.current.trim();
+        if (latRaw || lngRaw) {
+          const pin = preciseCoordinates(Number(latRaw), Number(lngRaw));
+          if (pin && coordinateInCollectionArea(pin.lat, pin.lng)) {
+            return { ...enriched, coordinates: pin };
+          }
+        }
+      }
+
+      const hadPin = hasValidCoordinates(draft.coordinates);
+      try {
+        const looked = await geocodeTypedAddress(
+          {
+            addressLine1: draft.addressLine1,
+            suburb: draft.suburb,
+            city: draft.city,
+            postalCode: draft.postalCode,
+          },
+          { near: draft.city }
+        );
+        if (!looked.result) {
+          if (!hadPin) setPinStatus("approximate");
+          return hadPin ? enriched : { ...enriched, coordinates: undefined };
+        }
+        manualRef.current = false;
+        setPinStatus("pinned");
+        return {
+          addressLine1: draft.addressLine1?.trim() || looked.result.addressLine1,
+          suburb: draft.suburb?.trim() || looked.result.suburb,
+          city: draft.city?.trim() || looked.result.city,
+          postalCode:
+            draft.postalCode?.trim() || looked.result.postalCode || undefined,
+          coordinates: looked.result.coordinates,
+        };
+      } catch {
+        if (!hadPin) setPinStatus("approximate");
+        return hadPin ? enriched : { ...enriched, coordinates: undefined };
+      }
+    },
+  }));
 
   const markTouched = (field: string) =>
     setTouched((prev) => ({ ...prev, [field]: true }));
@@ -82,6 +174,39 @@ export function Step3Location({
   const addressError = errors.addressLine1;
   const suburbError = errors.suburb;
   const cityError = errors.city;
+  const parsedPin = preciseCoordinates(
+    Number(data.coordinates?.lat),
+    Number(data.coordinates?.lng)
+  );
+  const mapPin =
+    parsedPin && coordinateInCollectionArea(parsedPin.lat, parsedPin.lng)
+      ? parsedPin
+      : null;
+
+  const handlePinChange = (pinUpdate: PinCommit) => {
+    manualRef.current = true;
+    setPinStatus("pinned");
+    setLatInput(String(pinUpdate.coordinates.lat));
+    setLngInput(String(pinUpdate.coordinates.lng));
+    const current = dataRef.current;
+    const address = pinUpdate.address;
+    update({
+      coordinates: pinUpdate.coordinates,
+      ...(address
+        ? {
+            addressLine1: address.addressLine1 || current.addressLine1,
+            suburb: address.suburb || current.suburb,
+            city: address.city || current.city,
+            postalCode: address.postalCode || current.postalCode,
+          }
+        : {}),
+    });
+    if (address) {
+      onClearError?.("addressLine1");
+      onClearError?.("suburb");
+      onClearError?.("city");
+    }
+  };
 
   const commitCoordinates = (latRaw: string, lngRaw: string) => {
     const lat = Number(latRaw.trim());
@@ -108,18 +233,40 @@ export function Step3Location({
           <AddressAutocomplete
             id="address"
             value={data.addressLine1 || ""}
-            placeholder="e.g. 42 Protea Way, Durbanville"
+            placeholder="e.g. 10 Beach Road, Sea Point"
+            near={data.city}
+            suburb={data.suburb}
+            postalCode={data.postalCode}
+            disabled={locating}
+            invalid={Boolean(addressError)}
+            describedBy={
+              addressError
+                ? "address-error"
+                : pinStatus === "approximate"
+                  ? "address-approximate"
+                  : pinStatus === "pinned"
+                    ? "address-pinned"
+                    : "address-hint"
+            }
+            onConfiguredChange={setSearchConnected}
             onInputChange={(value) => {
-              update({ addressLine1: value });
+              manualRef.current = false;
+              setPinStatus("idle");
+              update({ addressLine1: value, coordinates: undefined });
               onClearError?.("addressLine1");
             }}
             onAddressResolved={(result) => {
-              setLatInput(String(result.coordinates.lat));
-              setLngInput(String(result.coordinates.lng));
+              manualRef.current = false;
+              setPinStatus(result.coordinates ? "pinned" : "approximate");
+              if (result.coordinates) {
+                setLatInput(String(result.coordinates.lat));
+                setLngInput(String(result.coordinates.lng));
+              }
               update({
-                addressLine1: result.addressLine1,
-                suburb: result.suburb,
-                city: result.city,
+                addressLine1: result.addressLine1 || data.addressLine1,
+                suburb: result.suburb || data.suburb,
+                city: result.city || data.city,
+                postalCode: result.postalCode || data.postalCode,
                 coordinates: result.coordinates,
               });
               onClearError?.("addressLine1");
@@ -129,81 +276,124 @@ export function Step3Location({
           />
           {addressError ? (
             <FieldError id="address-error" message={addressError} />
+          ) : pinStatus === "approximate" && !hasValidCoordinates(data.coordinates) ? (
+            <p id="address-approximate" className="text-xs leading-relaxed text-muted-foreground" role="status">
+              We couldn’t pin this street. You can continue — the driver map uses the suburb centre.
+            </p>
+          ) : pinStatus === "pinned" && hasValidCoordinates(data.coordinates) ? (
+            <p id="address-pinned" className="text-xs font-medium text-[#0a7a63]" role="status">
+              Street pin saved for the driver.
+            </p>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Start typing to search Cape Town or Johannesburg addresses
-              (mock autocomplete).
+            <p id="address-hint" className="text-xs leading-relaxed text-muted-foreground">
+              {searchConnected === false
+                ? "Type the street, suburb, and city. The driver map uses the suburb centre until address search is connected."
+                : "Search a street in Cape Town or Gauteng, or enter it as street, suburb, city."}
             </p>
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+        <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_7.25rem] items-start gap-2.5 sm:gap-4">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="suburb">Suburb</Label>
             <Input
               id="suburb"
-              placeholder="e.g. Durbanville"
+              placeholder="Sea Point"
               value={data.suburb || ""}
               aria-invalid={Boolean(suburbError) || undefined}
               aria-describedby={suburbError ? "suburb-error" : undefined}
+              disabled={locating}
               onChange={(e) => {
-                update({ suburb: e.target.value });
+                manualRef.current = false;
+                setPinStatus("idle");
+                update({ suburb: e.target.value, coordinates: undefined });
                 onClearError?.("suburb");
               }}
             />
             <FieldError id="suburb-error" message={suburbError} />
           </div>
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="city">City</Label>
             <Input
               id="city"
-              placeholder="Cape Town or Johannesburg"
+              placeholder="Pretoria"
               value={data.city || ""}
               aria-invalid={Boolean(cityError) || undefined}
               aria-describedby={cityError ? "city-error" : undefined}
+              disabled={locating}
               onChange={(e) => {
-                update({ city: e.target.value });
+                manualRef.current = false;
+                setPinStatus("idle");
+                update({ city: e.target.value, coordinates: undefined });
                 onClearError?.("city");
               }}
             />
             <FieldError id="city-error" message={cityError} />
           </div>
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="postalCode" className="whitespace-nowrap">
+              Postal code
+            </Label>
+            <Input
+              id="postalCode"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              placeholder="8005"
+              maxLength={12}
+              disabled={locating}
+              value={data.postalCode || ""}
+              onChange={(e) => {
+                update({ postalCode: e.target.value });
+              }}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="latitude">Latitude (Optional)</Label>
+            <Label htmlFor="latitude">Latitude (optional)</Label>
             <Input
               id="latitude"
               inputMode="decimal"
               placeholder="e.g. -33.9249"
               value={latInput}
+              disabled={locating}
               onChange={(e) => {
                 const next = e.target.value;
                 setLatInput(next);
+                manualRef.current = true;
+                setPinStatus("idle");
                 commitCoordinates(next, lngInput);
               }}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="longitude">Longitude (Optional)</Label>
+            <Label htmlFor="longitude">Longitude (optional)</Label>
             <Input
               id="longitude"
               inputMode="decimal"
               placeholder="e.g. 18.4241"
               value={lngInput}
+              disabled={locating}
               onChange={(e) => {
                 const next = e.target.value;
                 setLngInput(next);
+                manualRef.current = true;
+                setPinStatus("idle");
                 commitCoordinates(latInput, next);
               }}
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Autocomplete fills these automatically. Override if you have more
-          precise coordinates.
-        </p>
+
+        {mapPin ? (
+          <LocationPinMap
+            latitude={mapPin.lat}
+            longitude={mapPin.lng}
+            disabled={locating}
+            onPinChange={handlePinChange}
+          />
+        ) : null}
       </div>
 
       <div className="space-y-4">
@@ -357,4 +547,4 @@ export function Step3Location({
       </div>
     </div>
   );
-}
+});
