@@ -120,7 +120,14 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
         }
       }
 
-      const hadPin = hasValidCoordinates(draft.coordinates);
+      const keptPin = draft.coordinates;
+      if (
+        hasValidCoordinates(keptPin) &&
+        coordinateInCollectionArea(keptPin.lat, keptPin.lng)
+      ) {
+        setPinStatus("pinned");
+        return { ...enriched, coordinates: keptPin };
+      }
       try {
         const looked = await geocodeTypedAddress(
           {
@@ -132,8 +139,8 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
           { near: draft.city }
         );
         if (!looked.result) {
-          if (!hadPin) setPinStatus("approximate");
-          return hadPin ? enriched : { ...enriched, coordinates: undefined };
+          setPinStatus("approximate");
+          return { ...enriched, coordinates: undefined };
         }
         manualRef.current = false;
         setPinStatus("pinned");
@@ -146,8 +153,8 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
           coordinates: looked.result.coordinates,
         };
       } catch {
-        if (!hadPin) setPinStatus("approximate");
-        return hadPin ? enriched : { ...enriched, coordinates: undefined };
+        setPinStatus("approximate");
+        return { ...enriched, coordinates: undefined };
       }
     },
   }));
@@ -182,6 +189,13 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
     parsedPin && coordinateInCollectionArea(parsedPin.lat, parsedPin.lng)
       ? parsedPin
       : null;
+
+  const selectedPin = () => {
+    const pin = dataRef.current.coordinates;
+    return (
+      hasValidCoordinates(pin) && coordinateInCollectionArea(pin.lat, pin.lng)
+    );
+  };
 
   const handlePinChange = (pinUpdate: PinCommit) => {
     manualRef.current = true;
@@ -250,9 +264,14 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
             }
             onConfiguredChange={setSearchConnected}
             onInputChange={(value) => {
-              manualRef.current = false;
-              setPinStatus("idle");
-              update({ addressLine1: value, coordinates: undefined });
+              if (selectedPin()) {
+                setPinStatus("pinned");
+                update({ addressLine1: value });
+              } else {
+                manualRef.current = false;
+                setPinStatus("idle");
+                update({ addressLine1: value, coordinates: undefined });
+              }
               onClearError?.("addressLine1");
             }}
             onAddressResolved={(result) => {
@@ -282,7 +301,7 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
             </p>
           ) : pinStatus === "pinned" && hasValidCoordinates(data.coordinates) ? (
             <p id="address-pinned" className="text-xs font-medium text-[#0a7a63]" role="status">
-              Street pin saved for the driver.
+              Street pin saved. You can correct the street or suburb, and the pin stays.
             </p>
           ) : (
             <p id="address-hint" className="text-xs leading-relaxed text-muted-foreground">
@@ -304,9 +323,14 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
               aria-describedby={suburbError ? "suburb-error" : undefined}
               disabled={locating}
               onChange={(e) => {
-                manualRef.current = false;
-                setPinStatus("idle");
-                update({ suburb: e.target.value, coordinates: undefined });
+                if (selectedPin()) {
+                  setPinStatus("pinned");
+                  update({ suburb: e.target.value });
+                } else {
+                  manualRef.current = false;
+                  setPinStatus("idle");
+                  update({ suburb: e.target.value, coordinates: undefined });
+                }
                 onClearError?.("suburb");
               }}
             />
@@ -322,9 +346,14 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
               aria-describedby={cityError ? "city-error" : undefined}
               disabled={locating}
               onChange={(e) => {
-                manualRef.current = false;
-                setPinStatus("idle");
-                update({ city: e.target.value, coordinates: undefined });
+                if (selectedPin()) {
+                  setPinStatus("pinned");
+                  update({ city: e.target.value });
+                } else {
+                  manualRef.current = false;
+                  setPinStatus("idle");
+                  update({ city: e.target.value, coordinates: undefined });
+                }
                 onClearError?.("city");
               }}
             />
