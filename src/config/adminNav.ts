@@ -24,6 +24,7 @@ export type AdminNavKey =
   | "bookings"
   | "assignments"
   | "technicians"
+  | "workshopStaff"
   | "clients"
   | "rugs"
   | "pricing"
@@ -82,6 +83,15 @@ export const ADMIN_OPS_NAV: AdminNavItem[] = [
     fullAdminOnly: true,
     icon: Users,
     match: (p) => p.startsWith("/admin/technicians"),
+  },
+  {
+    key: "workshopStaff",
+    label: "Workshop staff",
+    href: "/admin/workshop-staff",
+    shipped: true,
+    fullAdminOnly: true,
+    icon: Users,
+    match: (p) => p.startsWith("/admin/workshop-staff"),
   },
   {
     key: "clients",
@@ -162,6 +172,7 @@ export const ADMIN_PAGE_TITLES: Record<string, string> = {
   "/admin/bookings": "Bookings",
   "/admin/assignments": "Assignments",
   "/admin/technicians": "Technicians",
+  "/admin/workshop-staff": "Workshop staff",
   "/admin/clients": "Clients",
   "/admin/rugs": "Rugs",
   "/admin/pricing": "Pricing & coupons",

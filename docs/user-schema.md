@@ -8,6 +8,7 @@ Foundation for portals (F6.5 / E4): every sign-in identity is a single `User` wi
 |------|-------------|--------|
 | `client` | must be `null` | Customer portal / bookings |
 | `technician` | must be `null` | Tech portal; optional `driverProfileId` → Driver vehicle display |
+| `workshop` | must be `null` | Workshop login; accounts are created by full admins |
 | `admin` | required: `full` \| `marketing-only` | Admin portal scoping |
 
 There is **no** `roles[]` array and **no** multi-role join table (that would preempt F6.6).
@@ -19,7 +20,10 @@ Email is unique and stored lowercase (one inbox = one account).
 - **User** — `passwordHash` (bcrypt, `select: false`, stripped in `toJSON` / `toClientUser`), `emailVerifiedAt`, `disabledAt`, `sessionsInvalidatedAt` (password reset), timestamps
 - **AuthSession** — session ledger; revoked on password reset
 - **PasswordResetToken** — hashed one-time reset tokens (60 min TTL)
+- **WorkshopActivity** — append-only `RECEIVED` / `CLEANED` events with booking, tag, staff user ID, and name/email snapshots
 - **Booking.userId** — optional ObjectId ref for registered clients; `customer.email` still used for guests
+
+Workshop staff can look up a rug by tag and see its cleaning details and ops-only notes. Recording receipt or completed cleaning writes a separate `WorkshopActivity` entry; it does not change booking status, payment, or customer data. Full admins can review these entries on the booking detail page.
 
 ## Guest checkout & convert-to-account
 

@@ -72,6 +72,14 @@ export function getWorkspaceNavLink(
       emphasize: true,
     };
   }
+  if (role === "workshop") {
+    return {
+      id: "workspace",
+      label: "Workshop",
+      href: homeForRole("workshop"),
+      emphasize: true,
+    };
+  }
   return {
     id: "portal",
     label: "My Bookings",
@@ -92,7 +100,12 @@ export function getMarketingDesktopNavItems({
   const items: MarketingNavLink[] = [...MARKETING_CORE_LINKS];
   if (!ready) return items;
 
-  if (role === "client" || role === "admin" || role === "technician") {
+  if (
+    role === "client" ||
+    role === "admin" ||
+    role === "technician" ||
+    role === "workshop"
+  ) {
     items.push(getWorkspaceNavLink(role));
     return items;
   }
@@ -111,7 +124,12 @@ export function getMarketingAuthNavItems({
 }: MarketingNavAuthInput): MarketingNavItem[] {
   if (!ready) return [];
 
-  if (role === "client" || role === "admin" || role === "technician") {
+  if (
+    role === "client" ||
+    role === "admin" ||
+    role === "technician" ||
+    role === "workshop"
+  ) {
     return [
       getWorkspaceNavLink(role),
       { id: "logout", label: "Log out", action: "logout" },

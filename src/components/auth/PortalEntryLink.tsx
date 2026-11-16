@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
  * - client → /portal (My Bookings)
  * - admin → /admin
  * - technician → /tech/dashboard
+ * - workshop → /workshop/dashboard
  * Guest checkout JWTs are treated as logged out.
  */
 export function usePortalEntry() {
@@ -49,6 +50,15 @@ export function usePortalEntry() {
       ready: true as const,
       href: homeForRole("technician"),
       label: "Go to Dashboard" as const,
+      show: true as const,
+    };
+  }
+
+  if (isFullAccount(user) && user.role === "workshop") {
+    return {
+      ready: true as const,
+      href: homeForRole("workshop"),
+      label: "Go to Workshop",
       show: true as const,
     };
   }
