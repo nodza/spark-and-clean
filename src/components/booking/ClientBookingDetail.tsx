@@ -22,6 +22,7 @@ import { telHref, whatsappHref } from "@/lib/phone";
 import { PayButton } from "@/components/payments/PayButton";
 import type { AuthUser } from "@/lib/authClient";
 import type { Booking, BookingStatus } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
 import { cn } from "@/lib/utils";
 
@@ -186,7 +187,12 @@ export function ClientBookingDetail({
           <p className="mt-2 flex items-start gap-2 break-words text-[14.5px] text-[#6b7280]">
             <MapPin className="mt-0.5 size-4 shrink-0 text-[#0a7a63]" aria-hidden />
             <span>
-              {[booking.addressLine1, booking.suburb, booking.city, booking.postalCode]
+              {[
+                booking.addressLine1,
+                booking.suburb,
+                booking.city ? formatServiceAreaLabel(booking.city) : "",
+                booking.postalCode,
+              ]
                 .map((part) => part?.trim() ?? "")
                 .filter(Boolean)
                 .join(", ")}
@@ -337,7 +343,7 @@ export function ClientBookingDetail({
                 </p>
                 <p className="mt-[3px] text-[12.5px] text-[#9aa0a6]">
                   {booking.assignedDriverId
-                    ? `${booking.city} collections`
+                    ? `${formatServiceAreaLabel(booking.city)} collections`
                     : "We'll confirm before collection"}
                 </p>
               </div>

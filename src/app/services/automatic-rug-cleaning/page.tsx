@@ -12,7 +12,7 @@ export default function AutomaticRugCleaningPage() {
       highlights={[
         "7-minute clean and 7-minute dry with state-of-the-art automatic machines",
         "Safe, eco-friendly chemicals gentle on wool, silk and synthetic fibres",
-        "Collection and delivery across Johannesburg, Gauteng and Cape Town",
+        "Collection and delivery across Gauteng and Cape Town",
         "Ideal for Persian, Kilim, Afghan, Kazakh, Paco, Shaggy and modern rugs",
       ]}
     />

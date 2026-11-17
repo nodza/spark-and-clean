@@ -1,4 +1,29 @@
-import { SERVICE_CITIES, type ServiceCity } from "@/types/user";
+import { placeRegion } from "@/lib/serviceArea";
+import {
+  formatServiceAreaLabel,
+  normalizeServiceCity,
+  type ServiceCity,
+} from "@/types/user";
+
+/** Coupon scope vs booking town: Gauteng covers Pretoria/Johannesburg/etc. */
+function serviceAreaKey(city: string): "gauteng" | "cape-town" | null {
+  const normalized = normalizeServiceCity(city);
+  if (normalized === "Gauteng") return "gauteng";
+  if (normalized === "Cape Town") return "cape-town";
+  const region = placeRegion(city);
+  if (region === "gauteng" || region === "cape-town") return region;
+  return null;
+}
+
+export function sameServiceArea(a: string, b: string): boolean {
+  const left = a.trim();
+  const right = b.trim();
+  if (!left || !right) return false;
+  const keyA = serviceAreaKey(left);
+  const keyB = serviceAreaKey(right);
+  if (keyA && keyB) return keyA === keyB;
+  return left.toLowerCase() === right.toLowerCase();
+}
 
 export const COUPON_TYPES = ["PERCENT", "FIXED_CENTS"] as const;
 export type CouponType = (typeof COUPON_TYPES)[number];
@@ -100,11 +125,11 @@ export function couponApplyError(
   if (validTo && today > utcDay(validTo)) return COUPON_EXPIRED_MESSAGE;
 
   if (typeof doc.city === "string" && doc.city.trim()) {
-    const couponCity = doc.city.trim();
+    const couponCity = formatServiceAreaLabel(doc.city.trim());
     const bookingCity = typeof opts?.city === "string" ? opts.city.trim() : "";
-    if (bookingCity.toLowerCase() !== couponCity.toLowerCase()) {
+    if (!bookingCity || !sameServiceArea(bookingCity, doc.city)) {
       return bookingCity
-        ? `${COUPON_CITY_MESSAGE.replace("your city", `${bookingCity}.`)} It only applies in ${couponCity}.`
+        ? `${COUPON_CITY_MESSAGE.replace("your city", `${formatServiceAreaLabel(bookingCity)}.`)} It only applies in ${couponCity}.`
         : `This coupon only applies in ${couponCity}.`;
     }
   }
@@ -396,13 +421,14 @@ export function sanitizeCouponCreate(
 
   let city: ServiceCity | null = null;
   if (raw.city != null && raw.city !== "") {
-    if (
-      typeof raw.city !== "string" ||
-      !(SERVICE_CITIES as readonly string[]).includes(raw.city)
-    ) {
-      return { ok: false, error: "City must be Johannesburg or Cape Town" };
+    if (typeof raw.city !== "string") {
+      return { ok: false, error: "City must be Gauteng or Cape Town" };
     }
-    city = raw.city as ServiceCity;
+    const normalized = normalizeServiceCity(raw.city);
+    if (!normalized) {
+      return { ok: false, error: "City must be Gauteng or Cape Town" };
+    }
+    city = normalized;
   }
 
   return {
@@ -459,10 +485,7 @@ export function toClientCoupon(doc: Record<string, unknown>): ClientCoupon {
       ? doc.maxRedemptions
       : null;
   const city =
-    typeof doc.city === "string" &&
-    (SERVICE_CITIES as readonly string[]).includes(doc.city)
-      ? (doc.city as ServiceCity)
-      : null;
+    typeof doc.city === "string" ? normalizeServiceCity(doc.city) : null;
   const redeemed =
     typeof doc.redeemedCount === "number" && Number.isFinite(doc.redeemedCount)
       ? doc.redeemedCount

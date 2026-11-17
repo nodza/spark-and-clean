@@ -6,7 +6,7 @@ import {
   normalizeCouponCode,
   type CouponType,
 } from "@/lib/coupon";
-import { SERVICE_CITIES, type ServiceCity } from "@/types/user";
+import { SERVICE_CITY_SCHEMA_ENUM, type ServiceCity } from "@/types/user";
 
 /**
  * Marketing coupon catalogue. Checkout will validate codes against this
@@ -36,7 +36,8 @@ const CouponSchema = new Schema(
     validTo: { type: Date, default: null },
     city: {
       type: String,
-      enum: [...SERVICE_CITIES, null],
+      // Gauteng + Cape Town, plus legacy "Johannesburg" rows.
+      enum: [...SERVICE_CITY_SCHEMA_ENUM, null],
       default: null,
     },
     /**

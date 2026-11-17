@@ -93,10 +93,11 @@ const CITY_ALIASES: Record<string, MappedServiceCity> = {
   "cape town": "Cape Town",
   cpt: "Cape Town",
   "city of cape town": "Cape Town",
-  johannesburg: "Johannesburg",
-  jhb: "Johannesburg",
-  joburg: "Johannesburg",
-  "city of johannesburg": "Johannesburg",
+  gauteng: "Gauteng",
+  johannesburg: "Gauteng",
+  jhb: "Gauteng",
+  joburg: "Gauteng",
+  "city of johannesburg": "Gauteng",
 };
 
 function cleanPlaceName(value: string): string {
@@ -113,7 +114,7 @@ function friendlyCity(locality: string, municipality: string): string {
     .replace(/\s+district municipality$/i, "")
     .trim();
   if (/^tshwane$/i.test(cleaned)) return "Pretoria";
-  if (/^johannesburg$/i.test(cleaned)) return "Johannesburg";
+  if (/^johannesburg$/i.test(cleaned)) return "Gauteng";
   if (/^cape town$/i.test(cleaned)) return "Cape Town";
   return cleaned;
 }

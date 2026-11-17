@@ -162,7 +162,7 @@ export function serviceMetro(
   if (named === "gauteng") return "Johannesburg";
   if (named === "cape-town") return "Cape Town";
 
-  if (/johannesburg|sandton|jhb/i.test(city)) return "Johannesburg";
+  if (/gauteng|johannesburg|sandton|jhb/i.test(city)) return "Johannesburg";
   if (/cape town/i.test(city)) return "Cape Town";
 
   const [lat] = pickupPosition(booking);

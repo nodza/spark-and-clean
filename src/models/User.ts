@@ -2,6 +2,7 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 import {
   ADMIN_TIERS,
   SERVICE_CITIES,
+  SERVICE_CITY_SCHEMA_ENUM,
   USER_ROLES,
   type AdminTier,
   type ServiceCity,
@@ -27,7 +28,7 @@ const AddressSchema = new Schema(
     suburb: { type: String, trim: true },
     city: {
       type: String,
-      enum: SERVICE_CITIES,
+      enum: SERVICE_CITY_SCHEMA_ENUM,
       required: true,
     },
     postalCode: { type: String, trim: true },
@@ -81,7 +82,7 @@ const UserSchema = new Schema(
     },
     preferredCity: {
       type: String,
-      enum: SERVICE_CITIES,
+      enum: SERVICE_CITY_SCHEMA_ENUM,
     },
     addresses: { type: [AddressSchema], default: [] },
     loyalty: { type: LoyaltySchema, default: () => ({}) },

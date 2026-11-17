@@ -30,6 +30,7 @@ import {
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import type { Booking } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
@@ -599,7 +600,7 @@ function JobContent({
             {booking.addressLine1}
             <br />
             {booking.suburb}
-            {booking.city ? `, ${booking.city}` : null}
+            {booking.city ? `, ${formatServiceAreaLabel(booking.city)}` : null}
             {booking.postalCode ? ` ${booking.postalCode}` : null}
           </p>
 

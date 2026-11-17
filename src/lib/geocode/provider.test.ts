@@ -160,7 +160,7 @@ describe("geocoder provider", () => {
     expect(looked.result).toMatchObject({
       addressLine1: "12 Rivonia Road",
       suburb: "Sandton",
-      city: "Johannesburg",
+      city: "Gauteng",
       postalCode: "2196",
       coordinates: { lat: -26.107, lng: 28.0472 },
     });
@@ -263,7 +263,7 @@ describe("geocoder provider", () => {
     expect(looked.result).toMatchObject({
       addressLine1: "12 Rivonia Road",
       suburb: "Sandton",
-      city: "Johannesburg",
+      city: "Gauteng",
       postalCode: "2196",
       coordinates: { lat: -26.107, lng: 28.0472 },
     });

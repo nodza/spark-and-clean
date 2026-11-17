@@ -143,6 +143,8 @@ describe("todayMapPins", () => {
         id: "ready-return",
         status: "READY",
         collectionDate: tomorrowIso,
+        deliveryDate: today,
+        deliverySlot: "AFTERNOON",
         suburb: "Sandton",
         city: "Johannesburg",
         coordinates: { lat: -26.11, lng: 28.05 },

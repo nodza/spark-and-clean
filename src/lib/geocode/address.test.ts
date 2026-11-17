@@ -36,7 +36,7 @@ describe("parseAddressString", () => {
     expect(parseAddressString("12 Rivonia Road, Sandton")).toMatchObject({
       addressLine1: "12 Rivonia Road",
       suburb: "Sandton",
-      city: "Johannesburg",
+      city: "Gauteng",
     });
   });
 
@@ -73,7 +73,7 @@ describe("assignSuburbAndCity", () => {
   it("moves a known suburb out of the city field", () => {
     expect(assignSuburbAndCity("", "Sandton")).toEqual({
       suburb: "Sandton",
-      city: "Johannesburg",
+      city: "Gauteng",
     });
     expect(assignSuburbAndCity("Sea Point", "Cape Town", "Western Cape")).toEqual({
       suburb: "Sea Point",
@@ -81,7 +81,11 @@ describe("assignSuburbAndCity", () => {
     });
   });
 
-  it("keeps Pretoria instead of folding it into Johannesburg", () => {
+  it("maps Johannesburg to Gauteng and keeps Pretoria as the town", () => {
+    expect(assignSuburbAndCity("Sandton", "Johannesburg", "Gauteng")).toEqual({
+      suburb: "Sandton",
+      city: "Gauteng",
+    });
     expect(assignSuburbAndCity("Hatfield", "Pretoria", "Gauteng")).toEqual({
       suburb: "Hatfield",
       city: "Pretoria",

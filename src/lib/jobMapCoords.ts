@@ -15,6 +15,7 @@ export const DEFAULT_MAP_CENTER: LatLngTuple = [-33.9249, 18.4241];
 
 const CITY_CENTROIDS: Record<string, LatLngTuple> = {
   "cape town": DEFAULT_MAP_CENTER,
+  gauteng: [-26.2041, 28.0473],
   johannesburg: [-26.2041, 28.0473],
   jhb: [-26.2041, 28.0473],
 };
@@ -54,7 +55,7 @@ const SUBURB_CENTROIDS: Record<string, LatLngTuple> = {
   ...JOHANNESBURG_SUBURBS,
 };
 
-export type MappedServiceCity = "Cape Town" | "Johannesburg";
+export type MappedServiceCity = "Cape Town" | "Gauteng";
 
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -64,7 +65,7 @@ function normalizeKey(value: string): string {
 export function suburbServiceCity(suburb: string): MappedServiceCity | null {
   const key = normalizeKey(suburb);
   if (!key) return null;
-  if (key in JOHANNESBURG_SUBURBS) return "Johannesburg";
+  if (key in JOHANNESBURG_SUBURBS) return "Gauteng";
   if (key in CAPE_TOWN_SUBURBS) return "Cape Town";
   return null;
 }
@@ -83,7 +84,7 @@ export function hasValidCoordinates(
 
 /**
  * Resolve a fixed centroid for suburb, then city.
- * Johannesburg suburbs are recognized even if city is missing/wrong.
+ * Gauteng suburbs are recognized even if city is missing/wrong.
  */
 export function suburbOrCityCentroid(
   suburb: string,

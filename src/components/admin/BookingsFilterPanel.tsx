@@ -8,6 +8,7 @@ import {
 import { BOOKING_STATUSES } from "@/lib/bookingPatchFields";
 import { formatBookingCollection } from "@/lib/localCalendarDate";
 import type { BookingStatus } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import { cn } from "@/lib/utils";
 
 const PAYMENT_OPTIONS = ["UNPAID", "DEPOSIT", "PAID"] as const;
@@ -75,7 +76,7 @@ function activeFilterChips(filters: AdminBookingFilters): ActiveChip[] {
   if (filters.city) {
     chips.push({
       key: "city",
-      label: `City: ${filters.city}`,
+      label: `City: ${formatServiceAreaLabel(filters.city)}`,
       clear: { city: "" },
     });
   }

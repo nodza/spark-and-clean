@@ -11,6 +11,7 @@ import {
   formatBookingCollection,
 } from "@/lib/localCalendarDate";
 import { quotedValueRand } from "@/lib/priceFormat";
+import { formatServiceAreaLabel } from "@/types/user";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,7 +140,7 @@ function collectionLabel(booking: Booking) {
 
 function clientAddressLine(booking: Booking) {
   const street = booking.addressLine1?.trim() || "";
-  const city = booking.city?.trim() || "";
+  const city = formatServiceAreaLabel(booking.city?.trim() || "");
   if (street && city) return `${street}, ${city}`;
   return street || city || booking.suburb;
 }
@@ -423,7 +424,14 @@ function AdminBookingsList() {
     [bookings]
   );
   const cities = useMemo(
-    () => [...new Set(bookings.map((b) => b.city))].sort((a, b) => a.localeCompare(b)),
+    () =>
+      [
+        ...new Set(
+          bookings
+            .map((b) => formatServiceAreaLabel(b.city || ""))
+            .filter(Boolean)
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
     [bookings]
   );
 
