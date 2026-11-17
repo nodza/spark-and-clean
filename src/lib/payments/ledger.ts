@@ -121,6 +121,22 @@ export function isMongoDuplicateKeyError(err: unknown): boolean {
 }
 
 /**
+ * Net succeeded cents. Deposits and balance payments add; refunds subtract.
+ * Never negative — the booking snapshot does not store a negative paid total.
+ * Rows must already be succeeded transfers.
+ */
+export function netSucceededCents(
+  rows: { kind?: unknown; amountCents?: unknown }[]
+): number {
+  const net = rows.reduce((sum, row) => {
+    const cents = Number(row.amountCents);
+    if (!Number.isFinite(cents)) return sum;
+    return row.kind === "REFUND" ? sum - cents : sum + cents;
+  }, 0);
+  return Math.max(0, net);
+}
+
+/**
  * Net succeeded cents for a booking. Deposits and balance payments add;
  * refunds subtract. The booking snapshot never stores a negative paid total.
  */
@@ -136,12 +152,7 @@ export async function sumSucceededPaidCents(
     .select({ amountCents: 1, kind: 1 })
     .lean();
 
-  const net = rows.reduce((sum, row) => {
-    const cents = Number(row.amountCents);
-    if (!Number.isFinite(cents)) return sum;
-    return row.kind === "REFUND" ? sum - cents : sum + cents;
-  }, 0);
-  return Math.max(0, net);
+  return netSucceededCents(rows);
 }
 
 type LedgerBooking = BookingPaymentInput & {

@@ -47,6 +47,9 @@ vi.mock("@/lib/vehicleDay", () => ({
 vi.mock("@/lib/vehicleStore", () => ({
   vehiclesByDriverId: mocks.vehiclesByDriverId,
 }));
+vi.mock("@/lib/email/bookingNotifications", () => ({
+  notifyAfterBookingUpdate: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/s3RugPhotos", () => ({
   presentPhotoList: async (values?: string[]) =>
     (values ?? []).flatMap((value) => {
@@ -60,6 +63,7 @@ vi.mock("@/lib/s3RugPhotos", () => ({
     }),
 }));
 
+import { notifyAfterBookingUpdate } from "@/lib/email/bookingNotifications";
 import { GET, PATCH } from "./route";
 
 const sarahId = "507f1f77bcf86cd799439011";
@@ -290,6 +294,41 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(mocks.creditReferrerOnce).toHaveBeenCalledTimes(1);
     expect(mocks.bookingUpdateOne).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("records the status change for email and still returns the new status when email throws", async () => {
+    const res = await patch({ status: "DELIVERED" });
+    expect(res.status).toBe(200);
+    expect(notifyAfterBookingUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousStatus: "READY",
+        clientUserId: sarahId,
+        loyaltyUserId: sarahId,
+      })
+    );
+
+    vi.mocked(notifyAfterBookingUpdate).mockClear();
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "DELIVERED" }))
+    );
+    mocks.punchOnce.mockResolvedValue(false);
+    const again = await patch({ status: "DELIVERED" });
+    expect(again.status).toBe(200);
+    expect(notifyAfterBookingUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousStatus: "DELIVERED",
+        loyaltyUserId: null,
+      })
+    );
+
+    vi.mocked(notifyAfterBookingUpdate).mockRejectedValueOnce(new Error("smtp down"));
+    mocks.bookingFindOne.mockImplementation(() => lean(sarahBooking()));
+    mocks.punchOnce.mockResolvedValue(true);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failedMail = await patch({ status: "DELIVERED" });
+    expect(failedMail.status).toBe(200);
+    expect((await failedMail.json()).status).toBe("DELIVERED");
     errorSpy.mockRestore();
   });
 

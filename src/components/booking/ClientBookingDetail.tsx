@@ -23,6 +23,7 @@ import { PayButton } from "@/components/payments/PayButton";
 import type { AuthUser } from "@/lib/authClient";
 import type { Booking, BookingStatus } from "@/types/booking";
 import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
+import { initialBookingTab } from "@/lib/bookingPageTab";
 import { cn } from "@/lib/utils";
 
 type TabId = "tracking" | "items" | "invoice";
@@ -117,7 +118,7 @@ export function ClientBookingDetail({
   const searchParams = useSearchParams();
   const checkout = searchParams.get("checkout");
   const [tab, setTab] = useState<TabId>(
-    checkout === "success" || checkout === "cancel" ? "invoice" : "tracking"
+    initialBookingTab(checkout, searchParams.get("tab"))
   );
   const statusMeta = BOOKING_STATUS_STEPS.find((step) => step.id === booking.status);
   const statusLabel =

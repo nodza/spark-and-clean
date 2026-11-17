@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import "./route";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
 import {
   applyCoupon,
@@ -23,6 +24,10 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("@/lib/createNewBookingAlert", () => ({
   createNewBookingAlert: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/email/bookingNotifications", () => ({
+  notifyBookingConfirmed: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/models/Booking", () => ({
@@ -421,5 +426,47 @@ describe("POST /api/bookings confirm coupon", () => {
     );
     expect(outside.status).toBe(400);
     expect(bookingCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a confirmation for a guest and for a signed-in client", async () => {
+    const { notifyBookingConfirmed } = await import(
+      "@/lib/email/bookingNotifications"
+    );
+    vi.mocked(notifyBookingConfirmed).mockClear();
+    const { POST } = await import("./route");
+
+    const guest = await POST(post());
+    expect(guest.status).toBe(200);
+    expect(notifyBookingConfirmed).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyBookingConfirmed).mock.calls[0]?.[0]).toMatchObject({
+      id: "SC-2026-0001",
+      customer: { email: "amina@example.com" },
+    });
+
+    vi.mocked(getSession).mockResolvedValue({
+      id: sarahId,
+      email: "amina@example.com",
+      role: "client",
+    });
+    const client = await POST(post({ id: "SC-2026-0002" }));
+    expect(client.status).toBe(200);
+    expect(notifyBookingConfirmed).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(notifyBookingConfirmed).mock.calls[1]?.[0]).toMatchObject({
+      id: "SC-2026-0002",
+      userId: sarahId,
+      customer: { email: "amina@example.com" },
+    });
+  });
+
+  it("still creates the booking when the confirmation email throws", async () => {
+    const { notifyBookingConfirmed } = await import(
+      "@/lib/email/bookingNotifications"
+    );
+    vi.mocked(notifyBookingConfirmed).mockRejectedValueOnce(new Error("smtp down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await import("./route");
+    const res = await POST(post());
+    expect(res.status).toBe(200);
+    errorSpy.mockRestore();
   });
 });
