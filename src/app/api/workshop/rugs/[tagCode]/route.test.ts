@@ -46,9 +46,15 @@ const booking = {
   notes: [
     {
       id: "note1",
-      body: "Handle fringe carefully.",
+      body: "Keep away from direct sunlight.",
       author: "Ops",
       createdAt: "2026-11-16T08:00:00.000Z",
+    },
+    {
+      id: "note2",
+      body: "Handle fringe carefully.",
+      author: "Ops",
+      createdAt: "2026-11-17T08:00:00.000Z",
     },
   ],
   deactivatedAt: null,
@@ -145,7 +151,7 @@ describe("/api/workshop/rugs/[tagCode]", () => {
       lengthM: 3,
       areaSqM: 6,
       addOns: booking.addOns,
-      notes: booking.notes,
+      notes: [booking.notes[1], booking.notes[0]],
     });
     expect(body.activity).toHaveLength(1);
     expect(JSON.stringify(body)).not.toMatch(/customer|paymentStatus|status/);

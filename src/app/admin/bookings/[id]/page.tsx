@@ -66,6 +66,7 @@ import {
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { MeasuredSizeEditor } from "@/components/admin/MeasuredSizeCard";
+import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { 
   bookingAddOnLabels, 
@@ -892,6 +893,17 @@ export default function AdminBookingDetail() {
                     </div>
                   ) : null}
                 </div>
+
+                <RugTagIntake
+                  booking={booking}
+                  onTagged={(next) => {
+                    useBookingStore.setState((state) => ({
+                      bookings: state.bookings.map((row) =>
+                        row.id === next.id ? { ...row, rug: next.rug } : row
+                      ),
+                    }));
+                  }}
+                />
 
                 <RugPhotoCard title="Condition photos" photos={booking.rug.photos} />
                 <RugPhotoCard title="Label photos" photos={booking.rug.labelPhotos} />
