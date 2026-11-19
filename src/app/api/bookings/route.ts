@@ -13,6 +13,7 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
+import { singularBookingRug } from "@/lib/bookingRugs";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
@@ -200,6 +201,7 @@ export async function POST(request: Request) {
     delete rest.couponCode;
     delete rest.estimatedPriceMin;
     delete rest.estimatedPriceMax;
+    delete rest.rugs;
 
     const payload: Record<string, unknown> = {
       ...rest,
@@ -234,6 +236,16 @@ export async function POST(request: Request) {
       if (photos) rug.photos = photos;
       if (labelPhotos) rug.labelPhotos = labelPhotos;
       payload.rug = rug;
+      payload.rugs = [
+        singularBookingRug({
+          rug,
+          addOns: payload.addOns as
+            | { odourRemoval?: boolean; stainProtection?: boolean }
+            | undefined,
+          estimatedPriceMin: quoted.estimatedPriceMin,
+          estimatedPriceMax: quoted.estimatedPriceMax,
+        }),
+      ];
     }
 
     if (quoted.promotion) {

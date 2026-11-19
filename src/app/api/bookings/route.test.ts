@@ -176,7 +176,42 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(payload.estimatedPriceMax).toBe(estimate.totalMax);
     expect(payload.paymentStatus).toBe("UNPAID");
     expect(payload.estimatedPriceMin).not.toBe(1);
+    const rugs = payload.rugs as {
+      id: string;
+      type: string;
+      areaSqM: number;
+      addOns: { stainProtection: boolean };
+      estimatedPriceMin: number;
+      estimatedPriceMax: number;
+    }[];
+    expect(rugs).toHaveLength(1);
+    expect(rugs[0].id).toEqual(expect.any(String));
+    expect(rugs[0].id).not.toBe("rug-1");
+    expect(rugs[0]).toMatchObject({
+      type: "Persian",
+      areaSqM: 6,
+      addOns: { odourRemoval: false, stainProtection: true },
+      estimatedPriceMin: estimate.totalMin,
+      estimatedPriceMax: estimate.totalMax,
+    });
     expect(paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("ignores a posted rug list and stores one line from the singular rug", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        rugs: [
+          { id: "posted-a", type: "Other", areaSqM: 1, estimatedPriceMin: 1 },
+          { id: "posted-b", type: "Other", areaSqM: 1, estimatedPriceMin: 1 },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    const rugs = writtenPayload().rugs as { id: string; type: string }[];
+    expect(rugs).toHaveLength(1);
+    expect(rugs[0].type).toBe("Persian");
+    expect(rugs[0].id).not.toBe("posted-a");
   });
 
   it("rejects create when the booking id already exists", async () => {

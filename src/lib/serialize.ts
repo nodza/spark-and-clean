@@ -1,3 +1,4 @@
+import { bookingRugs } from "@/lib/bookingRugs";
 import type { Booking } from "@/types/booking";
 import { normalizeUserRole, type AdminTier } from "@/types/user";
 
@@ -61,6 +62,7 @@ export function toClientBooking(doc: Record<string, unknown>): Booking {
   ) {
     delete booking.deliverySlot;
   }
+  booking.rugs = bookingRugs(booking);
   return booking;
 }
 

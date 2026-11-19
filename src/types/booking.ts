@@ -70,6 +70,35 @@ export interface RugDetails {
   assetId?: string;
 }
 
+/** Add-ons priced on one rug. The booking coupon is not stored here. */
+export interface RugAddOns {
+  odourRemoval: boolean;
+  stainProtection: boolean;
+}
+
+/**
+ * One physical rug on a booking.
+ * `estimatedPrice*` is this rug's quote before the booking coupon.
+ * Payments still use the booking total.
+ */
+export interface BookingRug {
+  /** Stable line id. Legacy rows that only stored `rug` use `rug-1`. */
+  id: string;
+  type: string;
+  widthM: number | null;
+  lengthM: number | null;
+  areaSqM: number;
+  photos?: string[];
+  labelPhotos?: string[];
+  addOns: RugAddOns;
+  estimatedPriceMin: number;
+  estimatedPriceMax: number;
+  /** Set when this rug is measured. Absent until then. */
+  measuredQuote?: MeasuredQuote;
+  tagCode?: string;
+  assetId?: string;
+}
+
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -98,7 +127,16 @@ export interface Booking {
    * is used.
    */
   deliveryDriverId?: string;
+  /**
+   * First rug. Kept in sync with `rugs[0]` so existing screens, tags, and
+   * measurement writes keep working. Read the list via `bookingRugs()`.
+   */
   rug: RugDetails;
+  /**
+   * Every rug on this job. API responses always include it.
+   * Older documents only have `rug`; those load as a one-item list.
+   */
+  rugs?: BookingRug[];
   addOns: {
     odourRemoval: boolean;
     stainProtection: boolean;
