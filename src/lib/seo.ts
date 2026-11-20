@@ -32,7 +32,7 @@ export const pageSeo = {
   persianRugCleaning: {
     title: "Spark & Clean | Persian Rug Cleaning Services",
     description:
-      "Specialist Persian and handmade rug cleaning with automatic machines. Gentle, precise care for delicate fibres — restore colour and texture. Serving Johannesburg, Gauteng and Cape Town.",
+      "Specialist Persian and handmade rug cleaning with automatic machines. Gentle, precise care for delicate fibres — restore colour and texture. Serving Gauteng and Cape Town.",
     path: "/services/persian-rug-cleaning",
   },
   residentialCleaning: {
@@ -42,21 +42,21 @@ export const pageSeo = {
     path: "/services/residential-cleaning",
   },
   commercialCleaning: {
-    title: "Spark & Clean | Commercial Cleaning Services Johannesburg",
+    title: "Spark & Clean | Commercial Cleaning Services Gauteng",
     description:
-      "Commercial carpet and upholstery cleaning for offices, hotels and retail in Johannesburg and Cape Town. Reliable scheduling for businesses that need spotless floors and furnishings.",
+      "Commercial carpet and upholstery cleaning for offices, hotels and retail in Gauteng and Cape Town. Reliable scheduling for businesses that need spotless floors and furnishings.",
     path: "/services/commercial-cleaning",
   },
   contact: {
-    title: "Spark & Clean | Contact Us — Cape Town & Johannesburg",
+    title: "Spark & Clean | Contact Us — Cape Town & Gauteng",
     description:
-      "Get in touch with Spark & Clean for support, drop-off, and help with online booking. Cape Town and Johannesburg phone, WhatsApp support, email, and branch locations in Kya Sand & Maitland.",
+      "Get in touch with Spark & Clean for support, drop-off, and help with online booking. Cape Town and Gauteng phone, WhatsApp support, email, and branch locations in Kya Sand & Maitland.",
     path: "/contact",
   },
   bookRug: {
     title: "Spark & Clean | Book Rug Cleaning Collection",
     description:
-      "Book online rug collection in minutes. Enter measurements, upload photos, choose a slot — we collect, clean, dry and deliver across Cape Town and Johannesburg.",
+      "Book online rug collection in minutes. Enter measurements, upload photos, choose a slot — we collect, clean, dry and deliver across Cape Town and Gauteng.",
     path: "/book/rug",
   },
 } as const satisfies Record<string, PageSeo>;

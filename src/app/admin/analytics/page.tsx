@@ -1,6 +1,5 @@
 "use client";
 
-import { useBookingStore } from "@/store/useBookingStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 import {
@@ -22,32 +21,41 @@ import {
   AdminBackLink,
   AdminPortalShell,
 } from "@/components/admin/AdminPortalShell";
-import {
-  bookingCalendarDateLocal,
-  formatBookingCollection,
-  isBookingOnLocalDay,
-  localCalendarDate,
-  toCalendarDateString,
-} from "@/lib/localCalendarDate";
+import { formatBookingCollection } from "@/lib/localCalendarDate";
 
-function last30SaCalendarDays(): string[] {
-  const today = bookingCalendarDateLocal(localCalendarDate());
-  if (!today) return [];
-  const days: string[] = [];
-  for (let i = 29; i >= 0; i--) {
-    const day = new Date(today);
-    day.setDate(today.getDate() - i);
-    days.push(toCalendarDateString(day));
-  }
-  return days;
-}
+type AdminMetrics = {
+  revenueByDay: { date: string; amountCents: number }[];
+  totalRevenueCents: number;
+  averagePaidPerBookingCents: number;
+  completionRatePercent: number;
+  bookingsByArea: { name: string; value: number }[];
+  bookingsByType: { name: string; value: number }[];
+  driverPerformance: {
+    id: string;
+    completed: number;
+    active: number;
+  }[];
+};
 
 export default function AdminAnalytics() {
-  const { bookings, fetchBookings } = useBookingStore();
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [revenueError, setRevenueError] = useState(false);
 
   useEffect(() => {
-    void fetchBookings();
+    void fetch("/api/admin/metrics", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load revenue metrics");
+        return (await response.json()) as AdminMetrics;
+      })
+      .then((data) => {
+        setMetrics(data);
+        setRevenueError(false);
+      })
+      .catch(() => {
+        setMetrics(null);
+        setRevenueError(true);
+      });
     void fetch("/api/drivers", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
@@ -59,62 +67,28 @@ export default function AdminAnalytics() {
         setDriverNames(map);
       })
       .catch(() => undefined);
-  }, [fetchBookings]);
+  }, []);
 
-  // Prepare Data
-  const bookingsByArea = bookings.reduce((acc, b) => {
-    acc[b.suburb] = (acc[b.suburb] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const areaData = metrics?.bookingsByArea ?? [];
+  const typeData = metrics?.bookingsByType ?? [];
+  const revenueByDay = metrics?.revenueByDay.map(({ date, amountCents }) => ({
+    date: formatBookingCollection(date, "MMM d"),
+    revenue: amountCents / 100,
+  })) ?? [];
 
-  const areaData = Object.entries(bookingsByArea).map(([name, value]) => ({ name, value }));
-
-  const bookingsByType = bookings.reduce((acc, b) => {
-    acc[b.rug.type] = (acc[b.rug.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const typeData = Object.entries(bookingsByType).map(([name, value]) => ({ name, value }));
-
-  // Revenue Trends (Last 30 Days) — SA calendar days, not UTC prefixes
-  const last30Days = last30SaCalendarDays();
-  const revenueByDay = last30Days.map((day) => {
-    const dayBookings = bookings.filter((b) =>
-      isBookingOnLocalDay(b.collectionDate, day)
-    );
-    const revenue = dayBookings.reduce(
-      (sum, b) => sum + (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
-      0
-    );
-    return {
-      date: formatBookingCollection(day, "MMM d"),
-      revenue: Math.round(revenue),
-    };
-  });
-
-  // Driver Performance
-  const driverPerformance = bookings.reduce((acc, b) => {
-    if (b.assignedDriverId) {
-      if (!acc[b.assignedDriverId]) {
-        acc[b.assignedDriverId] = { completed: 0, active: 0 };
-      }
-      if (b.status === "DELIVERED") {
-        acc[b.assignedDriverId].completed++;
-      } else {
-        acc[b.assignedDriverId].active++;
-      }
-    }
-    return acc;
-  }, {} as Record<string, { completed: number; active: number }>);
-
-  const driverData = Object.entries(driverPerformance).map(([id, stats]) => ({
-    name: driverNames[id] || id,
+  const driverData = (metrics?.driverPerformance ?? []).map((stats) => ({
+    name: driverNames[stats.id] || stats.id,
     completed: stats.completed,
     active: stats.active,
-    total: stats.completed + stats.active
+    total: stats.completed + stats.active,
   }));
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+  const formatRand = (cents: number) =>
+    `R${(cents / 100).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   return (
     <AdminPortalShell pageTitle="Analytics" active="analytics">
@@ -134,21 +108,38 @@ export default function AdminAnalytics() {
             <CardTitle>Revenue Trends (Last 30 Days)</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={revenueByDay}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(value) => `R${value}`} />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#0088FE"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {revenueError ? (
+              <div role="status" className="flex h-full items-center justify-center text-sm text-red-700">
+                Revenue data is currently unavailable.
+              </div>
+            ) : metrics === null ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Loading revenue data…
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={revenueByDay}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis tickFormatter={(value) => `R${value}`} />
+                  <Tooltip
+                    formatter={(value) =>
+                      `R${Number(value).toLocaleString("en-ZA", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#0088FE"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -248,40 +239,21 @@ export default function AdminAnalytics() {
                 <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
                   <span className="font-medium">Total Revenue</span>
                   <span className="text-2xl font-bold text-primary">
-                    R
-                    {bookings
-                      .reduce(
-                        (sum, b) =>
-                          sum +
-                          (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
-                        0
-                      )
-                      .toLocaleString()}
+                    {metrics ? formatRand(metrics.totalRevenueCents) : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
-                  <span className="font-medium">Avg. Job Value</span>
+                  <span className="font-medium">Avg. Net Paid per Booking</span>
                   <span className="text-2xl font-bold text-primary">
-                    R
-                    {Math.round(
-                      bookings.reduce(
-                        (sum, b) =>
-                          sum +
-                          (b.estimatedPriceMin + b.estimatedPriceMax) / 2,
-                        0
-                      ) / (bookings.length || 1)
-                    ).toLocaleString()}
+                    {metrics
+                      ? formatRand(metrics.averagePaidPerBookingCents)
+                      : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-secondary/20 p-4">
                   <span className="font-medium">Completion Rate</span>
                   <span className="text-2xl font-bold text-primary">
-                    {Math.round(
-                      (bookings.filter((b) => b.status === "DELIVERED")
-                        .length /
-                        (bookings.length || 1)) *
-                        100
-                    )}
+                    {metrics ? metrics.completionRatePercent : "—"}
                     %
                   </span>
                 </div>

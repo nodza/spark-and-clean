@@ -21,6 +21,10 @@ describe("getWorkspaceNavLink", () => {
       href: "/tech/dashboard",
       label: "Dashboard",
     });
+    expect(getWorkspaceNavLink("workshop")).toMatchObject({
+      href: "/workshop/dashboard",
+      label: "Workshop",
+    });
   });
 });
 
@@ -51,6 +55,11 @@ describe("getMarketingDesktopNavItems", () => {
     ).toEqual(["home", "services", "contact", "workspace"]);
     expect(
       getMarketingDesktopNavItems({ ready: true, role: "technician" }).map(
+        (i) => i.id
+      )
+    ).toEqual(["home", "services", "contact", "workspace"]);
+    expect(
+      getMarketingDesktopNavItems({ ready: true, role: "workshop" }).map(
         (i) => i.id
       )
     ).toEqual(["home", "services", "contact", "workspace"]);
@@ -86,6 +95,10 @@ describe("getMarketingNavItems / mobile menu", () => {
 
     expect(
       getMarketingNavItems({ ready: true, role: "admin" }).map((i) => i.id)
+    ).toEqual(["home", "services", "contact", "workspace", "logout"]);
+
+    expect(
+      getMarketingNavItems({ ready: true, role: "workshop" }).map((i) => i.id)
     ).toEqual(["home", "services", "contact", "workspace", "logout"]);
   });
 

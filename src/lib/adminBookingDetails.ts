@@ -6,7 +6,7 @@ import {
   validateEmail,
   validateSaPhone,
 } from "@/lib/bookingValidation";
-import { SERVICE_CITIES, type ServiceCity } from "@/types/user";
+import { isOutsideCollectionPlace } from "@/lib/serviceArea";
 import type { BookingStatus, PaymentStatus } from "@/types/booking";
 
 export type BookingDetailsPatch = {
@@ -17,7 +17,7 @@ export type BookingDetailsPatch = {
   };
   addressLine1: string;
   suburb: string;
-  city: ServiceCity;
+  city: string;
   collectionDate: string;
   collectionSlot: "MORNING" | "AFTERNOON";
 };
@@ -111,8 +111,11 @@ export function sanitizeBookingDetailsPatch(
   if (suburb.length > 80) {
     return { ok: false, error: "Suburb is too long." };
   }
-  if (!(SERVICE_CITIES as readonly string[]).includes(city)) {
-    return { ok: false, error: "Choose Johannesburg or Cape Town." };
+  if (!city) {
+    return { ok: false, error: "Enter a city." };
+  }
+  if (isOutsideCollectionPlace(city) || isOutsideCollectionPlace(suburb)) {
+    return { ok: false, error: "Choose a city in Cape Town or Gauteng." };
   }
   if (!isValidCalendarDate(collectionDate)) {
     return { ok: false, error: "Enter a valid collection date." };
@@ -127,7 +130,7 @@ export function sanitizeBookingDetailsPatch(
       customer: { name, phone, email },
       addressLine1,
       suburb,
-      city: city as ServiceCity,
+      city,
       collectionDate,
       collectionSlot,
     },
