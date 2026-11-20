@@ -5,10 +5,14 @@ import type { SessionUser } from "@/lib/sessionJwt";
 export function homeForRole(role: UserRole): string {
   if (role === "admin") return "/admin";
   if (role === "technician") return "/tech/dashboard";
+  if (role === "workshop") return "/workshop/dashboard";
   return "/portal";
 }
 
 export function loginPathForTarget(pathname: string): string {
+  if (pathname === "/workshop" || pathname.startsWith("/workshop/")) {
+    return "/workshop/login";
+  }
   if (pathname === "/tech" || pathname.startsWith("/tech/")) return "/tech/login";
   if (pathname.startsWith("/admin")) return "/admin/login";
   return "/login";
@@ -26,6 +30,14 @@ export function isTechLoginPath(pathname: string): boolean {
   );
 }
 
+export function isWorkshopLoginPath(pathname: string): boolean {
+  return (
+    pathname === "/workshop" ||
+    pathname === "/workshop/login" ||
+    pathname.startsWith("/workshop/login/")
+  );
+}
+
 /** Admin operations routes — full tier only (marketing-only denied). */
 export function isAdminFullOnlyPath(pathname: string): boolean {
   if (pathname.startsWith("/admin/analytics")) return true;
@@ -38,6 +50,7 @@ export function isAdminFullOnlyPath(pathname: string): boolean {
   if (pathname.startsWith("/admin/vehicle-days")) return true;
   if (pathname.startsWith("/admin/rugs")) return true;
   if (pathname.startsWith("/admin/team")) return true;
+  if (pathname.startsWith("/admin/workshop-staff")) return true;
   return false;
 }
 
@@ -46,6 +59,7 @@ export function passwordChangePathForRole(
   role: UserRole | undefined
 ): string | null {
   if (role === "technician") return "/tech/change-password";
+  if (role === "workshop") return "/workshop/change-password";
   if (role === "admin") return "/admin/change-password";
   return null;
 }
@@ -63,6 +77,7 @@ export function temporaryPasswordRedirect(
   if (!target || pathname === target) return null;
   if (session.role === "admin" && isAdminPath(pathname)) return target;
   if (session.role === "technician" && isTechAppPath(pathname)) return target;
+  if (session.role === "workshop" && isWorkshopAppPath(pathname)) return target;
   return null;
 }
 
@@ -78,6 +93,7 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/login")) return true;
   if (isAdminLoginPath(pathname)) return true;
   if (isTechLoginPath(pathname)) return true;
+  if (isWorkshopLoginPath(pathname)) return true;
   // Auth APIs are public endpoints (they enforce their own rules)
   if (pathname.startsWith("/api/auth")) return true;
   return false;
@@ -100,6 +116,11 @@ export function isAdminPath(pathname: string): boolean {
 export function isTechAppPath(pathname: string): boolean {
   if (isTechLoginPath(pathname)) return false;
   return pathname.startsWith("/tech/");
+}
+
+export function isWorkshopAppPath(pathname: string): boolean {
+  if (isWorkshopLoginPath(pathname)) return false;
+  return pathname.startsWith("/workshop/");
 }
 
 /**
@@ -131,8 +152,14 @@ export function resolvePostLoginPath(
   if (isTechLoginPath(path)) {
     return role === "technician" ? "/tech/dashboard" : fallback;
   }
+  if (isWorkshopLoginPath(path)) {
+    return role === "workshop" ? "/workshop/dashboard" : fallback;
+  }
   if (isTechAppPath(path)) {
     return role === "technician" ? next : fallback;
+  }
+  if (isWorkshopAppPath(path)) {
+    return role === "workshop" ? next : fallback;
   }
 
   // Unknown gated/public mix — only allow clearly public next targets
@@ -211,6 +238,26 @@ export function canAccessPath(
     const techPasswordChange = temporaryPasswordRedirect(session, pathname);
     if (techPasswordChange) {
       return { ok: false, redirectTo: techPasswordChange };
+    }
+    return { ok: true };
+  }
+
+  if (isWorkshopAppPath(pathname)) {
+    if (!session) {
+      return {
+        ok: false,
+        redirectTo: `/workshop/login?next=${encodeURIComponent(pathname)}`,
+      };
+    }
+    if (session.role !== "workshop") {
+      return {
+        ok: false,
+        redirectTo: `${homeForRole(session.role)}?access=denied`,
+      };
+    }
+    const workshopPasswordChange = temporaryPasswordRedirect(session, pathname);
+    if (workshopPasswordChange) {
+      return { ok: false, redirectTo: workshopPasswordChange };
     }
     return { ok: true };
   }

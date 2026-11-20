@@ -6,7 +6,7 @@ export type ServiceCity = (typeof SERVICE_CITIES)[number];
  * Exactly one role per user (no roles[] / join table).
  * Ticket F6.x / E4 foundation — do not add multi-role support here.
  */
-export const USER_ROLES = ["client", "technician", "admin"] as const;
+export const USER_ROLES = ["client", "technician", "workshop", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 /** Required when role === "admin"; otherwise must be null */
@@ -20,6 +20,7 @@ const LEGACY_ROLE_MAP: Record<string, UserRole> = {
   ADMIN: "admin",
   client: "client",
   technician: "technician",
+  workshop: "workshop",
   admin: "admin",
 };
 
