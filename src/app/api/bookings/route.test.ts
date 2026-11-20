@@ -30,6 +30,10 @@ vi.mock("@/lib/email/bookingNotifications", () => ({
   notifyBookingConfirmed: vi.fn(async () => undefined),
 }));
 
+vi.mock("@/lib/email/staffNotifications", () => ({
+  notifyAdminTeamNewBooking: vi.fn(async () => undefined),
+}));
+
 vi.mock("@/models/Booking", () => ({
   Booking: {
     findOne: (...args: unknown[]) => bookingFindOne(...args),
@@ -456,6 +460,33 @@ describe("POST /api/bookings confirm coupon", () => {
       userId: sarahId,
       customer: { email: "amina@example.com" },
     });
+  });
+
+  it("emails the admin team when a booking is created", async () => {
+    const { notifyAdminTeamNewBooking } = await import(
+      "@/lib/email/staffNotifications"
+    );
+    vi.mocked(notifyAdminTeamNewBooking).mockClear();
+    const { POST } = await import("./route");
+    const res = await POST(post());
+    expect(res.status).toBe(200);
+    expect(notifyAdminTeamNewBooking).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyAdminTeamNewBooking).mock.calls[0]?.[0]).toMatchObject({
+      id: "SC-2026-0001",
+      customer: { name: "Amina", email: "amina@example.com" },
+    });
+  });
+
+  it("still creates the booking when the admin email throws", async () => {
+    const { notifyAdminTeamNewBooking } = await import(
+      "@/lib/email/staffNotifications"
+    );
+    vi.mocked(notifyAdminTeamNewBooking).mockRejectedValueOnce(new Error("smtp down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await import("./route");
+    const res = await POST(post());
+    expect(res.status).toBe(200);
+    errorSpy.mockRestore();
   });
 
   it("still creates the booking when the confirmation email throws", async () => {

@@ -1,12 +1,12 @@
 import { branchContacts } from "@/data/branchContacts";
-import { bookingPageUrl } from "@/lib/email/appUrl";
+import { adminBookingUrl, bookingPageUrl, techJobUrl } from "@/lib/email/appUrl";
 import { formatBookingCollection } from "@/lib/localCalendarDate";
 import { amountDueCentsForBooking } from "@/lib/payments/deposit";
 import { netSucceededCents } from "@/lib/payments/ledger";
 import { LOYALTY_PUNCHES_PER_REWARD, LOYALTY_REWARD_VALUE_CENTS } from "@/lib/promotion/loyaltyReward";
 import { formatEmailRand } from "@/lib/email/money";
 import { formatQuoteRange } from "@/lib/priceFormat";
-import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
+import { bookingAddOnLabels, OPS_ADD_ON_COPY, rugDimensionLabel } from "@/lib/techUi";
 import type { Booking } from "@/types/booking";
 import type { EmailLedgerRow, EmailTimelineStep, TransactionalEmail } from "@/lib/email/layout";
 import { getAppBaseUrl } from "@/lib/email/appUrl";
@@ -60,6 +60,24 @@ export function slotWindow(slot: string | undefined): {
 
 function collectionAddress(booking: Pick<Booking, "addressLine1" | "suburb">): string {
   return [booking.addressLine1, booking.suburb].filter(Boolean).join(", ");
+}
+
+function fullAddress(
+  booking: Pick<Booking, "addressLine1" | "suburb" | "city">
+): string {
+  return [booking.addressLine1, booking.suburb, booking.city].filter(Boolean).join(", ");
+}
+
+function collectionWhen(booking: Booking): string {
+  const slot = slotWindow(booking.collectionSlot);
+  const day = dayLabel(booking.collectionDate, "EEEE d MMMM");
+  return [day || booking.collectionDate, slot.spaced].filter(Boolean).join(" · ");
+}
+
+function rugSummary(booking: Booking): string {
+  const addOns = bookingAddOnLabels(booking.addOns, OPS_ADD_ON_COPY);
+  const size = rugDimensionLabel(booking.rug);
+  return [itemLabel(booking), size, addOns.join(", ")].filter(Boolean).join(" · ");
 }
 
 function itemLabel(booking: Pick<Booking, "rug">): string {
@@ -357,6 +375,57 @@ export function loyaltyRewardEmail(input: {
     cta: { label: "Book my free clean", href: `${getAppBaseUrl()}/book/rug` },
     links: [{ label: `View booking ${input.bookingId}`, href: bookingUrl }],
     footnote: "One reward per booking. The discount appears in your price summary at checkout.",
+  };
+}
+
+/** Ops inbox: one email per active full admin when a booking is created. */
+export function adminNewBookingEmail(booking: Booking): TransactionalEmail {
+  const name = booking.customer.name?.trim() || "Customer";
+  const when = collectionWhen(booking);
+  const phone = booking.customer.phone?.trim() || "No phone";
+  const email = booking.customer.email?.trim() || "No email";
+  return {
+    subject: `New booking ${booking.id}`,
+    preheader: `${name} · ${collectionAddress(booking) || "New collection"} · ${slotWindow(booking.collectionSlot).compact}`,
+    eyebrow: "NEW BOOKING",
+    heading: `New booking from ${name}`,
+    intro: `Collection is ${when || "not dated"} from ${fullAddress(booking) || "the address on the booking"}.`,
+    ledger: [
+      { label: "Booking reference", value: booking.id },
+      { label: "Customer", value: name },
+      { label: "Phone", value: phone },
+      { label: "Email", value: email },
+      { label: "Address", value: fullAddress(booking) || "No address" },
+      { label: "Collection", value: when || "No collection time" },
+      { label: "Rug", value: rugSummary(booking) },
+      { label: "Estimate", value: estimateValue(booking) },
+    ],
+    cta: { label: "Open booking", href: adminBookingUrl(booking.id) },
+    footnote: "Assign the driver from Assignments or Pickup zones. Editing this booking does not send this email again.",
+  };
+}
+
+/** The driver who was just assigned. Not sent when the same driver is saved again. */
+export function driverAssignedEmail(booking: Booking): TransactionalEmail {
+  const name = booking.customer.name?.trim() || "Customer";
+  const when = collectionWhen(booking);
+  const phone = booking.customer.phone?.trim() || "No phone on the booking";
+  return {
+    subject: `Collection assigned — ${booking.id}`,
+    preheader: `${name} · ${when || booking.collectionDate}`,
+    eyebrow: "NEW ASSIGNMENT",
+    heading: `Collect from ${emailFirstName(booking.customer.name) || name}`,
+    intro: `${when || "Collection time is on the booking"}. The address is ${fullAddress(booking) || "on the job"}. Call ${phone} if you need access details before you leave.`,
+    ledger: [
+      { label: "Booking reference", value: booking.id },
+      { label: "Customer", value: name },
+      { label: "Phone", value: phone },
+      { label: "Address", value: fullAddress(booking) || "No address" },
+      { label: "Date and time", value: when || "No collection time" },
+      { label: "Rug", value: rugSummary(booking) },
+    ],
+    cta: { label: "Open this job", href: techJobUrl(booking.id) },
+    footnote: `Questions before you leave? Call the branch on ${branchPhoneForCity(booking.city)}.`,
   };
 }
 

@@ -14,6 +14,7 @@ import {
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
 import { notifyBookingConfirmed } from "@/lib/email/bookingNotifications";
+import { notifyAdminTeamNewBooking } from "@/lib/email/staffNotifications";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
@@ -333,6 +334,12 @@ export async function POST(request: Request) {
       await notifyBookingConfirmed(clientBooking);
     } catch (err) {
       console.error("[api/bookings POST] confirmation email", err);
+    }
+
+    try {
+      await notifyAdminTeamNewBooking(clientBooking);
+    } catch (err) {
+      console.error("[api/bookings POST] admin email", err);
     }
 
     return NextResponse.json(clientBooking);

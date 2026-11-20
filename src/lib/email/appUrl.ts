@@ -15,3 +15,11 @@ export function bookingPageUrl(bookingId: string, tab?: "invoice" | "tracking"):
   if (!tab || tab === "tracking") return path;
   return `${path}?tab=${tab}`;
 }
+
+export function adminBookingUrl(bookingId: string): string {
+  return `${getAppBaseUrl()}/admin/bookings/${encodeURIComponent(bookingId.trim())}`;
+}
+
+export function techJobUrl(bookingId: string): string {
+  return `${getAppBaseUrl()}/tech/job/${encodeURIComponent(bookingId.trim())}`;
+}
