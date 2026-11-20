@@ -13,6 +13,7 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
+import { notifyBookingConfirmed } from "@/lib/email/bookingNotifications";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
@@ -314,7 +315,7 @@ export async function POST(request: Request) {
       session
     );
 
-    // In-app ops alert only on create — no WhatsApp / SMS / email.
+    // In-app ops alert on create. Customer confirmation is email, not WhatsApp.
     try {
       await createNewBookingAlert({
         id: clientBooking.id,
@@ -326,6 +327,12 @@ export async function POST(request: Request) {
         "[api/bookings POST] ops alert failed",
         alertErr instanceof Error ? alertErr.message : alertErr
       );
+    }
+
+    try {
+      await notifyBookingConfirmed(clientBooking);
+    } catch (err) {
+      console.error("[api/bookings POST] confirmation email", err);
     }
 
     return NextResponse.json(clientBooking);
