@@ -1,6 +1,53 @@
-/** Service cities Spark & Clean operates in */
-export const SERVICE_CITIES = ["Johannesburg", "Cape Town"] as const;
+/**
+ * Service areas Spark & Clean operates in.
+ * Stored on coupon city scope and user preferredCity.
+ * "Gauteng" replaced the legacy stored value "Johannesburg" (still accepted on read).
+ * Do not confuse with Africa/Johannesburg — that is the business time zone only.
+ */
+export const SERVICE_CITIES = ["Gauteng", "Cape Town"] as const;
 export type ServiceCity = (typeof SERVICE_CITIES)[number];
+
+/** Legacy DB value — keep in Mongoose enums so old rows still load. */
+export const LEGACY_SERVICE_CITIES = ["Johannesburg"] as const;
+
+/** Enum values allowed on User/Coupon documents (canonical + legacy). */
+export const SERVICE_CITY_SCHEMA_ENUM = [
+  ...SERVICE_CITIES,
+  ...LEGACY_SERVICE_CITIES,
+] as const;
+
+/**
+ * Map a stored or typed city to a canonical service area.
+ * Johannesburg / JHB aliases become Gauteng. Cape Town unchanged.
+ */
+export function normalizeServiceCity(value: unknown): ServiceCity | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const key = trimmed.toLowerCase().replace(/\s+/g, " ");
+  if (
+    key === "gauteng" ||
+    key === "johannesburg" ||
+    key === "jhb" ||
+    key === "joburg" ||
+    key === "city of johannesburg"
+  ) {
+    return "Gauteng";
+  }
+  if (
+    key === "cape town" ||
+    key === "cpt" ||
+    key === "city of cape town"
+  ) {
+    return "Cape Town";
+  }
+  return null;
+}
+
+/** Customer/admin label: legacy Johannesburg → Gauteng; other towns unchanged. */
+export function formatServiceAreaLabel(city: string): string {
+  return normalizeServiceCity(city) ?? city.trim();
+}
 
 /**
  * Exactly one role per user (no roles[] / join table).

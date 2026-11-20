@@ -422,4 +422,47 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(outside.status).toBe(400);
     expect(bookingCreate).toHaveBeenCalledTimes(1);
   });
+
+  it("saves a typed address without inventing a pin when geocoding is not configured", async () => {
+    const previous = {
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
+      GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
+      MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN,
+      GEOCODER_PROVIDER: process.env.GEOCODER_PROVIDER,
+    };
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    delete process.env.GOOGLE_PLACES_API_KEY;
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+    delete process.env.GEOCODER_PROVIDER;
+    try {
+      const { POST } = await import("./route");
+      const res = await POST(post());
+      expect(res.status).toBe(200);
+      expect(writtenPayload().coordinates).toBeUndefined();
+      expect(writtenPayload().coordinatesManual).toBeUndefined();
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it("keeps a customer pin and drops the manual flag", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        coordinates: { lat: -33.91812, lng: 18.38451 },
+        coordinatesManual: true,
+        postalCode: "8005",
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(writtenPayload().coordinates).toEqual({
+      lat: -33.91812,
+      lng: 18.38451,
+    });
+    expect(writtenPayload().postalCode).toBe("8005");
+    expect(writtenPayload().coordinatesManual).toBeUndefined();
+  });
 });

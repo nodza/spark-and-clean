@@ -67,6 +67,17 @@ describe("toClientDirectoryRow", () => {
         ],
       })
     ).toBe("Cape Town");
+    expect(
+      clientCity({
+        preferredCity: "Johannesburg",
+        addresses: [],
+      })
+    ).toBe("Gauteng");
+    expect(
+      clientCity({
+        addresses: [{ city: "Johannesburg", isDefault: true }],
+      })
+    ).toBe("Gauteng");
     expect(clientCity({})).toBe("");
   });
 

@@ -18,6 +18,7 @@ import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
+import { attachGeocodedCoordinates } from "@/lib/geocode/provider";
 
 export async function GET() {
   try {
@@ -244,6 +245,18 @@ export async function POST(request: Request) {
     // Only a full client session may stamp userId. Guests stay unclaimed.
     if (session && isFullAccount(session) && isClientRole(session.role)) {
       payload.userId = session.id;
+    }
+
+    try {
+      await attachGeocodedCoordinates(payload);
+    } catch (geoErr) {
+      console.error(
+        "[api/bookings POST] geocode failed",
+        geoErr instanceof Error ? geoErr.message : geoErr
+      );
+    }
+    if (typeof payload.postalCode === "string" && !payload.postalCode.trim()) {
+      delete payload.postalCode;
     }
 
     let claimedCode: string | null = null;

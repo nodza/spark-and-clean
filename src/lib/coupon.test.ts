@@ -146,11 +146,23 @@ describe("inactive coupons", () => {
     expect(
       couponApplyError(
         { active: true, city: "Cape Town" },
-        { now, city: "Johannesburg" }
+        { now, city: "Gauteng" }
       )
     ).toBe(
-      "This coupon isn't valid in Johannesburg. It only applies in Cape Town."
+      "This coupon isn't valid in Gauteng. It only applies in Cape Town."
     );
+    expect(
+      couponApplyError(
+        { active: true, city: "Johannesburg" },
+        { now, city: "Pretoria" }
+      )
+    ).toBeNull();
+    expect(
+      couponApplyError(
+        { active: true, city: "Gauteng" },
+        { now, city: "Johannesburg" }
+      )
+    ).toBeNull();
     expect(
       couponApplyError({ active: true, city: "Cape Town" }, { now, city: "" })
     ).toBe("This coupon only applies in Cape Town.");

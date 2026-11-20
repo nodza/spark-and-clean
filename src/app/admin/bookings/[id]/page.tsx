@@ -20,6 +20,7 @@ import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import {
   effectiveDeliveryDriverId,
   hasDeliverySchedule,
@@ -864,7 +865,8 @@ export default function AdminBookingDetail() {
                       {booking.addressLine1}
                     </p>
                     <p className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>
-                      {booking.suburb}, {booking.city}
+                      {booking.suburb},{" "}
+                      {formatServiceAreaLabel(booking.city)}
                     </p>
                   </div>
                   <div className="mt-[16px]">
