@@ -99,6 +99,17 @@ export async function GET(_request: Request, { params }: Params) {
       .sort({ occurredAt: -1 })
       .lean();
 
+    const notes = Array.isArray(booking.notes)
+      ? booking.notes
+          .map((note) => ({
+            id: String(note.id),
+            body: String(note.body),
+            author: String(note.author),
+            createdAt: String(note.createdAt),
+          }))
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      : [];
+
     return NextResponse.json({
       rug: {
         bookingId: booking.id,
@@ -108,14 +119,7 @@ export async function GET(_request: Request, { params }: Params) {
         lengthM: booking.rug.lengthM ?? null,
         areaSqM: booking.rug.areaSqM ?? null,
         addOns: booking.addOns ?? {},
-        notes: Array.isArray(booking.notes)
-          ? booking.notes.map((note) => ({
-              id: String(note.id),
-              body: String(note.body),
-              author: String(note.author),
-              createdAt: String(note.createdAt),
-            }))
-          : [],
+        notes,
       },
       activity: activity.map((entry) =>
         activityRow(entry as unknown as Record<string, unknown>)
