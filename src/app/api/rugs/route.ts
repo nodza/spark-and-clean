@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { isHttpError, requireFullAdminSession } from "@/lib/adminAuth";
-import { requireTechnicianSession } from "@/lib/fieldMessageAuth";
+import {
+  HttpError,
+  isHttpError,
+  requireFullAdminSession,
+} from "@/lib/adminAuth";
 import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
 import { isVanCollectStatus } from "@/lib/fieldStatus";
 import { bookingRugs } from "@/lib/bookingRugs";
 import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
-import { getSession } from "@/lib/session";
+import { getSession, type SessionUser } from "@/lib/session";
 import { presentPhotoList } from "@/lib/s3RugPhotos";
 import type { BookingStatus } from "@/types/booking";
 
@@ -19,6 +22,20 @@ function bookingHasTag(
   tagCode: string
 ) {
   return booking?.rug?.tagCode?.trim().toUpperCase() === tagCode;
+}
+
+function authorizeTagCreation(session: SessionUser | null): {
+  session: SessionUser;
+  isTechnician: boolean;
+} {
+  if (!session) throw new HttpError(401, "Unauthorized");
+  if (session.role === "admin") {
+    return { session: requireFullAdminSession(session), isTechnician: false };
+  }
+  if (session.role === "technician" && session.driverProfileId) {
+    return { session, isTechnician: true };
+  }
+  throw new HttpError(403, "Forbidden");
 }
 
 export async function GET(request: Request) {
@@ -106,7 +123,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireTechnicianSession();
+    const { session, isTechnician } = authorizeTagCreation(await getSession());
     let body: { bookingId?: unknown; tagCode?: unknown; rugId?: unknown };
     try {
       body = await request.json();
@@ -133,7 +150,10 @@ export async function POST(request: Request) {
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
-    if (booking.assignedDriverId !== session.driverProfileId) {
+    if (
+      isTechnician &&
+      booking.assignedDriverId !== session.driverProfileId
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!isVanCollectStatus(booking.status as BookingStatus)) {
@@ -267,7 +287,7 @@ export async function POST(request: Request) {
     const updated = await Booking.findOneAndUpdate(
       {
         id: bookingId,
-        assignedDriverId: session.driverProfileId,
+        ...(isTechnician ? { assignedDriverId: session.driverProfileId } : {}),
         status: { $in: ["BOOKED", "SCHEDULED"] },
         ...tagGuard,
       },

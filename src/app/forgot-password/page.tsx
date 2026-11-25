@@ -11,6 +11,7 @@ import { requestPasswordReset } from "@/lib/authClient";
 
 function loginHref(from: string | null) {
   if (from === "tech") return "/tech/login";
+  if (from === "workshop") return "/workshop/login";
   if (from === "admin") return "/admin/login";
   return "/login";
 }
@@ -59,7 +60,7 @@ function ForgotPasswordForm() {
           in about the same.
         </>
       }
-      subtext="Reset access for client, technician, and operations accounts."
+      subtext="Reset access for client, technician, workshop, and operations accounts."
     >
       {sent ? (
         <div className="text-center">

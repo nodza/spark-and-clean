@@ -109,6 +109,8 @@ export async function POST(request: Request) {
         query.role = { $in: ["client", "CUSTOMER"] };
       } else if (roleFilter === "technician") {
         query.role = { $in: ["technician", "DRIVER"] };
+      } else if (roleFilter === "workshop") {
+        query.role = "workshop";
       } else if (roleFilter === "admin") {
         query.role = { $in: ["admin", "ADMIN"] };
       }

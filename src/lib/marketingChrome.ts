@@ -3,6 +3,7 @@ const IMMERSIVE_PREFIXES = [
   "/dashboard",
   "/portal",
   "/tech",
+  "/workshop",
   "/booking",
   "/login",
   "/forgot-password",
@@ -16,7 +17,7 @@ function matchesPrefix(pathname: string, prefix: string) {
 
 /**
  * Full-screen app routes that own their chrome.
- * Includes the technician app (`/tech`, `/tech/*`), same outcome as `/booking/*`.
+ * Includes staff apps (`/tech/*`, `/workshop/*`), same outcome as `/booking/*`.
  */
 export function isImmersiveAppPath(pathname: string) {
   return IMMERSIVE_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));

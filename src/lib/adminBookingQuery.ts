@@ -1,6 +1,15 @@
 import type { Booking, BookingStatus, PaymentStatus } from "@/types/booking";
 import { isBookingDeactivated } from "@/lib/adminBookingDetails";
 import { localCalendarDate, bookingCalendarDate } from "@/lib/localCalendarDate";
+import { normalizeServiceCity } from "@/types/user";
+
+/** Johannesburg and Gauteng are the same service-area filter value. */
+function cityFilterMatches(bookingCity: string, filterCity: string): boolean {
+  if (bookingCity.toLowerCase() === filterCity.toLowerCase()) return true;
+  const left = normalizeServiceCity(bookingCity);
+  const right = normalizeServiceCity(filterCity);
+  return left != null && left === right;
+}
 
 /** Default list sort: newest `createdAt` first. Toggle to soonest `collectionDate`. */
 export type BookingListSort = "created" | "collection";
@@ -176,7 +185,7 @@ export function filterBookings(
     if (filters.suburb && booking.suburb.toLowerCase() !== filters.suburb.toLowerCase()) {
       return false;
     }
-    if (filters.city && booking.city.toLowerCase() !== filters.city.toLowerCase()) {
+    if (filters.city && !cityFilterMatches(booking.city, filters.city)) {
       return false;
     }
     if (filters.assigned === "1" && !booking.assignedDriverId) return false;

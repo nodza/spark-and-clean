@@ -49,7 +49,9 @@ export function Step5Review({
   rugs = [],
 }: StepProps) {
   const street = data.addressLine1?.trim() || "";
-  const locality = [data.suburb, data.city].filter(Boolean).join(", ");
+  const locality = [data.suburb, data.city, data.postalCode]
+    .filter(Boolean)
+    .join(", ");
 
   const hasCoordinates =
     typeof data.coordinates?.lat === "number" &&
@@ -146,8 +148,19 @@ export function Step5Review({
           <Detail label="Pickup window">
             {collectionDate || collectionSlot ? `${collectionDate || "Date pending"}${collectionSlot ? ` · ${collectionSlot}` : ""}` : "Not provided"}
           </Detail>
-          {hasCoordinates ? <Detail label="Coordinates">{data.coordinates!.lat.toFixed(5)}, {data.coordinates!.lng.toFixed(5)}</Detail> : null}
+          {hasCoordinates ? (
+            <Detail label="Map pin">
+              {data.coordinates!.lat.toFixed(5)}, {data.coordinates!.lng.toFixed(5)}
+            </Detail>
+          ) : null}
         </dl>
+        {!hasCoordinates ? (
+          <p className="pt-3 text-xs leading-relaxed text-muted-foreground">
+            No street pin yet. The driver map uses the{" "}
+            {data.suburb?.trim() || "area"} centre, and Navigate searches this
+            address.
+          </p>
+        ) : null}
       </section>
 
       {rugs.length <= 1 ? (

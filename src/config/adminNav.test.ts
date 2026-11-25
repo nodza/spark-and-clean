@@ -22,6 +22,7 @@ describe("visibleAdminNavItems", () => {
       "bookings",
       "assignments",
       "technicians",
+      "workshopStaff",
       "clients",
       "rugs",
       "pricing",

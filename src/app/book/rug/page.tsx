@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Step1Details } from "@/components/booking/Step1Details";
 import { Step2Photos } from "@/components/booking/Step2Photos";
-import { Step3Location } from "@/components/booking/Step3Location";
+import {
+  Step3Location,
+  type Step3LocationHandle,
+} from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
 import { RugSwitcher } from "@/components/booking/RugSwitcher";
@@ -84,6 +87,9 @@ function buildSubmittedBooking(
     suburb: formData.suburb || "",
     addressLine1: formData.addressLine1 || "",
     city: formData.city || "",
+    ...(formData.postalCode?.trim()
+      ? { postalCode: formData.postalCode.trim() }
+      : {}),
     coordinates: formData.coordinates,
     collectionDate: formData.collectionDate || localCalendarDate(),
     collectionSlot: formData.collectionSlot || "MORNING",
@@ -135,6 +141,9 @@ export default function BookingWizard() {
   activeRugIndexRef.current = activeRugIndex;
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locatingAddress, setLocatingAddress] = useState(false);
+  const locatingRef = useRef(false);
+  const step3Ref = useRef<Step3LocationHandle>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [photoGate, setPhotoGate] = useState({ busy: false, failed: false });
   const onPhotoGate = useCallback(
@@ -238,7 +247,8 @@ export default function BookingWizard() {
     formData.promotion,
   ]);
 
-  const nextStep = () => {
+  const nextStep = async () => {
+    if (locatingRef.current) return;
     if (step === 1) {
       const invalid = wizardRugs.findIndex((rug) => {
         if (!rug.type.trim()) return true;
@@ -265,7 +275,20 @@ export default function BookingWizard() {
     if (step === 2) setSubmitError(null);
 
     if (step === 3) {
-      const contactErrors = validateStep3Contact(formData);
+      locatingRef.current = true;
+      setLocatingAddress(true);
+      let patch: Partial<Booking> = {};
+      try {
+        patch = (await step3Ref.current?.prepareAddress()) ?? {};
+      } catch {
+        patch = {};
+      } finally {
+        locatingRef.current = false;
+        setLocatingAddress(false);
+      }
+      const draft = { ...formData, ...patch };
+      const contactErrors = validateStep3Contact(draft);
+      setFormData((prev) => ({ ...prev, ...patch }));
       setStep3Errors(contactErrors);
       if (hasFieldErrors(contactErrors)) {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -542,7 +565,9 @@ export default function BookingWizard() {
       onBack={prevStep}
       onContinue={isLastStep ? confirmBooking : nextStep}
       continueLabel={
-        isLastStep ? (
+        locatingAddress ? (
+          "Finding address…"
+        ) : isLastStep ? (
           isSubmitting ? (
             "Confirming..."
           ) : (
@@ -555,7 +580,8 @@ export default function BookingWizard() {
           "Continue →"
         )
       }
-      continueDisabled={continueDisabled}
+      continueDisabled={continueDisabled || locatingAddress}
+      backDisabled={locatingAddress}
       continueHint={
         step === 2 && photoGate.busy
           ? "Uploading photos."
@@ -605,11 +631,13 @@ export default function BookingWizard() {
       )}
       {step === 3 && (
         <Step3Location
+          ref={step3Ref}
           data={formData}
           update={updateFormData}
           emailReadOnly={isLoggedInCustomer}
           errors={step3Errors}
           onClearError={clearStep3Error}
+          locating={locatingAddress}
         />
       )}
       {step === 4 && (

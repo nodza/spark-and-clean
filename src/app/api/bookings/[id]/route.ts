@@ -24,6 +24,7 @@ import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
+import { notifyAfterBookingUpdate } from "@/lib/email/bookingNotifications";
 import { creditReferrerOnce } from "@/lib/referral";
 import {
   effectiveDeliveryDriverId,
@@ -463,6 +464,8 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    let clientUserId: string | null = null;
+    let loyaltyUserId: string | null = null;
     if ($set.status === "DELIVERED") {
       const customer = existing.customer as { email?: unknown } | null | undefined;
       const ownerId = await deliveryClientId({
@@ -470,12 +473,14 @@ export async function PATCH(request: Request, { params }: Params) {
         userId: existing.userId,
         email: customer?.email,
       });
+      clientUserId = ownerId;
       const delivered = {
         id: String(existing.id),
         userId: ownerId ?? existing.userId,
       };
       try {
-        await punchOnce(delivered);
+        const punched = await punchOnce(delivered);
+        if (punched && ownerId) loyaltyUserId = ownerId;
       } catch (err) {
         await Booking.updateOne(
           { id: String(existing.id), status: "DELIVERED" },
@@ -493,6 +498,17 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const client = toClientBooking(doc as Record<string, unknown>);
+    try {
+      await notifyAfterBookingUpdate({
+        previousStatus: String(existing.status ?? ""),
+        booking: client,
+        deliveryDateSet: deliveryPatch?.ok ? deliveryPatch.patch.deliveryDate : null,
+        clientUserId,
+        loyaltyUserId,
+      });
+    } catch (err) {
+      console.error("[api/bookings] customer email", err);
+    }
     return NextResponse.json(await withJobVehicles(client, session));
   } catch (err) {
     if (isHttpError(err)) {
