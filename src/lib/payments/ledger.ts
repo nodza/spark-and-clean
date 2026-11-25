@@ -125,16 +125,30 @@ export function isMongoDuplicateKeyError(err: unknown): boolean {
 }
 
 export type SettlementCents = {
-  /** Deposits and balance payments. This is what settles the invoice. */
+  /** Deposits and balance payments before refunds. */
   collectedCents: number;
-  /** Collected minus refunds. This is cash still held, never below zero. */
+  /** Collected minus refunds. This is cash still held and what settles the invoice. */
   netCents: number;
 };
 
 /**
- * A refund returns money. It does not reopen the invoice, so collected cents
- * ignore refund rows. Net cents are what is still held, for refund limits
- * and for the "refund the overpayment" flag.
+ * Net succeeded cents. Deposits and balance payments add; refunds subtract.
+ * Never negative. Used by email copy; the booking invoice uses settlementFromRows.
+ */
+export function netSucceededCents(
+  rows: { kind?: unknown; amountCents?: unknown }[]
+): number {
+  const net = rows.reduce((sum, row) => {
+    const cents = Number(row.amountCents);
+    if (!Number.isFinite(cents)) return sum;
+    return row.kind === "REFUND" ? sum - cents : sum + cents;
+  }, 0);
+  return Math.max(0, net);
+}
+
+/**
+ * Collected cents are deposits and balance payments only.
+ * Net cents are cash still held after refunds, and that is what settles the invoice.
  */
 export function settlementFromRows(
   rows: { amountCents?: number; kind?: string }[]
@@ -175,7 +189,7 @@ export async function sumSucceededPaidCents(
   return settlement.netCents;
 }
 
-/** Money collected toward the invoice. Refunds do not reduce this. */
+/** Gross deposits and balance payments, before refunds. */
 export async function sumCollectedCents(bookingId: string): Promise<number> {
   const settlement = await settlementForBooking(bookingId);
   return settlement.collectedCents;
@@ -183,8 +197,9 @@ export async function sumCollectedCents(bookingId: string): Promise<number> {
 
 /**
  * Invoice fields from a ledger settlement.
- * Collected cents settle the invoice. Refunds stay in the ledger and only
- * reduce cash still held, so a refund cannot raise the balance still owed.
+ * Amount paid and payment status use net cents (collected minus refunds), so a
+ * full deposit refund returns the booking to Unpaid and a partial refund lowers
+ * the amount paid. refundDueCents is only money still held above the amount due.
  */
 export function invoiceFromSettlement(
   settlement: SettlementCents,
@@ -196,8 +211,8 @@ export function invoiceFromSettlement(
   refundDueCents: number;
 } {
   const due = Math.max(0, amountDueCents);
-  const amountPaidCents = settlement.collectedCents;
-  const refundDueCents = Math.max(0, settlement.netCents - due);
+  const amountPaidCents = settlement.netCents;
+  const refundDueCents = Math.max(0, amountPaidCents - due);
   return {
     amountPaidCents,
     paymentStatus: derivePaymentStatus(amountPaidCents, due),
@@ -207,7 +222,7 @@ export function invoiceFromSettlement(
 }
 
 /**
- * Rewrite a booking whose stored amount paid was reduced by an older refund.
+ * Rewrite a booking whose stored amount paid does not match cash still held.
  * No-ops when nothing has been refunded, or the snapshot already matches.
  */
 export async function healInvoiceSettlement(bookingId: string): Promise<boolean> {

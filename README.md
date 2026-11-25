@@ -20,6 +20,7 @@ Copy `.env.example` to `.env.local` and fill in values for MongoDB, Stripe, and 
 | --- | --- |
 | Stripe (card) | `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_URL` |
 | Ozow (Instant EFT) | `OZOW_SITE_CODE`, `OZOW_PRIVATE_KEY`, `OZOW_API_KEY`, `APP_URL` |
+| Address search | `GOOGLE_MAPS_API_KEY` (preferred; Places API New + Geocoding API) or `MAPBOX_ACCESS_TOKEN`. Optional `GEOCODER_PROVIDER=google` or `mapbox`. Server-only — do not prefix the key with `NEXT_PUBLIC_`. Results are limited to Cape Town and Gauteng. With neither key set, a booking still saves and the driver map uses the suburb or city centre. |
 
 See `docs/payments-stripe.md` and `docs/payments-ozow.md`.
 

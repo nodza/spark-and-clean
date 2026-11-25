@@ -20,6 +20,13 @@ describe("assertRoleTierInvariants", () => {
     ).toEqual({ role: "technician", adminTier: null });
   });
 
+  it("allows workshop with null adminTier", () => {
+    expect(assertRoleTierInvariants({ role: "workshop", adminTier: null })).toEqual({
+      role: "workshop",
+      adminTier: null,
+    });
+  });
+
   it("allows admin with full tier", () => {
     expect(
       assertRoleTierInvariants({ role: "admin", adminTier: "full" })

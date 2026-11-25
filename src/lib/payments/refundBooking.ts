@@ -86,8 +86,11 @@ function countsAsRefund(status: string | null | undefined): boolean {
 }
 
 function stripeErrorCode(err: unknown): string {
-  if (typeof err !== "object" || err === null || !("code" in err)) return "";
-  return String((err as { code?: unknown }).code || "");
+  if (typeof err !== "object" || err === null) return "";
+  const rec = err as { code?: unknown; raw?: { code?: unknown } };
+  if (typeof rec.code === "string" && rec.code) return rec.code;
+  if (typeof rec.raw?.code === "string" && rec.raw.code) return rec.raw.code;
+  return "";
 }
 
 async function defaultStripeClient(): Promise<StripeRefundClient> {
@@ -253,7 +256,19 @@ export async function refundBookingPayment(
       return fail(400, "This Stripe payment cannot be refunded from here.");
     }
 
-    const stripe = deps?.stripe ?? (await defaultStripeClient());
+    let stripe: StripeRefundClient;
+    try {
+      stripe = deps?.stripe ?? (await defaultStripeClient());
+    } catch (err) {
+      console.error(
+        "[refundBooking] stripe client",
+        err instanceof Error ? err.message : "stripe client failed"
+      );
+      return fail(
+        502,
+        "Stripe is not configured for refunds. Check STRIPE_SECRET_KEY and try again."
+      );
+    }
     const metadata = {
       bookingId,
       sourceProviderRef,
@@ -291,27 +306,47 @@ export async function refundBookingPayment(
           "amount"
         );
       }
+      if (code === "resource_missing" || code === "charge_already_refunded") {
+        return fail(
+          400,
+          "Stripe could not find a refundable charge for this payment. Check the gateway reference starts with pi_ and matches this Stripe account."
+        );
+      }
       return fail(502, "Stripe could not refund this card. Nothing new was recorded.");
     }
 
     if (!countsAsRefund(created.status)) {
       return fail(502, "Stripe could not refund this card. Nothing new was recorded.");
     }
+    if (!created.id?.trim()) {
+      return fail(502, "Stripe did not return a refund id. Nothing was recorded.");
+    }
     const recordedAmount = Number(created.amount);
-    const ledger = await recordSuccess({
-      provider: "stripe",
-      providerRef: created.id,
-      bookingId,
-      kind: "REFUND",
-      amountCents:
-        Number.isFinite(recordedAmount) && recordedAmount > 0
-          ? recordedAmount
-          : amountCents,
-      currency: created.currency || "ZAR",
-      reason,
-      sourceProviderRef,
-    });
-    return fromRecord(ledger);
+    try {
+      const ledger = await recordSuccess({
+        provider: "stripe",
+        providerRef: created.id,
+        bookingId,
+        kind: "REFUND",
+        amountCents:
+          Number.isFinite(recordedAmount) && recordedAmount > 0
+            ? recordedAmount
+            : amountCents,
+        currency: created.currency || "ZAR",
+        reason,
+        sourceProviderRef,
+      });
+      return fromRecord(ledger);
+    } catch (err) {
+      console.error(
+        "[refundBooking] ledger",
+        err instanceof Error ? err.message : "ledger write failed"
+      );
+      return fail(
+        500,
+        "Stripe refunded the card, but the ledger could not be updated. Refresh Receipts and try again if the Refund row is missing."
+      );
+    }
   }
 
   const reference = (input.reference || "").trim();

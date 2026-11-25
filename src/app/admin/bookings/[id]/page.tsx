@@ -21,6 +21,7 @@ import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import { BOOKING_STATUSES, isPaymentStatus } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import type { Booking, BookingStatus, InternalNote, PaymentStatus } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import {
   effectiveDeliveryDriverId,
   hasDeliverySchedule,
@@ -67,6 +68,7 @@ import {
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
 import { MeasuredSizeEditor } from "@/components/admin/MeasuredSizeCard";
+import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { 
   bookingAddOnLabels, 
@@ -80,6 +82,7 @@ import {
 } from "@/lib/vehicle";
 import { formatQuoteRange, formatRandCents } from "@/lib/priceFormat";
 import { amountDueCentsForBooking, refundOverageCents } from "@/lib/payments/deposit";
+import type { WorkshopActivityEntry } from "@/types/workshop";
 
 const STATUS_OPTIONS = BOOKING_STATUSES;
 
@@ -298,6 +301,13 @@ export default function AdminBookingDetail() {
   const [notes, setNotes] = useState<InternalNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
+  const [workshopActivity, setWorkshopActivity] = useState<
+    WorkshopActivityEntry[]
+  >([]);
+  const [workshopActivityLoading, setWorkshopActivityLoading] = useState(true);
+  const [workshopActivityError, setWorkshopActivityError] = useState<
+    string | null
+  >(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
@@ -336,6 +346,34 @@ export default function AdminBookingDetail() {
     }
   }, [id]);
 
+  const loadWorkshopActivity = useCallback(async () => {
+    setWorkshopActivityLoading(true);
+    setWorkshopActivityError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/bookings/${encodeURIComponent(id)}/workshop-activity`,
+        { credentials: "include", cache: "no-store" }
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        activity?: WorkshopActivityEntry[];
+      };
+      if (!res.ok) {
+        setWorkshopActivityError(
+          data.error || "Could not load workshop activity"
+        );
+        return;
+      }
+      setWorkshopActivity(
+        Array.isArray(data.activity) ? data.activity : []
+      );
+    } catch {
+      setWorkshopActivityError("Could not load workshop activity");
+    } finally {
+      setWorkshopActivityLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     let cancelled = false;
     setLoadState(booking ? "ready" : "loading");
@@ -366,13 +404,14 @@ export default function AdminBookingDetail() {
       });
 
     void loadNotes();
+    void loadWorkshopActivity();
 
     return () => {
       cancelled = true;
     };
     // Show cached row immediately; refresh this id from S1 without refetching the full list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, fetchBookingById, loadNotes]);
+  }, [id, fetchBookingById, loadNotes, loadWorkshopActivity]);
 
   useEffect(() => {
     const assignedId = booking?.assignedDriverId;
@@ -830,7 +869,8 @@ export default function AdminBookingDetail() {
                       {booking.addressLine1}
                     </p>
                     <p className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>
-                      {booking.suburb}, {booking.city}
+                      {booking.suburb},{" "}
+                      {formatServiceAreaLabel(booking.city)}
                     </p>
                   </div>
                   <div className="mt-[16px]">
@@ -858,6 +898,17 @@ export default function AdminBookingDetail() {
                     </div>
                   ) : null}
                 </div>
+
+                <RugTagIntake
+                  booking={booking}
+                  onTagged={(next) => {
+                    useBookingStore.setState((state) => ({
+                      bookings: state.bookings.map((row) =>
+                        row.id === next.id ? { ...row, rug: next.rug } : row
+                      ),
+                    }));
+                  }}
+                />
 
                 <RugPhotoCard title="Condition photos" photos={booking.rug.photos} />
                 <RugPhotoCard title="Label photos" photos={booking.rug.labelPhotos} />
@@ -962,6 +1013,62 @@ export default function AdminBookingDetail() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                  </div>
+                </div>
+
+                <div className="ds-card">
+                  <div className="text-card-title" style={{ color: "#000b49" }}>
+                    Workshop activity
+                  </div>
+                  <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+                    Append-only record of who received and completed cleaning
+                    for this rug.
+                  </p>
+                  <div className="mt-[14px]">
+                    {workshopActivityLoading ? (
+                      <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                        Loading workshop activity…
+                      </p>
+                    ) : workshopActivityError ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p role="alert" className="text-sm" style={{ color: "#b3261e" }}>
+                          {workshopActivityError}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void loadWorkshopActivity()}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    ) : workshopActivity.length === 0 ? (
+                      <p className="text-meta italic" style={{ color: "#9aa0a6" }}>
+                        No workshop activity recorded.
+                      </p>
+                    ) : (
+                      <ol className="space-y-3">
+                        {workshopActivity.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="rounded-[10px] border border-[#f0f2f6] bg-[#f7f9fb] px-3 py-3"
+                          >
+                            <p className="text-body font-bold" style={{ color: "#32373c" }}>
+                              {entry.action === "RECEIVED"
+                                ? "Received at workshop"
+                                : "Cleaning completed"}
+                            </p>
+                            <p className="text-meta mt-2" style={{ color: "#6b7280" }}>
+                              {entry.actorName} · {entry.actorEmail}
+                            </p>
+                            <p className="text-meta mt-1" style={{ color: "#9aa0a6" }}>
+                              Tag {entry.tagCode} · {formatNoteTime(entry.occurredAt)}
+                            </p>
+                          </li>
+                        ))}
+                      </ol>
                     )}
                   </div>
                 </div>

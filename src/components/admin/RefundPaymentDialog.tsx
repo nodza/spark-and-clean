@@ -173,7 +173,11 @@ export function RefundPaymentDialog({
         setError(
           res.status === 403
             ? "You do not have access to refund payments."
-            : data?.error || "Could not record the refund."
+            : typeof data?.error === "string" && data.error.trim()
+              ? data.error
+              : res.status === 404
+                ? "Refund API was not found. Restart the app on this branch and try again."
+                : `Could not record the refund. (${res.status})`
         );
         return;
       }
@@ -209,8 +213,8 @@ export function RefundPaymentDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {manual
-              ? "Record a refund you already issued. This updates the ledger and does not move money by itself."
-              : "This sends the refund to the card through Stripe and updates the amount paid."}
+              ? "Record a refund you already issued. This adds a Refund row and does not move money by itself. The amount paid and payment status update from the ledger."
+              : "This sends the refund to the card through Stripe, adds a Refund row, and updates the amount paid and payment status."}
           </DialogDescription>
         </DialogHeader>
 

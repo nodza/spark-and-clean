@@ -345,7 +345,7 @@ describe("POST /api/webhooks/stripe", () => {
     expect(state.booking?.paymentStatus).toBe("UNPAID");
   });
 
-  it("records a full refund once without reopening the balance", async () => {
+  it("records a full refund once and returns the deposit to unpaid", async () => {
     state.booking = {
       ...unpaidBooking(),
       status: "CONFIRMED",
@@ -399,18 +399,18 @@ describe("POST /api/webhooks/stripe", () => {
       status: "SUCCEEDED",
       kind: "REFUND",
     });
-    expect(state.booking?.billing.amountPaidCents).toBe(7500);
-    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
+    expect(state.booking?.billing.amountPaidCents).toBe(0);
+    expect(state.booking?.paymentStatus).toBe("UNPAID");
     expect(state.booking?.status).toBe("CONFIRMED");
 
     const replay = await POST(signedRequest(refunded));
     expect(replay.status).toBe(200);
     expect(state.payments).toHaveLength(2);
-    expect(state.booking?.billing.amountPaidCents).toBe(7500);
-    expect(state.booking?.paymentStatus).toBe("DEPOSIT");
+    expect(state.booking?.billing.amountPaidCents).toBe(0);
+    expect(state.booking?.paymentStatus).toBe("UNPAID");
   });
 
-  it("records a partial refund once without raising the balance", async () => {
+  it("records a partial refund once and lowers the amount paid", async () => {
     state.booking = {
       ...unpaidBooking(),
       paymentStatus: "DEPOSIT",
@@ -456,12 +456,12 @@ describe("POST /api/webhooks/stripe", () => {
 
     const res = await POST(signedRequest(refunded));
     expect(res.status).toBe(200);
-    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.billing.amountPaidCents).toBe(5000);
     expect(state.booking?.paymentStatus).toBe("DEPOSIT");
 
     await POST(signedRequest(refunded));
     expect(state.payments.filter((row) => row.kind === "REFUND")).toHaveLength(1);
-    expect(state.booking?.billing.amountPaidCents).toBe(7500);
+    expect(state.booking?.billing.amountPaidCents).toBe(5000);
     expect(state.booking?.paymentStatus).toBe("DEPOSIT");
   });
 });

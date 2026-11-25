@@ -47,8 +47,7 @@ export function depositAmountCents(amountDueCents: number): number {
 
 /**
  * Cents still held above the amount due.
- * Uses the stored refund due when the ledger has written one, so a refund
- * that did not reopen the invoice is not shown as money still to return.
+ * Prefers the stored refund due from the ledger when present.
  */
 export function refundOverageCents(
   booking: DueInput & {

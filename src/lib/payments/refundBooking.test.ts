@@ -181,8 +181,8 @@ describe("refundBookingPayment", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.paymentStatus).toBe("DEPOSIT");
-    expect(result.billing.amountPaidCents).toBe(7500);
+    expect(result.paymentStatus).toBe("UNPAID");
+    expect(result.billing.amountPaidCents).toBe(0);
     expect(state.booking?.status).toBe("CONFIRMED");
     expect(state.payments.find((row) => row.kind === "REFUND")).toMatchObject({
       providerRef: "re_full",
@@ -212,7 +212,7 @@ describe("refundBookingPayment", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.billing.amountPaidCents).toBe(7500);
+    expect(result.billing.amountPaidCents).toBe(5000);
     expect(result.paymentStatus).toBe("DEPOSIT");
     expect(state.booking?.status).toBe("CONFIRMED");
   });
@@ -252,7 +252,7 @@ describe("refundBookingPayment", () => {
     );
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    expect(first.billing.amountPaidCents).toBe(7500);
+    expect(first.billing.amountPaidCents).toBe(5500);
     expect(createRefund).not.toHaveBeenCalled();
 
     const replay = await refundBookingPayment(
@@ -267,7 +267,7 @@ describe("refundBookingPayment", () => {
     );
     expect(replay.ok).toBe(true);
     if (!replay.ok) return;
-    expect(replay.billing.amountPaidCents).toBe(7500);
+    expect(replay.billing.amountPaidCents).toBe(5500);
     expect(state.payments.filter((row) => row.kind === "REFUND")).toHaveLength(1);
     expect(state.booking?.paymentStatus).toBe("DEPOSIT");
   });

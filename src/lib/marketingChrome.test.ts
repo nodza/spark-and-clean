@@ -22,6 +22,20 @@ describe("marketing chrome on technician routes", () => {
   });
 });
 
+describe("marketing chrome on workshop routes", () => {
+  it("hides header and footer on the workshop app", () => {
+    for (const path of [
+      "/workshop",
+      "/workshop/login",
+      "/workshop/dashboard",
+      "/workshop/change-password",
+    ]) {
+      expect(hidesMarketingHeader(path), path).toBe(true);
+      expect(hidesMarketingFooter(path), path).toBe(true);
+    }
+  });
+});
+
 describe("marketing chrome elsewhere", () => {
   it("keeps the public site header and footer", () => {
     expect(hidesMarketingHeader("/")).toBe(false);

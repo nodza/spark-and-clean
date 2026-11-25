@@ -59,8 +59,14 @@ export async function POST(request: Request, { params }: Params) {
     }
     const message = err instanceof Error ? err.message : "Failed to record refund";
     console.error("[api/admin/bookings/refunds POST]", message);
+    const publicMessage = toPublicApiError(err, "Could not record the refund.");
     return NextResponse.json(
-      { error: toPublicApiError(err, "Could not record the refund.") },
+      {
+        error:
+          publicMessage === "Could not record the refund." && message
+            ? "Could not record the refund. Check the server log for details."
+            : publicMessage,
+      },
       { status: 500 }
     );
   }

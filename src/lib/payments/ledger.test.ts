@@ -321,16 +321,17 @@ describe("recordSuccess", () => {
     expect(paymentFind).not.toHaveBeenCalled();
   });
 
-  it("keeps the invoice settled when part of a payment is refunded", () => {
+  it("lowers amount paid and can reopen the invoice when a payment is refunded", () => {
     const due = 132_000;
     const afterDepositRefund = settlementFromRows([
       { amountCents: 66_000, kind: "DEPOSIT" },
       { amountCents: 6_000, kind: "REFUND" },
     ]);
     expect(afterDepositRefund.collectedCents).toBe(66_000);
-    expect(remainingBalanceCents(due, afterDepositRefund.collectedCents)).toBe(66_000);
+    expect(afterDepositRefund.netCents).toBe(60_000);
+    expect(remainingBalanceCents(due, afterDepositRefund.netCents)).toBe(72_000);
     expect(invoiceFromSettlement(afterDepositRefund, due)).toMatchObject({
-      amountPaidCents: 66_000,
+      amountPaidCents: 60_000,
       paymentStatus: "DEPOSIT",
       refundRequired: false,
       refundDueCents: 0,
@@ -345,15 +346,15 @@ describe("recordSuccess", () => {
     expect(afterFullRefund.collectedCents).toBe(132_000);
     expect(afterFullRefund.netCents).toBe(120_000);
     expect(invoiceFromSettlement(afterFullRefund, due)).toMatchObject({
-      amountPaidCents: 132_000,
-      paymentStatus: "PAID",
+      amountPaidCents: 120_000,
+      paymentStatus: "DEPOSIT",
       refundRequired: false,
       refundDueCents: 0,
     });
-    expect(remainingBalanceCents(due, afterFullRefund.collectedCents)).toBe(0);
+    expect(remainingBalanceCents(due, afterFullRefund.netCents)).toBe(12_000);
   });
 
-  it("records a refund without lowering the amount that settles the invoice", async () => {
+  it("records a refund and lowers the amount paid on the booking", async () => {
     bookingFindOne.mockReturnValue({
       lean: async () => ({
         id: "SC-1",
@@ -386,8 +387,23 @@ describe("recordSuccess", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.billing.amountPaidCents).toBe(15000);
-    expect(result.paymentStatus).toBe("PAID");
+    expect(result.billing.amountPaidCents).toBe(7500);
+    expect(result.paymentStatus).toBe("DEPOSIT");
+  });
+
+  it("returns a full deposit refund to unpaid", () => {
+    const due = 15_000;
+    const afterFullDepositRefund = settlementFromRows([
+      { amountCents: 7_500, kind: "DEPOSIT" },
+      { amountCents: 7_500, kind: "REFUND" },
+    ]);
+    expect(invoiceFromSettlement(afterFullDepositRefund, due)).toMatchObject({
+      amountPaidCents: 0,
+      paymentStatus: "UNPAID",
+      refundRequired: false,
+      refundDueCents: 0,
+    });
+    expect(remainingBalanceCents(due, afterFullDepositRefund.netCents)).toBe(due);
   });
 
   it("rejects a non-ZAR currency before writing a payment", async () => {

@@ -37,6 +37,7 @@ describe("accessControl", () => {
     expect(homeForRole("client")).toBe("/portal");
     expect(homeForRole("admin")).toBe("/admin");
     expect(homeForRole("technician")).toBe("/tech/dashboard");
+    expect(homeForRole("workshop")).toBe("/workshop/dashboard");
   });
 
   it("marks admin full-only paths", () => {
@@ -51,6 +52,7 @@ describe("accessControl", () => {
     expect(isAdminFullOnlyPath("/admin/vehicle-days")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/rugs")).toBe(true);
     expect(isAdminFullOnlyPath("/admin/team")).toBe(true);
+    expect(isAdminFullOnlyPath("/admin/workshop-staff")).toBe(true);
     expect(isAdminFullOnlyPath("/admin")).toBe(false);
     expect(isAdminFullOnlyPath("/admin/pricing")).toBe(false);
     expect(isAdminFullOnlyPath("/admin/change-password")).toBe(false);
@@ -67,6 +69,7 @@ describe("accessControl", () => {
 
     expect(canAccessPath(null, "/admin/login").ok).toBe(true);
     expect(canAccessPath(null, "/tech/login").ok).toBe(true);
+    expect(canAccessPath(null, "/workshop/login").ok).toBe(true);
   });
 
   it("sends wrong-role users to their own home", () => {
@@ -158,5 +161,30 @@ describe("accessControl", () => {
       expect(job.redirectTo).toContain("/tech/login?next=");
       expect(job.redirectTo).toContain(encodeURIComponent("/tech/job/SC-1"));
     }
+  });
+
+  it("restricts workshop routes and temporary-password accounts", () => {
+    const workshop: SessionUser = {
+      id: "w1",
+      email: "workshop@example.com",
+      role: "workshop",
+    };
+    expect(canAccessPath(null, "/workshop/dashboard")).toEqual({
+      ok: false,
+      redirectTo: "/workshop/login?next=%2Fworkshop%2Fdashboard",
+    });
+    expect(canAccessPath(client, "/workshop/dashboard")).toEqual({
+      ok: false,
+      redirectTo: "/portal?access=denied",
+    });
+    expect(canAccessPath(workshop, "/workshop/dashboard").ok).toBe(true);
+    expect(passwordChangePathForRole("workshop")).toBe(
+      "/workshop/change-password"
+    );
+    const freshWorkshop = { ...workshop, mustChangePassword: true };
+    expect(canAccessPath(freshWorkshop, "/workshop/dashboard")).toEqual({
+      ok: false,
+      redirectTo: "/workshop/change-password",
+    });
   });
 });
