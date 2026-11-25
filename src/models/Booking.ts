@@ -5,6 +5,10 @@ import {
 } from "@/lib/bookingPatchFields";
 import { MAX_NOTE_LEN } from "@/lib/internalNotes";
 import { MAX_FIELD_MESSAGE_LEN } from "@/lib/fieldMessages";
+import {
+  MAX_RUG_COLOR_LEN,
+  MAX_RUG_SPECIAL_NOTES_LEN,
+} from "@/lib/bookingFieldLimits";
 
 const CustomerSchema = new Schema(
   {
@@ -19,6 +23,12 @@ const CustomerSchema = new Schema(
 const RugSchema = new Schema(
   {
     type: { type: String, required: true, trim: true },
+    color: { type: String, trim: true, maxlength: MAX_RUG_COLOR_LEN },
+    specialNotes: {
+      type: String,
+      trim: true,
+      maxlength: MAX_RUG_SPECIAL_NOTES_LEN,
+    },
     widthM: { type: Number, default: null },
     lengthM: { type: Number, default: null },
     areaSqM: { type: Number, required: true },

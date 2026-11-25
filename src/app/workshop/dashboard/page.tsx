@@ -19,6 +19,8 @@ type WorkshopRug = {
   bookingId: string;
   tagCode: string;
   type: string;
+  color: string;
+  specialNotes: string;
   widthM: number | null;
   lengthM: number | null;
   areaSqM: number | null;
@@ -216,6 +218,22 @@ export default function WorkshopDashboardPage() {
                 </dt>
                 <dd className="mt-1 text-sm font-semibold text-[#20252a]">
                   {dimensions}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-bold uppercase text-[#7b8388]">
+                  Colour
+                </dt>
+                <dd className="mt-1 text-sm font-semibold text-[#20252a]">
+                  {rug.color || "Not provided"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-[11px] font-bold uppercase text-[#7b8388]">
+                  Client special notes
+                </dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-[#20252a]">
+                  {rug.specialNotes || "None"}
                 </dd>
               </div>
               <div className="sm:col-span-2">

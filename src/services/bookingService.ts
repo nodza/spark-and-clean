@@ -119,6 +119,25 @@ class BookingService {
     return res.json();
   }
 
+  async savePickupDetails(
+    id: string,
+    details: { rugColor: string; specialNotes: string }
+  ): Promise<Booking> {
+    const res = await fetch(`/api/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(details),
+    });
+    if (!res.ok) {
+      throw httpError(
+        await readError(res, "Could not save rug details."),
+        res.status
+      );
+    }
+    return res.json();
+  }
+
   async updatePaymentStatus(
     id: string,
     status: PaymentStatus

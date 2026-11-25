@@ -115,6 +115,8 @@ export async function GET(_request: Request, { params }: Params) {
         bookingId: booking.id,
         tagCode,
         type: booking.rug.type,
+        color: booking.rug.color ?? "",
+        specialNotes: booking.rug.specialNotes ?? "",
         widthM: booking.rug.widthM ?? null,
         lengthM: booking.rug.lengthM ?? null,
         areaSqM: booking.rug.areaSqM ?? null,

@@ -61,6 +61,8 @@ export interface Customer {
 
 export interface RugDetails {
   type: string; // Persian, Kilim, etc.
+  color?: string;
+  specialNotes?: string;
   widthM: number | null;
   lengthM: number | null;
   areaSqM: number;

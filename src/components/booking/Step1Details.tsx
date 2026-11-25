@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Booking } from "@/types/booking";
 import { RUG_TYPES } from "@/data/rugTypes";
 import { RugTypeCard } from "@/components/booking/RugTypeCard";
@@ -229,6 +230,34 @@ export function Step1Details({
             </DashedActionButton>
           </div>
         )}
+      </div>
+
+      <div className="space-y-4 border-t border-[#eceef1] pt-4">
+        <div className="space-y-1.5">
+          <label htmlFor="rug-color" className="text-[13px] font-semibold text-navy">
+            Rug colour
+          </label>
+          <Input
+            id="rug-color"
+            maxLength={120}
+            placeholder="e.g. navy, cream and red"
+            value={rug.color ?? ""}
+            onChange={(event) => update({ rug: { ...rug, color: event.target.value } })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="rug-special-notes" className="text-[13px] font-semibold text-navy">
+            Special notes
+          </label>
+          <Textarea
+            id="rug-special-notes"
+            maxLength={1000}
+            placeholder="Anything we should know, such as a loose fringe or pet stain"
+            value={rug.specialNotes ?? ""}
+            onChange={(event) => update({ rug: { ...rug, specialNotes: event.target.value } })}
+            rows={3}
+          />
+        </div>
       </div>
     </div>
   );

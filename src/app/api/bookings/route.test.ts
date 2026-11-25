@@ -179,6 +179,50 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(paymentCreate).not.toHaveBeenCalled();
   });
 
+  it("persists the client's rug color and special notes", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        rug: {
+          type: "Persian",
+          color: "Blue and cream",
+          specialNotes: "Loose fringe near one corner",
+          widthM: 2,
+          lengthM: 3,
+          areaSqM: 999,
+          photos: [],
+        },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(writtenPayload().rug).toMatchObject({
+      color: "Blue and cream",
+      specialNotes: "Loose fringe near one corner",
+      areaSqM: 6,
+    });
+  });
+
+  it("rejects oversized special notes during booking creation", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        rug: {
+          type: "Persian",
+          color: "",
+          specialNotes: "x".repeat(1001),
+          widthM: 2,
+          lengthM: 3,
+          areaSqM: 6,
+          photos: [],
+        },
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(bookingCreate).not.toHaveBeenCalled();
+  });
+
   it("rejects create when the booking id already exists", async () => {
     bookingFindOne.mockReturnValue({
       select: () => ({ lean: async () => ({ _id: "existing" }) }),
