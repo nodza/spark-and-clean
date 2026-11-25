@@ -185,4 +185,48 @@ describe("PATCH /api/bookings/[id]/measurement", () => {
     expect(res.status).toBe(400);
     expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
   });
+
+  it("measures the requested rug and leaves the other rug's size on the booking", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      chain(
+        booking({
+          rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
+          rugs: [
+            {
+              id: "line-a",
+              type: "Persian",
+              widthM: 2,
+              lengthM: 3,
+              areaSqM: 6,
+              addOns: { odourRemoval: false, stainProtection: false },
+              estimatedPriceMin: 720,
+              estimatedPriceMax: 864,
+            },
+            {
+              id: "line-b",
+              type: "Kilim",
+              widthM: 1,
+              lengthM: 2,
+              areaSqM: 2,
+              addOns: { odourRemoval: false, stainProtection: false },
+              estimatedPriceMin: 160,
+              estimatedPriceMax: 192,
+            },
+          ],
+        })
+      )
+    );
+
+    const res = await patch({ rugId: "line-b", widthM: 1, lengthM: 1 });
+    expect(res.status).toBe(200);
+    const update = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: Record<string, unknown>;
+    };
+    const rugs = update.$set.rugs as { id: string; widthM: number; lengthM: number }[];
+    expect(rugs.map((line) => [line.id, line.widthM, line.lengthM])).toEqual([
+      ["line-a", 2, 3],
+      ["line-b", 1, 1],
+    ]);
+    expect(update.$set["rug.widthM"]).toBeUndefined();
+  });
 });

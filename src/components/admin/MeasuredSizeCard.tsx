@@ -28,9 +28,13 @@ function meterText(value: number | null | undefined) {
 export function MeasuredSizeEditor({
   booking,
   onUpdated,
+  line,
+  label = "Rug measurements",
 }: {
   booking: Booking;
   onUpdated: (booking: Booking) => void;
+  line?: { id: string; widthM: number | null; lengthM: number | null };
+  label?: string;
 }) {
   const formId = useId();
   const widthId = `${formId}-width`;
@@ -46,8 +50,9 @@ export function MeasuredSizeEditor({
 
   function openEditor() {
     if (saving) return;
-    setWidthRaw(meterText(booking.rug.widthM));
-    setLengthRaw(meterText(booking.rug.lengthM));
+    const size = line ?? booking.rug;
+    setWidthRaw(meterText(size.widthM));
+    setLengthRaw(meterText(size.lengthM));
     setWidthError(null);
     setLengthError(null);
     setFormError(null);
@@ -76,7 +81,11 @@ export function MeasuredSizeEditor({
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ widthM: parsed.widthM, lengthM: parsed.lengthM }),
+        body: JSON.stringify({
+          widthM: parsed.widthM,
+          lengthM: parsed.lengthM,
+          ...(line ? { rugId: line.id } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: unknown;
@@ -153,7 +162,7 @@ export function MeasuredSizeEditor({
           }}
         >
           <DialogHeader>
-            <DialogTitle className="text-navy">Rug measurements</DialogTitle>
+            <DialogTitle className="text-navy">{label}</DialogTitle>
             <DialogDescription>
               Enter both sides in metres. Saving recalculates the amount due
               from the rug type, add-ons, and any coupon. The amount already

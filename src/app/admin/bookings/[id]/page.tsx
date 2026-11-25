@@ -65,6 +65,7 @@ import {
   paymentStatusVariant,
 } from "@/components/admin/bookingBadges";
 import { BookingReceipts } from "@/components/admin/BookingReceipts";
+import { bookingRugs } from "@/lib/bookingRugs";
 import { MeasuredSizeEditor } from "@/components/admin/MeasuredSizeCard";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { 
@@ -782,6 +783,7 @@ export default function AdminBookingDetail() {
                       <JobDetailLabel
                         icon={Ruler}
                         action={
+                          bookingRugs(booking).length > 1 ? undefined : (
                           <MeasuredSizeEditor
                             booking={booking}
                             onUpdated={(next) => {
@@ -800,6 +802,7 @@ export default function AdminBookingDetail() {
                               }));
                             }}
                           />
+                          )
                         }
                       >
                         Dimensions
@@ -854,10 +857,67 @@ export default function AdminBookingDetail() {
                       </p>
                     </div>
                   ) : null}
+                  <div className="mt-[16px] flex flex-col gap-3">
+                    {bookingRugs(booking).map((rug, index, lines) => (
+                      <div
+                        key={rug.id}
+                        className="rounded-[12px] border border-[#e3e7ed] px-3 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-meta" style={{ color: "#9aa0a6" }}>
+                              Rug {index + 1} / {lines.length}
+                            </p>
+                            <p className="text-body mt-[2px]" style={{ color: "#32373c" }}>
+                              {rug.type || "Rug"} · {rugDimensionLabel(rug)}
+                            </p>
+                            <p className="text-meta mt-[2px]" style={{ color: "#32373c" }}>
+                              {rug.tagCode ? `Tag ${rug.tagCode}` : "No tag yet"}
+                              {bookingAddOnLabels(rug.addOns, OPS_ADD_ON_COPY).length > 0
+                                ? ` · ${bookingAddOnLabels(rug.addOns, OPS_ADD_ON_COPY).join(", ")}`
+                                : ""}
+                            </p>
+                          </div>
+                          {lines.length > 1 ? (
+                          <MeasuredSizeEditor
+                            booking={booking}
+                            line={rug}
+                            label={`Rug ${index + 1} of ${lines.length}`}
+                            onUpdated={(next) => {
+                              useBookingStore.setState((state) => ({
+                                bookings: state.bookings.map((row) =>
+                                  row.id === next.id
+                                    ? {
+                                        ...next,
+                                        dayVehicles: row.dayVehicles ?? next.dayVehicles,
+                                        standingVehicle:
+                                          row.standingVehicle ?? next.standingVehicle,
+                                        technician: row.technician ?? next.technician,
+                                      }
+                                    : row
+                                ),
+                              }));
+                            }}
+                          />
+                          ) : null}
+                        </div>
+                        {lines.length > 1 ? (
+                          <div className="mt-3 flex flex-col gap-3">
+                            <RugPhotoCard title="Condition photos" photos={rug.photos} />
+                            <RugPhotoCard title="Label photos" photos={rug.labelPhotos} />
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <RugPhotoCard title="Condition photos" photos={booking.rug.photos} />
-                <RugPhotoCard title="Label photos" photos={booking.rug.labelPhotos} />
+                {bookingRugs(booking).length > 1 ? null : (
+                  <>
+                    <RugPhotoCard title="Condition photos" photos={booking.rug.photos} />
+                    <RugPhotoCard title="Label photos" photos={booking.rug.labelPhotos} />
+                  </>
+                )}
 
                 <div className="ds-card">
                   <div className="text-card-title" style={{ color: "#000b49" }}>

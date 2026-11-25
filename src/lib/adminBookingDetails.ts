@@ -1,5 +1,6 @@
 import { isValidCalendarDate } from "@/lib/johannesburgDate";
 import { bookingCalendarDate } from "@/lib/localCalendarDate";
+import { bookingRugs } from "@/lib/bookingRugs";
 import { hasRugTagCode } from "@/lib/fieldStatus";
 import {
   validateCustomerName,
@@ -26,6 +27,10 @@ export type BookingDeactivateCheck = {
   status: BookingStatus | string;
   paymentStatus: PaymentStatus | string;
   rug?: { tagCode?: string | null } | null;
+  rugs?: unknown;
+  addOns?: unknown;
+  estimatedPriceMin?: unknown;
+  estimatedPriceMax?: unknown;
   deactivatedAt?: string | Date | null;
 };
 
@@ -48,7 +53,8 @@ export function bookingDeactivateBlockReason(
   if (booking.status !== "BOOKED" && booking.status !== "SCHEDULED") {
     return "Already collected or past collection";
   }
-  if (hasRugTagCode(booking.rug?.tagCode)) {
+  const tagged = bookingRugs(booking).some((line) => hasRugTagCode(line.tagCode));
+  if (tagged) {
     return "A rug tag is attached";
   }
   return null;

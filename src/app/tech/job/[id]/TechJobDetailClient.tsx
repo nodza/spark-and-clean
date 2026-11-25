@@ -33,6 +33,8 @@ import type { Booking } from "@/types/booking";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
+import { bookingRugs } from "@/lib/bookingRugs";
+import { everyRugTagged } from "@/lib/fieldStatus";
 import { DriverMeasurement } from "@/components/tech/DriverMeasurement";
 import { RugTagIntake } from "@/components/tech/RugTagIntake";
 import {
@@ -233,7 +235,11 @@ export function TechJobDetailClient() {
     router.push("/tech/dashboard");
   };
 
-  const handleSaveMeasurement = async (widthM: number, lengthM: number) => {
+  const handleSaveMeasurement = async (
+    widthM: number,
+    lengthM: number,
+    rugId?: string
+  ) => {
     if (loadState.kind !== "ready" || pendingStatus || fieldUpdateLock.current) {
       return "Could not save this size. Try again.";
     }
@@ -243,19 +249,22 @@ export function TechJobDetailClient() {
     fieldUpdateLock.current = true;
     setActionError(null);
 
-    const error = await saveMeasuredSize(bookingId, { widthM, lengthM });
+    const error = await saveMeasuredSize(bookingId, { widthM, lengthM, rugId });
     const readSaved = () =>
       useBookingStore
         .getState()
         .bookings.find((candidate) => candidate.id === bookingId);
 
     let saved = readSaved();
-    const priced = (booking: Booking | undefined) =>
-      booking != null &&
-      booking.rug.widthM === widthM &&
-      booking.rug.lengthM === lengthM &&
-      booking.measuredQuote != null &&
-      typeof booking.billing?.amountDueCents === "number";
+    const priced = (booking: Booking | undefined) => {
+      if (!booking?.measuredQuote || typeof booking.billing?.amountDueCents !== "number") {
+        return false;
+      }
+      const line =
+        bookingRugs(booking).find((rug) => rug.id === rugId) ??
+        bookingRugs(booking)[0];
+      return line?.widthM === widthM && line?.lengthM === lengthM;
+    };
 
     if (!error && !priced(saved)) {
       try {
@@ -434,7 +443,11 @@ function JobContent({
   actionError: string | null;
   onTagged: (booking: Booking) => void;
   onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
-  onSaveMeasurement: (widthM: number, lengthM: number) => Promise<string | null>;
+  onSaveMeasurement: (
+    widthM: number,
+    lengthM: number,
+    rugId?: string
+  ) => Promise<string | null>;
   onBack: () => void;
 }) {
   const phone = booking.customer.phone?.trim() ?? "";
@@ -449,16 +462,13 @@ function JobContent({
     isVanCollectStatus(booking.status) || pendingStatus === "COLLECTED";
   const canDeliver =
     isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
-  const hasTagCode = hasRugTagCode(booking.rug.tagCode);
+  const rugLines = bookingRugs(booking);
+  const hasTagCode = everyRugTagged(rugLines);
 
   function submitCollect() {
     if (busy) return;
     onStatusUpdate("COLLECTED");
   }
-  const addOns = bookingAddOnLabels(booking.addOns);
-  const conditionPhotos = (booking.rug.photos ?? []).filter(isDisplayablePhotoUrl);
-  const labelPhotos = (booking.rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
-
   const needsTag = canCollect && !hasTagCode && !busy;
   const showActionBar = canCollect || canDeliver;
 
@@ -480,7 +490,9 @@ function JobContent({
           id="collect-tag-hint"
           className="mb-2 text-center text-xs font-semibold text-[#6b7280]"
         >
-          Attach a tag code before collecting.
+          {rugLines.length > 1
+            ? "Tag every rug before collecting."
+            : "Attach a tag code before collecting."}
         </p>
       ) : null}
       {canCollect ? (
@@ -634,44 +646,63 @@ function JobContent({
       <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
         ITEMS TO COLLECT
       </p>
-      <div className="rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5">
-        <div className="text-sm font-bold text-navy">{booking.rug.type}</div>
-        <DriverMeasurement
-          booking={booking}
-          disabled={busy}
-          onSave={onSaveMeasurement}
-        />
-
-        <div className="mt-3">
-          <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
-            ADD-ONS
-          </div>
-          {addOns.length > 0 ? (
-            <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {addOns.map((label) => (
-                <li
-                  key={label}
-                  className="rounded-full border border-[#e3e7ed] bg-[#f5f7fa] px-2.5 py-1 text-[11px] font-bold text-navy"
-                >
-                  {label}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-xs text-[#9aa0a6]">None</p>
-          )}
-        </div>
-
-        <div className="mt-3">
-          <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
-            PHOTOS
-          </div>
-          <JobPhotos
-            key={booking.id}
-            conditionPhotos={conditionPhotos}
-            labelPhotos={labelPhotos}
-          />
-        </div>
+      <div className="flex flex-col gap-3">
+        {rugLines.map((rug, index) => {
+          const lineAddOns = bookingAddOnLabels(rug.addOns);
+          const lineCondition = (rug.photos ?? []).filter(isDisplayablePhotoUrl);
+          const lineLabels = (rug.labelPhotos ?? []).filter(isDisplayablePhotoUrl);
+          return (
+            <div
+              key={rug.id}
+              className="rounded-xl border border-[#e3e7ed] bg-white px-[15px] py-3.5"
+            >
+              <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+                Rug {index + 1} / {rugLines.length}
+              </div>
+              <div className="text-sm font-bold text-navy">{rug.type}</div>
+              <DriverMeasurement
+                booking={booking}
+                rug={rug}
+                disabled={busy}
+                onSave={onSaveMeasurement}
+              />
+              <div className="mt-3">
+                <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+                  ADD-ONS
+                </div>
+                {lineAddOns.length > 0 ? (
+                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                    {lineAddOns.map((label) => (
+                      <li
+                        key={label}
+                        className="rounded-full border border-[#e3e7ed] bg-[#f5f7fa] px-2.5 py-1 text-[11px] font-bold text-navy"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-[#9aa0a6]">None</p>
+                )}
+              </div>
+              <div className="mt-3">
+                <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+                  PHOTOS
+                </div>
+                <JobPhotos
+                  key={`${booking.id}-${rug.id}`}
+                  conditionPhotos={lineCondition}
+                  labelPhotos={lineLabels}
+                />
+              </div>
+              {hasRugTagCode(rug.tagCode) ? (
+                <p className="mt-3 text-xs font-bold text-[#0a7a63]">
+                  Tag {rug.tagCode}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
       <p className="mb-2.5 mt-[22px] text-[10.5px] font-extrabold tracking-[0.13em] text-[#9aa0a6]">
         FIELD MESSAGES

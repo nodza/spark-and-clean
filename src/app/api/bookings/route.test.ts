@@ -151,6 +151,9 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(payload.couponCode).toBe("SPARK10");
     expect(payload.estimatedPriceMin).toBe(applied.estimateMin);
     expect(payload.estimatedPriceMax).toBe(applied.estimateMax);
+    const lines = payload.rugs as { estimatedPriceMin: number; estimatedPriceMax: number }[];
+    expect(lines[0].estimatedPriceMin).toBe(estimate.totalMin);
+    expect(lines[0].estimatedPriceMax).toBe(estimate.totalMax);
     expect(payload.paymentStatus).toBe("UNPAID");
     expect(payload.promotion).not.toMatchObject({ discountCents: 1 });
     expect(couponFindOneAndUpdate).toHaveBeenCalledWith(
@@ -197,21 +200,55 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(paymentCreate).not.toHaveBeenCalled();
   });
 
-  it("ignores a posted rug list and stores one line from the singular rug", async () => {
+  it("prices each posted rug and ignores the posted line prices", async () => {
     const { POST } = await import("./route");
     const res = await POST(
       post({
+        rug: { type: "Wool", widthM: 9, lengthM: 9, areaSqM: 1 },
         rugs: [
-          { id: "posted-a", type: "Other", areaSqM: 1, estimatedPriceMin: 1 },
-          { id: "posted-b", type: "Other", areaSqM: 1, estimatedPriceMin: 1 },
+          {
+            id: "line-a",
+            type: "Persian",
+            widthM: 2,
+            lengthM: 3,
+            areaSqM: 1,
+            estimatedPriceMin: 1,
+            addOns: { odourRemoval: false, stainProtection: false },
+          },
+          {
+            id: "line-b",
+            type: "Kilim",
+            widthM: 1,
+            lengthM: 2,
+            estimatedPriceMin: 5,
+            addOns: { odourRemoval: true, stainProtection: false },
+          },
         ],
       })
     );
     expect(res.status).toBe(200);
-    const rugs = writtenPayload().rugs as { id: string; type: string }[];
-    expect(rugs).toHaveLength(1);
-    expect(rugs[0].type).toBe("Persian");
-    expect(rugs[0].id).not.toBe("posted-a");
+    const persian = estimateBookingPrice({
+      rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
+      addOns: { odourRemoval: false, stainProtection: false },
+    });
+    const kilim = estimateBookingPrice({
+      rug: { type: "Kilim", widthM: 1, lengthM: 2, areaSqM: 2 },
+      addOns: { odourRemoval: true, stainProtection: false },
+    });
+    const payload = writtenPayload();
+    const rugs = payload.rugs as {
+      id: string;
+      type: string;
+      estimatedPriceMin: number;
+      areaSqM: number;
+    }[];
+    expect(rugs.map((line) => line.id)).toEqual(["line-a", "line-b"]);
+    expect(rugs[0].estimatedPriceMin).toBe(persian.totalMin);
+    expect(rugs[1].estimatedPriceMin).toBe(kilim.totalMin);
+    expect(rugs[0].estimatedPriceMin).not.toBe(1);
+    expect(payload.estimatedPriceMin).toBe(persian.totalMin + kilim.totalMin);
+    expect(payload.rug).toMatchObject({ type: "Persian", areaSqM: 6 });
+    expect(payload.addOns).toMatchObject({ odourRemoval: false, stainProtection: false });
   });
 
   it("rejects create when the booking id already exists", async () => {

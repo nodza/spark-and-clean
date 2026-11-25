@@ -68,10 +68,12 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: LOCKED_SIZE_ERROR }, { status: 409 });
     }
 
+    const rugId = typeof raw.rugId === "string" ? raw.rugId.trim() : undefined;
     const committed = await commitMeasuredSize({
       bookingId,
       widthM: meters.widthM,
       lengthM: meters.lengthM,
+      rugId,
     });
     if (!committed.ok) {
       return NextResponse.json(

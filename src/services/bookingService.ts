@@ -93,7 +93,7 @@ class BookingService {
   /** Assigned driver corrects metres while the job is still scheduled. */
   async saveMeasuredSize(
     id: string,
-    size: { widthM: number; lengthM: number }
+    size: { widthM: number; lengthM: number; rugId?: string }
   ): Promise<Booking> {
     const res = await fetch(`/api/bookings/${id}/measurement`, {
       method: "PATCH",
@@ -102,6 +102,7 @@ class BookingService {
       body: JSON.stringify({
         widthM: size.widthM,
         lengthM: size.lengthM,
+        ...(size.rugId ? { rugId: size.rugId } : {}),
       }),
     });
     if (res.status === 401) {

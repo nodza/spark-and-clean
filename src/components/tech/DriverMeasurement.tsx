@@ -15,7 +15,7 @@ import { hasRugDimensions } from "@/lib/bookingEstimate";
 import { canTechnicianEditSize } from "@/lib/fieldStatus";
 import { readMeasuredMeters } from "@/lib/measuredSize";
 import { rugDimensionLabel } from "@/lib/techUi";
-import type { Booking } from "@/types/booking";
+import type { Booking, BookingRug } from "@/types/booking";
 import { cn } from "@/lib/utils";
 
 function meterText(value: number | null | undefined) {
@@ -28,20 +28,27 @@ function meterText(value: number | null | undefined) {
  */
 export function DriverMeasurement({
   booking,
+  rug,
   disabled,
   onSave,
 }: {
   booking: Booking;
+  rug?: BookingRug;
   disabled?: boolean;
-  onSave: (widthM: number, lengthM: number) => Promise<string | null>;
+  onSave: (
+    widthM: number,
+    lengthM: number,
+    rugId?: string
+  ) => Promise<string | null>;
 }) {
   const formId = useId();
   const widthId = `${formId}-width`;
   const lengthId = `${formId}-length`;
   const helpId = `${formId}-help`;
   const editTipId = `${formId}-edit-tip`;
+  const sizeRug = rug ?? booking.rug;
   const canEdit = canTechnicianEditSize(booking.status);
-  const hasSize = hasRugDimensions(booking.rug.widthM, booking.rug.lengthM);
+  const hasSize = hasRugDimensions(sizeRug.widthM, sizeRug.lengthM);
   const editLabel = hasSize ? "Edit measurements" : "Enter measurements";
   const [open, setOpen] = useState(false);
   const [widthRaw, setWidthRaw] = useState("");
@@ -53,8 +60,8 @@ export function DriverMeasurement({
 
   function openEditor() {
     if (!canEdit || disabled || saving) return;
-    setWidthRaw(meterText(booking.rug.widthM));
-    setLengthRaw(meterText(booking.rug.lengthM));
+    setWidthRaw(meterText(sizeRug.widthM));
+    setLengthRaw(meterText(sizeRug.lengthM));
     setWidthError(null);
     setLengthError(null);
     setFormError(null);
@@ -78,7 +85,7 @@ export function DriverMeasurement({
     setWidthError(null);
     setLengthError(null);
     setSaving(true);
-    const error = await onSave(parsed.widthM, parsed.lengthM);
+    const error = await onSave(parsed.widthM, parsed.lengthM, rug?.id);
     setSaving(false);
     if (error) {
       setFormError(error);
@@ -122,7 +129,7 @@ export function DriverMeasurement({
         )}
       >
         <span className="sr-only">Measurements </span>
-        {rugDimensionLabel(booking.rug)}
+        {rugDimensionLabel(sizeRug)}
       </p>
       {canEdit ? (
         <p id={helpId} className="mt-2 text-xs leading-relaxed text-[#6b7280]">

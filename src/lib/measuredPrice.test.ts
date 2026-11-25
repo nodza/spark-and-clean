@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
-import { priceAfterMeasurement, withoutPostedPrice } from "@/lib/measuredPrice";
+import {
+  MEASUREMENT_RUG_REQUIRED,
+  priceAfterMeasurement,
+  priceMeasuredLines,
+  withoutPostedPrice,
+} from "@/lib/measuredPrice";
 import { readMeasuredMeters } from "@/lib/measuredSize";
 import { quotedValueRand } from "@/lib/priceFormat";
 import {
@@ -178,6 +183,123 @@ describe("priceAfterMeasurement", () => {
     expect(modern.ok && legacy.ok).toBe(true);
     if (!modern.ok || !legacy.ok) return;
     expect(legacy.write.set.billing).toEqual(modern.write.set.billing);
+  });
+});
+
+describe("priceMeasuredLines", () => {
+  const persian = {
+    id: "line-a",
+    type: "Persian",
+    widthM: 2,
+    lengthM: 3,
+    areaSqM: 6,
+    addOns: { odourRemoval: false, stainProtection: false },
+    estimatedPriceMin: 720,
+    estimatedPriceMax: 864,
+  };
+  const kilim = {
+    id: "line-b",
+    type: "Kilim",
+    widthM: 1,
+    lengthM: 2,
+    areaSqM: 2,
+    addOns: { odourRemoval: false, stainProtection: false },
+    estimatedPriceMin: 160,
+    estimatedPriceMax: 192,
+  };
+
+  it("reprices the chosen rug and keeps the other rug's quote in the total", () => {
+    const priced = priceMeasuredLines({
+      lines: [persian, kilim],
+      rugId: "line-b",
+      widthM: 1,
+      lengthM: 1,
+      coupon: null,
+      amountPaidCents: 0,
+      measuredAt,
+    });
+    expect(priced.ok).toBe(true);
+    if (!priced.ok) return;
+
+    const kept = estimateBookingPrice({
+      rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
+      addOns: persian.addOns,
+    });
+    const measured = estimateBookingPrice({
+      rug: { type: "Kilim", widthM: 1, lengthM: 1, areaSqM: 1 },
+      addOns: kilim.addOns,
+    });
+    const rugs = priced.write.set.rugs as {
+      id: string;
+      widthM: number;
+      estimatedPriceMin: number;
+      measuredQuote?: { estimatedPriceMin: number };
+    }[];
+    expect(rugs[0]).toMatchObject({ id: "line-a", widthM: 2, estimatedPriceMin: 720 });
+    expect(rugs[0].measuredQuote).toBeUndefined();
+    expect(rugs[1]).toMatchObject({
+      id: "line-b",
+      widthM: 1,
+      lengthM: 1,
+      estimatedPriceMin: 160,
+      measuredQuote: { estimatedPriceMin: measured.totalMin },
+    });
+    expect(priced.write.set["rug.widthM"]).toBeUndefined();
+    expect(priced.write.set.measuredQuote).toMatchObject({
+      estimatedPriceMin: kept.totalMin + measured.totalMin,
+      estimatedPriceMax: kept.totalMax + measured.totalMax,
+    });
+    expect(priced.write.set.billing).toMatchObject({
+      amountDueCents: estimateQuoteMidpointCents(
+        kept.totalMin + measured.totalMin,
+        kept.totalMax + measured.totalMax
+      ),
+    });
+  });
+
+  it("applies the booking coupon once to the summed rugs", () => {
+    const coupon = { type: "FIXED_CENTS" as const, value: 5000 };
+    const priced = priceMeasuredLines({
+      lines: [persian, kilim],
+      rugId: "line-a",
+      widthM: 2,
+      lengthM: 3,
+      coupon: { couponId: "coupon-1", code: "TAKE50", coupon },
+      amountPaidCents: 0,
+      measuredAt,
+    });
+    expect(priced.ok).toBe(true);
+    if (!priced.ok) return;
+    const persianQuote = estimateBookingPrice({
+      rug: { type: "Persian", widthM: 2, lengthM: 3, areaSqM: 6 },
+      addOns: persian.addOns,
+    });
+    const kilimQuote = estimateBookingPrice({
+      rug: { type: "Kilim", widthM: 1, lengthM: 2, areaSqM: 2 },
+      addOns: kilim.addOns,
+    });
+    const once = applyCoupon(
+      coupon,
+      persianQuote.totalMin + kilimQuote.totalMin,
+      persianQuote.totalMax + kilimQuote.totalMax
+    );
+    expect(priced.write.set["promotion.discountCents"]).toBe(once.discountCents);
+    expect(priced.write.set["promotion.amountDueCents"]).toBe(
+      estimateQuoteMidpointCents(once.estimateMin, once.estimateMax)
+    );
+    expect(priced.write.set["rug.widthM"]).toBe(2);
+  });
+
+  it("asks for a rug id when the booking has several rugs", () => {
+    const priced = priceMeasuredLines({
+      lines: [persian, kilim],
+      widthM: 1,
+      lengthM: 1,
+      coupon: null,
+      amountPaidCents: 0,
+      measuredAt,
+    });
+    expect(priced).toEqual({ ok: false, error: MEASUREMENT_RUG_REQUIRED });
   });
 });
 

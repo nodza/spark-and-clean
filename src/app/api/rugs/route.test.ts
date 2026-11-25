@@ -298,13 +298,21 @@ describe("POST /api/rugs", () => {
         status: { $in: ["BOOKED", "SCHEDULED"] },
       }),
       {
-        $set: {
+        $set: expect.objectContaining({
           "rug.tagCode": result.rug.tagCode,
           "rug.assetId": "asset-1",
-        },
+        }),
       },
       { new: true, runValidators: true }
     );
+    const written = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: { rugs: { id: string; tagCode: string }[] };
+    };
+    expect(written.$set.rugs).toHaveLength(1);
+    expect(written.$set.rugs[0]).toMatchObject({
+      id: "rug-1",
+      tagCode: result.rug.tagCode,
+    });
   });
 
   it("claims a pre-printed code asset and links it to the booking", async () => {
@@ -330,6 +338,59 @@ describe("POST /api/rugs", () => {
       { new: true }
     );
     expect(mocks.rugAssetCreate).not.toHaveBeenCalled();
+  });
+
+  it("tags the requested rug and leaves the other rug untagged on the booking mirror", async () => {
+    mocks.bookingFindOne.mockImplementation((filter) => {
+      if (filter?.id === "SC-DEMO-1") {
+        return {
+          lean: () =>
+            Promise.resolve({
+              ...bookingFixture,
+              rug: { type: "Persian", photos: [], tagCode: "SC-RUG-FIRST1" },
+              rugs: [
+                {
+                  id: "line-a",
+                  type: "Persian",
+                  widthM: 2,
+                  lengthM: 3,
+                  areaSqM: 6,
+                  addOns: { odourRemoval: false, stainProtection: false },
+                  estimatedPriceMin: 720,
+                  estimatedPriceMax: 864,
+                  tagCode: "SC-RUG-FIRST1",
+                },
+                {
+                  id: "line-b",
+                  type: "Kilim",
+                  widthM: 1,
+                  lengthM: 1,
+                  areaSqM: 1,
+                  addOns: { odourRemoval: false, stainProtection: false },
+                  estimatedPriceMin: 80,
+                  estimatedPriceMax: 96,
+                },
+              ],
+            }),
+        };
+      }
+      return query({ id: "other" });
+    });
+
+    const response = await post({
+      bookingId: "SC-DEMO-1",
+      rugId: "line-b",
+      tagCode: "SC-RUG-SECOND",
+    });
+    expect(response.status).toBe(200);
+    const written = mocks.bookingFindOneAndUpdate.mock.calls[0][1] as {
+      $set: { rugs: { id: string; tagCode?: string }[]; "rug.tagCode"?: string };
+    };
+    expect(written.$set["rug.tagCode"]).toBeUndefined();
+    expect(written.$set.rugs.map((line) => [line.id, line.tagCode])).toEqual([
+      ["line-a", "SC-RUG-FIRST1"],
+      ["line-b", "SC-RUG-SECOND"],
+    ]);
   });
 
   it("returns 403 when a different technician tries to tag the booking", async () => {

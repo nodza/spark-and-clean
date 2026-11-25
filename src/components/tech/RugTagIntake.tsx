@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Download, Loader2, Printer, Tag } from "lucide-react";
-import type { Booking } from "@/types/booking";
+import { bookingRugs } from "@/lib/bookingRugs";
+import { hasRugTagCode } from "@/lib/fieldStatus";
+import type { Booking, BookingRug } from "@/types/booking";
 
 type RugTagIntakeProps = {
   booking: Booking;
@@ -16,22 +18,39 @@ const printStyles = `
   .sticker { width: 50mm; min-height: 56mm; padding: 3mm; border: 0.3mm solid #bbb; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; }
   img { display: block; width: 42mm; height: 42mm; }
   p { margin: 0; font-size: 11pt; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
+  .count { font-size: 9pt; font-weight: 700; }
   @media screen { body { padding: 16px; } }
 `;
 
-export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
+function RugTagCard({
+  booking,
+  rug,
+  index,
+  total,
+  busyId,
+  onBusy,
+  onTagged,
+}: {
+  booking: Booking;
+  rug: BookingRug;
+  index: number;
+  total: number;
+  busyId: string | null;
+  onBusy: (id: string | null) => void;
+  onTagged: (booking: Booking) => void;
+}) {
   const [tagCodeInput, setTagCodeInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const [tagError, setTagError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
-  const tagCode = booking.rug.tagCode;
-  const qrUrl = tagCode
-    ? `/api/rugs/${encodeURIComponent(tagCode)}/qr`
-    : "";
+  const tagCode = hasRugTagCode(rug.tagCode) ? rug.tagCode!.trim() : "";
+  const busy = busyId === rug.id;
+  const position = `Rug ${index + 1} / ${total}`;
+  const qrUrl = tagCode ? `/api/rugs/${encodeURIComponent(tagCode)}/qr` : "";
+  const inputId = `rug-tag-code-${rug.id}`;
 
   async function attachTag(code?: string) {
-    if (busy || tagCode) return;
-    setBusy(true);
+    if (busyId || tagCode) return;
+    onBusy(rug.id);
     setTagError(null);
 
     try {
@@ -40,6 +59,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: booking.id,
+          rugId: rug.id,
           ...(code ? { tagCode: code } : {}),
         }),
       });
@@ -51,7 +71,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
     } catch (err) {
       setTagError(err instanceof Error ? err.message : "Could not attach tag");
     } finally {
-      setBusy(false);
+      onBusy(null);
     }
   }
 
@@ -74,7 +94,10 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
     image.alt = `QR code for rug tag ${tagCode}`;
     const code = document.createElement("p");
     code.textContent = tagCode;
-    sticker.append(image, code);
+    const count = document.createElement("p");
+    count.className = "count";
+    count.textContent = position;
+    sticker.append(image, code, count);
     document.head.append(style);
     document.body.replaceChildren(sticker);
 
@@ -92,13 +115,13 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
 
   return (
     <section
-      aria-labelledby="rug-tag-sticker-heading"
+      aria-labelledby={`rug-tag-sticker-heading-${rug.id}`}
       className="mt-3 rounded-xl border border-[#d7e9e4] bg-[#f5fbf8] px-[15px] py-3.5"
     >
       <div className="flex items-center gap-2 text-sm font-bold text-navy">
         <Tag className="size-4 text-[#0a7a63]" aria-hidden />
-        <h2 id="rug-tag-sticker-heading">
-          {tagCode ? "Rug tag sticker" : "Rug intake tag"}
+        <h2 id={`rug-tag-sticker-heading-${rug.id}`}>
+          {tagCode ? `${position} tag` : `${position} intake`}
         </h2>
       </div>
       {tagCode ? (
@@ -112,6 +135,7 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
             />
             <div className="min-w-0">
               <p className="break-all text-sm font-extrabold text-navy">{tagCode}</p>
+              <p className="text-xs font-bold text-[#0a7a63]">{position}</p>
               <p className="mt-1 text-xs text-[#6b7280]">
                 QR contains this tag code only.
               </p>
@@ -147,13 +171,13 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
             Attach a tag before marking this rug collected.
           </p>
           <label
-            htmlFor="rug-tag-code"
+            htmlFor={inputId}
             className="mb-1.5 mt-3 block text-xs font-semibold text-[#32373c]"
           >
             Pre-printed tag code <span className="font-normal text-[#9aa0a6]">(optional)</span>
           </label>
           <input
-            id="rug-tag-code"
+            id={inputId}
             value={tagCodeInput}
             onChange={(event) => setTagCodeInput(event.target.value.toUpperCase())}
             autoCapitalize="characters"
@@ -193,5 +217,27 @@ export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
         </>
       )}
     </section>
+  );
+}
+
+export function RugTagIntake({ booking, onTagged }: RugTagIntakeProps) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const rugs = bookingRugs(booking);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {rugs.map((rug, index) => (
+        <RugTagCard
+          key={rug.id}
+          booking={booking}
+          rug={rug}
+          index={index}
+          total={rugs.length}
+          busyId={busyId}
+          onBusy={setBusyId}
+          onTagged={onTagged}
+        />
+      ))}
+    </div>
   );
 }

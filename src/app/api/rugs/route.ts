@@ -6,6 +6,7 @@ import { Booking } from "@/models/Booking";
 import { RugAsset } from "@/models/RugAsset";
 import { toClientBooking } from "@/lib/serialize";
 import { isVanCollectStatus } from "@/lib/fieldStatus";
+import { bookingRugs } from "@/lib/bookingRugs";
 import { generateRugTagCode } from "@/lib/rugAsset/tagCode";
 import { getSession } from "@/lib/session";
 import { presentPhotoList } from "@/lib/s3RugPhotos";
@@ -106,7 +107,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await requireTechnicianSession();
-    let body: { bookingId?: unknown; tagCode?: unknown };
+    let body: { bookingId?: unknown; tagCode?: unknown; rugId?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -142,7 +143,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const currentTagCode = booking.rug?.tagCode?.trim();
+    const lines = bookingRugs(booking as Parameters<typeof bookingRugs>[0]);
+    const requestedRugId =
+      typeof body.rugId === "string" ? body.rugId.trim() : "";
+    const targetId = requestedRugId || (lines.length === 1 ? lines[0].id : "");
+    if (!targetId) {
+      return NextResponse.json(
+        { error: "Choose which rug to tag." },
+        { status: 400 }
+      );
+    }
+    const index = lines.findIndex((line) => line.id === targetId);
+    if (index < 0) {
+      return NextResponse.json(
+        { error: "That rug is not on this booking." },
+        { status: 400 }
+      );
+    }
+    const target = lines[index];
+    const currentTagCode = target.tagCode?.trim();
     if (currentTagCode) {
       if (suppliedTagCode && currentTagCode.toUpperCase() !== suppliedTagCode) {
         return NextResponse.json(
@@ -151,6 +170,19 @@ export async function POST(request: Request) {
         );
       }
       return NextResponse.json(toClientBooking(booking as Record<string, unknown>));
+    }
+    if (
+      suppliedTagCode &&
+      lines.some(
+        (line) =>
+          line.id !== target.id &&
+          line.tagCode?.trim().toUpperCase() === suppliedTagCode
+      )
+    ) {
+      return NextResponse.json(
+        { error: "This tag is already on another rug in this booking." },
+        { status: 409 }
+      );
     }
 
     const tagCode = suppliedTagCode || generateRugTagCode();
@@ -191,31 +223,55 @@ export async function POST(request: Request) {
         tagCode,
         ownerUserId: booking.userId,
         ownerEmail: booking.customer.email,
-        type: booking.rug.type,
-        photoUrls: booking.rug.photos ?? [],
+        type: target.type || booking.rug.type,
+        photoUrls: target.photos ?? booking.rug.photos ?? [],
         currentBookingId: bookingId,
         status: "IN_CARE",
       });
       createdAsset = true;
     }
 
+    const taggedLines = lines.map((line, lineIndex) =>
+      lineIndex === index
+        ? { ...line, tagCode, assetId: String(asset._id) }
+        : line
+    );
+    const set: Record<string, unknown> = { rugs: taggedLines };
+    if (index === 0) {
+      set["rug.tagCode"] = tagCode;
+      set["rug.assetId"] = asset._id;
+    }
+    const storedList = Array.isArray(
+      (booking as { rugs?: unknown }).rugs
+    ) && ((booking as { rugs?: unknown[] }).rugs?.length ?? 0) > 0;
+    const tagGuard = storedList
+      ? {
+          rugs: {
+            $elemMatch: {
+              id: targetId,
+              $or: [
+                { tagCode: { $exists: false } },
+                { tagCode: null },
+                { tagCode: "" },
+              ],
+            },
+          },
+        }
+      : {
+          $or: [
+            { "rug.tagCode": { $exists: false } },
+            { "rug.tagCode": null },
+            { "rug.tagCode": "" },
+          ],
+        };
     const updated = await Booking.findOneAndUpdate(
       {
         id: bookingId,
         assignedDriverId: session.driverProfileId,
         status: { $in: ["BOOKED", "SCHEDULED"] },
-        $or: [
-          { "rug.tagCode": { $exists: false } },
-          { "rug.tagCode": null },
-          { "rug.tagCode": "" },
-        ],
+        ...tagGuard,
       },
-      {
-        $set: {
-          "rug.tagCode": tagCode,
-          "rug.assetId": asset._id,
-        },
-      },
+      { $set: set },
       { new: true, runValidators: true }
     ).lean();
 
