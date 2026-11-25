@@ -106,6 +106,31 @@ describe("jobsForAssignmentDay", () => {
     expect(delivery?.boardSlot).toBe("AFTERNOON");
     expect(delivery?.boardDriverId).toBe("d2");
   });
+
+  it("skips an office leg and keeps the driver leg of a mixed booking", () => {
+    const rows = jobsForAssignmentDay(
+      [
+        base({ id: "drop", handoverIn: "dropoff", branchKey: "gauteng" }),
+        base({
+          id: "collect-return",
+          status: "READY",
+          handoverOut: "collect",
+          branchKey: "cape-town",
+          deliveryDate: "2026-09-17",
+          deliverySlot: "MORNING",
+        }),
+        base({
+          id: "mixed",
+          handoverOut: "collect",
+          branchKey: "gauteng",
+          status: "BOOKED",
+        }),
+      ],
+      "2026-09-17"
+    );
+    expect(rows.map((row) => row.id)).toEqual(["mixed"]);
+    expect(rows[0]?.stopKind).toBe("collection");
+  });
 });
 
 describe("collectionsForAssignmentDay", () => {

@@ -31,7 +31,6 @@ import {
   localCalendarDate,
   toCalendarDateString,
 } from "@/lib/localCalendarDate";
-import { cn } from "@/lib/utils";
 import {
   sanitizePhoneInput,
   validateCustomerName,
@@ -43,6 +42,17 @@ import { geocodeTypedAddress } from "@/lib/addressAutocomplete";
 import { enrichFreeTextAddress, preciseCoordinates } from "@/lib/geocode/address";
 import { coordinateInCollectionArea } from "@/lib/serviceArea";
 import { hasValidCoordinates } from "@/lib/jobMapCoords";
+import { branchContacts } from "@/data/branchContacts";
+import {
+  branchByKey,
+  isDriverCollection,
+  needsBranch,
+  needsCustomerAddress,
+  type BranchKey,
+  type HandoverIn,
+  type HandoverOut,
+} from "@/lib/handover";
+import { cn } from "@/lib/utils";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -102,6 +112,18 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
   useImperativeHandle(ref, () => ({
     prepareAddress: async () => {
       const current = dataRef.current;
+      if (!needsCustomerAddress(current)) {
+        const branch = branchByKey(current.branchKey);
+        if (!branch) return {};
+        return {
+          addressLine1: branch.address,
+          suburb: branch.area,
+          city: branch.serviceCity,
+          postalCode: undefined,
+          coordinates: undefined,
+          collectionSlot: undefined,
+        };
+      }
       const enriched = enrichFreeTextAddress({
         addressLine1: current.addressLine1,
         suburb: current.suburb,
@@ -181,6 +203,76 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
   const addressError = errors.addressLine1;
   const suburbError = errors.suburb;
   const cityError = errors.city;
+  const inbound: HandoverIn = data.handoverIn === "dropoff" ? "dropoff" : "collection";
+  const outbound: HandoverOut = data.handoverOut === "collect" ? "collect" : "delivery";
+  const askAddress = needsCustomerAddress({ handoverIn: inbound, handoverOut: outbound });
+  const askSlot = isDriverCollection({ handoverIn: inbound });
+  const askBranch = needsBranch({ handoverIn: inbound, handoverOut: outbound });
+  const addressTitle = inbound === "dropoff" ? "Delivery address" : "Collection address";
+
+  const storedBranchAddress = () => {
+    const branch = branchByKey(data.branchKey);
+    return Boolean(branch && data.addressLine1 === branch.address);
+  };
+  const chooseInbound = (next: HandoverIn) => {
+    const nextNeedsAddress = needsCustomerAddress({
+      handoverIn: next,
+      handoverOut: outbound,
+    });
+    update({
+      handoverIn: next,
+      ...(next === "dropoff" ? { collectionSlot: undefined } : {}),
+      ...(nextNeedsAddress && storedBranchAddress()
+        ? {
+            addressLine1: "",
+            suburb: "",
+            city: "",
+            postalCode: undefined,
+            coordinates: undefined,
+          }
+        : {}),
+    });
+    onClearError?.("collectionSlot");
+    onClearError?.("addressLine1");
+    onClearError?.("suburb");
+    onClearError?.("city");
+  };
+  const chooseOutbound = (next: HandoverOut) => {
+    const nextNeedsAddress = needsCustomerAddress({
+      handoverIn: inbound,
+      handoverOut: next,
+    });
+    update({
+      handoverOut: next,
+      ...(nextNeedsAddress && storedBranchAddress()
+        ? {
+            addressLine1: "",
+            suburb: "",
+            city: "",
+            postalCode: undefined,
+            coordinates: undefined,
+          }
+        : {}),
+    });
+    onClearError?.("addressLine1");
+    onClearError?.("branchKey");
+  };
+  const chooseBranch = (id: BranchKey) => {
+    const branch = branchByKey(id);
+    update({
+      branchKey: id,
+      ...(!askAddress && branch
+        ? {
+            addressLine1: branch.address,
+            suburb: branch.area,
+            city: branch.serviceCity,
+            coordinates: undefined,
+            postalCode: undefined,
+          }
+        : {}),
+    });
+    onClearError?.("branchKey");
+  };
   const parsedPin = preciseCoordinates(
     Number(data.coordinates?.lat),
     Number(data.coordinates?.lng)
@@ -240,8 +332,63 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
 
   return (
     <div className="space-y-6">
+      <fieldset className="space-y-3">
+        <legend className="font-semibold text-lg">How the rug reaches us</legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ChoiceButton
+            pressed={inbound === "collection"}
+            onClick={() => chooseInbound("collection")}
+            title="We collect it"
+            detail="A driver picks it up from you."
+          />
+          <ChoiceButton
+            pressed={inbound === "dropoff"}
+            onClick={() => chooseInbound("dropoff")}
+            title="I drop it at a branch"
+            detail="Bring it to Kya Sand or Maitland."
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="font-semibold text-lg">How it comes back</legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ChoiceButton
+            pressed={outbound === "delivery"}
+            onClick={() => chooseOutbound("delivery")}
+            title="Deliver it to me"
+            detail="A driver brings it back."
+          />
+          <ChoiceButton
+            pressed={outbound === "collect"}
+            onClick={() => chooseOutbound("collect")}
+            title="I collect it from the branch"
+            detail="Fetch it when it is ready."
+          />
+        </div>
+      </fieldset>
+
+      {askBranch ? (
+        <fieldset className="space-y-3">
+          <legend className="font-semibold text-lg">Branch</legend>
+          <div className="grid grid-cols-1 gap-2">
+            {branchContacts.map((branch) => (
+              <ChoiceButton
+                key={branch.id}
+                pressed={data.branchKey === branch.id}
+                onClick={() => chooseBranch(branch.id)}
+                title={`${branch.name} · ${branch.area}`}
+                detail={`${branch.address} · ${branch.phones[0]?.number ?? ""}`}
+              />
+            ))}
+          </div>
+          <FieldError id="branch-error" message={errors.branchKey} />
+        </fieldset>
+      ) : null}
+
+      {askAddress ? (
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">Collection Address</h3>
+        <h3 className="font-semibold text-lg">{addressTitle}</h3>
         <div className="space-y-2">
           <Label htmlFor="address">Street Address</Label>
           <AddressAutocomplete
@@ -424,9 +571,13 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
           />
         ) : null}
       </div>
+      ) : null}
 
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">Preferred Collection Time</h3>
+        <h3 className="font-semibold text-lg">
+          {inbound === "dropoff" ? "Drop-off day" : "Preferred collection time"}
+        </h3>
+        <FieldError id="date-error" message={errors.collectionDate} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Date</Label>
@@ -455,13 +606,14 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
                       ? bookingCalendarDateLocal(data.collectionDate) ?? undefined
                       : undefined
                   }
-                  onSelect={(date) =>
+                  onSelect={(date) => {
                     update({
                       collectionDate: date
                         ? toCalendarDateString(date)
                         : undefined,
-                    })
-                  }
+                    });
+                    onClearError?.("collectionDate");
+                  }}
                   initialFocus
                   disabled={(date) =>
                     toCalendarDateString(date) < localCalendarDate()
@@ -470,15 +622,17 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
               </PopoverContent>
             </Popover>
           </div>
+          {askSlot ? (
           <div className="space-y-2">
             <Label htmlFor="slot">Time Slot</Label>
             <Select
               value={data.collectionSlot}
-              onValueChange={(val: "MORNING" | "AFTERNOON") =>
-                update({ collectionSlot: val })
-              }
+              onValueChange={(val: "MORNING" | "AFTERNOON") => {
+                update({ collectionSlot: val });
+                onClearError?.("collectionSlot");
+              }}
             >
-              <SelectTrigger id="slot">
+              <SelectTrigger id="slot" aria-invalid={Boolean(errors.collectionSlot) || undefined}>
                 <SelectValue placeholder="Select time" />
               </SelectTrigger>
               <SelectContent>
@@ -488,7 +642,9 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
                 </SelectItem>
               </SelectContent>
             </Select>
+            <FieldError id="slot-error" message={errors.collectionSlot} />
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -577,3 +733,35 @@ export const Step3Location = forwardRef<Step3LocationHandle, StepProps>(
     </div>
   );
 });
+
+function ChoiceButton({
+  pressed,
+  onClick,
+  title,
+  detail,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        "rounded-[10px] border px-3 py-3 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        pressed
+          ? "border-[#000b49] bg-[#000b49] text-white"
+          : "border-[#d5d9de] bg-white text-[#000b49] hover:border-[#000b49]"
+      )}
+    >
+      <span className="block text-[14px] font-bold">{title}</span>
+      <span className={cn("mt-1 block text-[12px] leading-snug", pressed ? "text-white/80" : "text-[#6b7280]")}>
+        {detail}
+      </span>
+    </button>
+  );
+}

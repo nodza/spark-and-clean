@@ -30,6 +30,17 @@ function booking(
 }
 
 describe("groupPickupsIntoZones", () => {
+  it("leaves an office drop-off off the driver zones", () => {
+    const zones = groupPickupsIntoZones(
+      [
+        booking({ id: "driver" }),
+        booking({ id: "office", handoverIn: "dropoff", suburb: "Kya Sand" }),
+      ],
+      scope
+    );
+    expect(zones.flatMap((zone) => zone.bookingIds)).toEqual(["driver"]);
+  });
+
   it("puts Sea Point and a pickup 2 km away in one zone, and Durbanville in another", () => {
     const nearby: LatLngTuple = [seaPoint[0] + 0.018, seaPoint[1]];
     const twentyKmNorth: LatLngTuple = [seaPoint[0] + 0.18, seaPoint[1]];

@@ -4,6 +4,7 @@ import {
   johannesburgCalendarDate,
 } from "@/lib/localCalendarDate";
 import { hasDeliverySchedule } from "@/lib/deliverySchedule";
+import { isDriverCollection, isDriverDelivery } from "@/lib/handover";
 import { Booking } from "@/models/Booking";
 import { toClientBooking } from "@/lib/serialize";
 import type { Booking as ClientBooking } from "@/types/booking";
@@ -24,10 +25,14 @@ export function shiftCalendarDate(iso: string, days: number): string {
 }
 
 export function isCollectionReminderDue(
-  booking: Pick<ClientBooking, "status" | "collectionDate" | "deactivatedAt" | "customer">,
+  booking: Pick<
+    ClientBooking,
+    "status" | "collectionDate" | "deactivatedAt" | "customer" | "handoverIn"
+  >,
   tomorrowIso: string
 ): boolean {
   if (isBookingDeactivated(booking)) return false;
+  if (!isDriverCollection(booking)) return false;
   if (booking.status !== "BOOKED" && booking.status !== "SCHEDULED") return false;
   if (!booking.customer?.email?.includes("@")) return false;
   return bookingCalendarDate(booking.collectionDate) === tomorrowIso;
@@ -36,11 +41,12 @@ export function isCollectionReminderDue(
 export function isOutForDeliveryDue(
   booking: Pick<
     ClientBooking,
-    "status" | "deliveryDate" | "deliverySlot" | "deactivatedAt" | "customer"
+    "status" | "deliveryDate" | "deliverySlot" | "deactivatedAt" | "customer" | "handoverOut"
   >,
   todayIso: string
 ): boolean {
   if (isBookingDeactivated(booking)) return false;
+  if (!isDriverDelivery(booking)) return false;
   if (booking.status !== "READY") return false;
   if (!hasDeliverySchedule(booking)) return false;
   if (!booking.customer?.email?.includes("@")) return false;
@@ -60,6 +66,9 @@ const BOOKING_FIELDS = {
   deliverySlot: 1,
   deliveryDriverId: 1,
   assignedDriverId: 1,
+  handoverIn: 1,
+  handoverOut: 1,
+  branchKey: 1,
   rug: 1,
   addOns: 1,
   estimatedPriceMin: 1,

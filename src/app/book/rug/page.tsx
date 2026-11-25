@@ -30,6 +30,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
 import { Booking, Customer } from "@/types/booking";
 import { isPersistedClient } from "@/types/user";
+import { branchByKey } from "@/lib/handover";
 
 function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
   const needle = email.toLowerCase();
@@ -53,21 +54,34 @@ function buildSubmittedBooking(
     phone: "",
   };
 
+  const inbound = formData.handoverIn === "dropoff" ? "dropoff" : "collection";
+  const outbound = formData.handoverOut === "collect" ? "collect" : "delivery";
+  const branch =
+    inbound === "dropoff" || outbound === "collect"
+      ? branchByKey(formData.branchKey)
+      : null;
+  const officeOnly = inbound === "dropoff" && outbound === "collect" && branch;
+
   return {
     id: bookingId,
     customer: {
       ...customer,
       id: customer.id || `guest-${Date.now()}`,
     },
-    suburb: formData.suburb || "",
-    addressLine1: formData.addressLine1 || "",
-    city: formData.city || "",
+    handoverIn: inbound,
+    handoverOut: outbound,
+    ...(branch ? { branchKey: branch.id } : {}),
+    suburb: officeOnly ? branch.area : formData.suburb || "",
+    addressLine1: officeOnly ? branch.address : formData.addressLine1 || "",
+    city: officeOnly ? branch.serviceCity : formData.city || "",
     ...(formData.postalCode?.trim()
       ? { postalCode: formData.postalCode.trim() }
       : {}),
     coordinates: formData.coordinates,
     collectionDate: formData.collectionDate || localCalendarDate(),
-    collectionSlot: formData.collectionSlot || "MORNING",
+    ...(inbound === "collection"
+      ? { collectionSlot: formData.collectionSlot || "MORNING" }
+      : {}),
     rug: formData.rug || {
       type: "",
       widthM: null,
@@ -128,6 +142,8 @@ export default function BookingWizard() {
       stainProtection: false,
     },
     customer: { id: "", name: "", email: "", phone: "" },
+    handoverIn: "collection",
+    handoverOut: "delivery",
   });
 
   useEffect(() => {
@@ -320,7 +336,13 @@ export default function BookingWizard() {
       email: sessionEmail || formData.customer?.email || "",
     };
 
-    const bookingId = generateBookingReference(formData.city);
+    const branchForRef =
+      formData.handoverIn === "dropoff" || formData.handoverOut === "collect"
+        ? branchByKey(formData.branchKey)
+        : null;
+    const bookingId = generateBookingReference(
+      formData.city || branchForRef?.serviceCity
+    );
     const booking = buildSubmittedBooking(
       {
         ...formData,

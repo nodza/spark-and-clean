@@ -5,6 +5,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { MapPin, Ruler, Tag, WalletCards } from "lucide-react";
 import { formatBookingCollection } from "@/lib/localCalendarDate";
+import {
+  branchForBooking,
+  isOfficeCollect,
+  isOfficeDropoff,
+} from "@/lib/handover";
 
 interface StepProps {
   data: Partial<Booking>;
@@ -53,12 +58,21 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
   const collectionDate = data.collectionDate
     ? formatBookingCollection(data.collectionDate, "PPP", "") || null
     : null;
+  const dropoff = isOfficeDropoff(data);
+  const collect = isOfficeCollect(data);
+  const branch = branchForBooking(data);
   const collectionSlot =
     data.collectionSlot === "MORNING"
       ? "Morning · 08:00 – 12:00"
       : data.collectionSlot === "AFTERNOON"
         ? "Afternoon · 12:00 – 16:00"
         : null;
+  const arrival = dropoff
+    ? `Drop off at ${branch ? `${branch.name}, ${branch.area}` : "a branch"}`
+    : "We collect it";
+  const returning = collect
+    ? `Collect from ${branch ? `${branch.name}, ${branch.area}` : "the branch"}`
+    : "We deliver it";
 
   const addOns =
     bookingAddOnLabels(data.addOns, OPS_ADD_ON_COPY).join(", ") || "None";
@@ -83,12 +97,25 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
 
       <section className="rounded-xl border bg-card p-4 shadow-sm">
         <h3 className="flex items-center gap-2 border-b pb-3 text-base font-semibold">
-          <MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Pickup Location & Time
+          <MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Pickup and return
         </h3>
         <dl className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
-          <Detail label="Address">{[street, locality].filter(Boolean).join(", ") || "Not provided"}</Detail>
-          <Detail label="Pickup window">
-            {collectionDate || collectionSlot ? `${collectionDate || "Date pending"}${collectionSlot ? ` · ${collectionSlot}` : ""}` : "Not provided"}
+          <Detail label="To us">{arrival}</Detail>
+          <Detail label="Back to you">{returning}</Detail>
+          {branch ? (
+            <Detail label="Branch">{branch.address}</Detail>
+          ) : null}
+          {!dropoff || !collect ? (
+            <Detail label={dropoff ? "Delivery address" : "Address"}>
+              {[street, locality].filter(Boolean).join(", ") || "Not provided"}
+            </Detail>
+          ) : null}
+          <Detail label={dropoff ? "Drop-off day" : "Pickup window"}>
+            {dropoff
+              ? collectionDate || "Not provided"
+              : collectionDate || collectionSlot
+                ? `${collectionDate || "Date pending"}${collectionSlot ? ` · ${collectionSlot}` : ""}`
+                : "Not provided"}
           </Detail>
           {hasCoordinates ? (
             <Detail label="Map pin">

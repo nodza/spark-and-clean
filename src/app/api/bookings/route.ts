@@ -20,6 +20,7 @@ import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 import { attachGeocodedCoordinates } from "@/lib/geocode/provider";
+import { normalizeBookingHandover } from "@/lib/handover";
 
 export async function GET() {
   try {
@@ -246,6 +247,11 @@ export async function POST(request: Request) {
     // Only a full client session may stamp userId. Guests stay unclaimed.
     if (session && isFullAccount(session) && isClientRole(session.role)) {
       payload.userId = session.id;
+    }
+
+    const handoverError = normalizeBookingHandover(payload);
+    if (handoverError) {
+      return NextResponse.json({ error: handoverError }, { status: 400 });
     }
 
     try {

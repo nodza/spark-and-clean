@@ -26,6 +26,12 @@ import {
   hasDeliverySchedule,
 } from "@/lib/deliverySchedule";
 import {
+  branchForBooking,
+  branchLabel,
+  isOfficeCollect,
+  isOfficeDropoff,
+} from "@/lib/handover";
+import {
   bookingCalendarDate,
   formatBookingCollection,
   localCalendarDate,
@@ -854,14 +860,39 @@ export default function AdminBookingDetail() {
                       </p>
                     </div>
                     <div>
-                      <JobDetailLabel icon={Clock}>Time slot</JobDetailLabel>
+                      <JobDetailLabel icon={Clock}>
+                        {isOfficeDropoff(booking) ? "Arrival" : "Time slot"}
+                      </JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
-                        {booking.collectionSlot}
+                        {isOfficeDropoff(booking)
+                          ? `Drop-off at ${branchLabel(booking)}`
+                          : booking.collectionSlot || "—"}
                       </p>
                     </div>
                   </div>
+                  {isOfficeDropoff(booking) || isOfficeCollect(booking) ? (
+                    <div className="mt-[16px]">
+                      <JobDetailLabel icon={MapPin}>Branch</JobDetailLabel>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {branchLabel(booking)}
+                      </p>
+                      <p className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>
+                        {branchForBooking(booking)?.address}
+                        {isOfficeCollect(booking)
+                          ? " · Client collects the rug here"
+                          : ""}
+                        {isOfficeDropoff(booking)
+                          ? " · Client drops the rug here"
+                          : ""}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="mt-[16px]">
-                    <JobDetailLabel icon={MapPin}>Address</JobDetailLabel>
+                    <JobDetailLabel icon={MapPin}>
+                      {isOfficeDropoff(booking) && !isOfficeCollect(booking)
+                        ? "Delivery address"
+                        : "Address"}
+                    </JobDetailLabel>
                     <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                       {booking.addressLine1}
                     </p>
@@ -1165,7 +1196,22 @@ export default function AdminBookingDetail() {
                   ) : null}
                 </div>
 
-                {booking.status === "READY" ||
+                {isOfficeCollect(booking) ? (
+                  <div className="ds-card">
+                    <div className="text-card-title" style={{ color: "#000b49" }}>
+                      Office collect
+                    </div>
+                    <p className="text-meta mt-[6px]" style={{ color: "#9aa0a6" }}>
+                      No delivery driver. The client fetches the rug from the branch.
+                    </p>
+                    <p className="text-body mt-[12px]" style={{ color: "#32373c" }}>
+                      {branchLabel(booking)}
+                    </p>
+                    <p className="text-meta mt-[2px]" style={{ color: "#9aa0a6" }}>
+                      {branchForBooking(booking)?.address}
+                    </p>
+                  </div>
+                ) : booking.status === "READY" ||
                 booking.status === "DELIVERED" ||
                 hasDeliverySchedule(booking) ? (
                   <div className="ds-card">

@@ -145,10 +145,30 @@ const BookingSchema = new Schema(
     postalCode: { type: String, trim: true, maxlength: 12 },
     coordinates: { type: CoordinatesSchema },
     collectionDate: { type: String, required: true },
+    /**
+     * Driver collection window. Absent when the client drops the rug at a branch.
+     * Older bookings always have a slot.
+     */
     collectionSlot: {
       type: String,
       enum: ["MORNING", "AFTERNOON"],
-      required: true,
+    },
+    /** Absent means a driver collects. `dropoff` is office drop-off. */
+    handoverIn: {
+      type: String,
+      enum: ["collection", "dropoff"],
+      default: "collection",
+    },
+    /** Absent means a driver delivers. `collect` is office collect. */
+    handoverOut: {
+      type: String,
+      enum: ["delivery", "collect"],
+      default: "delivery",
+    },
+    /** `gauteng` (Kya Sand) or `cape-town` (Maitland) when a leg is at the branch. */
+    branchKey: {
+      type: String,
+      enum: ["gauteng", "cape-town"],
     },
     /** Return day once READY — optional until ops schedules delivery. */
     deliveryDate: { type: String, trim: true },

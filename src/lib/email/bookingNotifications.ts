@@ -15,6 +15,7 @@ import {
   type DriverMailContact,
 } from "@/lib/email/copy";
 import { sendTransactionalEmail } from "@/lib/email/sendTransactionalEmail";
+import { isDriverDelivery } from "@/lib/handover";
 
 async function driverContact(driverId: string | undefined): Promise<DriverMailContact | null> {
   const id = driverId?.trim();
@@ -73,6 +74,7 @@ export async function notifyCollectionReminder(booking: Booking): Promise<void> 
 export async function notifyOutForDelivery(booking: Booking): Promise<void> {
   try {
     if (isBookingDeactivated(booking)) return;
+    if (!isDriverDelivery(booking)) return;
     if (booking.status !== "READY") return;
     const day = bookingCalendarDate(booking.deliveryDate ?? "");
     if (!day) return;

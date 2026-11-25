@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export const CLIENT_STEP_TITLES = [
   "Rug & size",
   "Upload Photos",
-  "Collection Details",
+  "Collection & return",
   "Extras",
   "Review & Confirm",
 ] as const;

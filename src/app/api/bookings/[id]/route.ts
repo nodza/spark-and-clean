@@ -24,6 +24,7 @@ import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { notifyAfterBookingUpdate } from "@/lib/email/bookingNotifications";
+import { isOfficeCollect } from "@/lib/handover";
 import { creditReferrerOnce } from "@/lib/referral";
 import {
   effectiveDeliveryDriverId,
@@ -273,6 +274,12 @@ export async function PATCH(request: Request, { params }: Params) {
       if (existingClient.status !== "READY") {
         return NextResponse.json(
           { error: "Schedule delivery once the rug is READY." },
+          { status: 409 }
+        );
+      }
+      if (isOfficeCollect(existingClient)) {
+        return NextResponse.json(
+          { error: "This rug is collected from the branch. It does not need a delivery driver." },
           { status: 409 }
         );
       }

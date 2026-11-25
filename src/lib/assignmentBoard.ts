@@ -5,6 +5,7 @@ import {
   hasDeliverySchedule,
   isDeliveryStop,
 } from "@/lib/deliverySchedule";
+import { isDriverCollection, isDriverDelivery } from "@/lib/handover";
 import { isBookingOnJohannesburgDay } from "@/lib/johannesburgDate";
 import type { Booking, BookingStatus } from "@/types/booking";
 
@@ -40,6 +41,8 @@ export type AssignmentBoardJob = Pick<
   | "deliveryDate"
   | "deliverySlot"
   | "deliveryDriverId"
+  | "handoverIn"
+  | "handoverOut"
 > & {
   stopKind: AssignmentStopKind;
   boardSlot: AssignmentSlot;
@@ -86,6 +89,8 @@ export function jobsForAssignmentDay<
     | "deliveryDate"
     | "deliverySlot"
     | "deliveryDriverId"
+    | "handoverIn"
+    | "handoverOut"
   >,
 >(bookings: T[], day: string): AssignmentBoardJob[] {
   const stops: AssignmentBoardJob[] = [];
@@ -93,6 +98,7 @@ export function jobsForAssignmentDay<
   for (const booking of bookings) {
     if (
       isAssignmentBoardStatus(booking.status) &&
+      isDriverCollection(booking) &&
       isBookingOnJohannesburgDay(booking.collectionDate, day)
     ) {
       stops.push({
@@ -106,6 +112,7 @@ export function jobsForAssignmentDay<
 
     if (
       isDeliveryStop(booking.status) &&
+      isDriverDelivery(booking) &&
       hasDeliverySchedule(booking) &&
       isBookingOnJohannesburgDay(booking.deliveryDate ?? "", day)
     ) {
@@ -136,6 +143,8 @@ export function collectionsForAssignmentDay<
     | "deliveryDate"
     | "deliverySlot"
     | "deliveryDriverId"
+    | "handoverIn"
+    | "handoverOut"
   >,
 >(bookings: T[], day: string): AssignmentBoardJob[] {
   return jobsForAssignmentDay(bookings, day).filter(
