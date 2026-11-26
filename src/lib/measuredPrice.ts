@@ -6,7 +6,7 @@ import { Booking } from "@/models/Booking";
 import { Coupon } from "@/models/Coupon";
 import {
   derivePaymentStatus,
-  sumSucceededPaidCents,
+  settlementForBooking,
 } from "@/lib/payments/ledger";
 import {
   estimateQuoteMidpointCents,
@@ -33,6 +33,7 @@ const PRICE_KEYS = new Set([
   "promotion",
   "measuredQuote",
   "refundRequired",
+  "refundDueCents",
   "couponCode",
   "amountDueCents",
 ]);
@@ -90,6 +91,8 @@ export function priceAfterMeasurement(input: {
   lengthM: number;
   coupon: MeasurementCoupon | null;
   amountPaidCents: number;
+  /** Cash still held after refunds. Defaults to amountPaidCents. */
+  netPaidCents?: number;
   measuredAt: string;
   currency?: string;
 }): { ok: true; write: MeasurementWrite } | { ok: false; error: string } {
@@ -114,11 +117,16 @@ export function priceAfterMeasurement(input: {
     ? quote.promotion.amountDueCents
     : estimateQuoteMidpointCents(quote.estimatedPriceMin, quote.estimatedPriceMax);
   const amountPaidCents = Math.max(0, Math.round(input.amountPaidCents));
+  const netPaidCents =
+    input.netPaidCents == null
+      ? amountPaidCents
+      : Math.max(0, Math.round(input.netPaidCents));
   const paymentStatus: PaymentStatus = derivePaymentStatus(
     amountPaidCents,
     amountDueCents
   );
-  const refundRequired = amountPaidCents > amountDueCents;
+  const refundDueCents = Math.max(0, netPaidCents - amountDueCents);
+  const refundRequired = refundDueCents > 0;
   const currency =
     typeof input.currency === "string" && input.currency.trim()
       ? input.currency.trim().toUpperCase()
@@ -138,6 +146,7 @@ export function priceAfterMeasurement(input: {
     "rug.areaSqM": quote.areaSqM,
     measuredQuote,
     refundRequired,
+    refundDueCents,
     paymentStatus,
     billing: {
       currency,
@@ -306,7 +315,9 @@ export async function commitMeasuredSize(input: {
       typeof rawPaid === "number" && Number.isFinite(rawPaid) && rawPaid >= 0
         ? Math.round(rawPaid)
         : 0;
-    const amountPaidCents = await sumSucceededPaidCents(bookingId);
+    const settlement = await settlementForBooking(bookingId);
+    const amountPaidCents = settlement.collectedCents;
+    const netPaidCents = settlement.netCents;
     const rugType =
       booking.rug && typeof booking.rug.type === "string" ? booking.rug.type : "";
     const currency =
@@ -321,6 +332,7 @@ export async function commitMeasuredSize(input: {
       lengthM: meters.lengthM,
       coupon: loaded.coupon,
       amountPaidCents,
+      netPaidCents,
       measuredAt,
       currency,
     });

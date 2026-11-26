@@ -13,6 +13,8 @@ export type AdminBookingReceipt = {
   currency: string;
   status: string;
   createdAt: string;
+  reason?: string;
+  sourceProviderRef?: string;
 };
 
 /**
@@ -37,6 +39,8 @@ export async function listPaymentsForBooking(
       raw._id && typeof raw._id === "object" && "toString" in raw._id
         ? String((raw._id as { toString: () => string }).toString())
         : "";
+    const reason = String(raw.reason || "").trim();
+    const sourceProviderRef = String(raw.sourceProviderRef || "").trim();
     return {
       id: objectId || String(raw.providerRef || ""),
       provider: String(raw.provider || ""),
@@ -46,6 +50,8 @@ export async function listPaymentsForBooking(
       currency: String(raw.currency || "ZAR"),
       status: String(raw.status || ""),
       createdAt: String(raw.createdAt || ""),
+      ...(reason ? { reason } : {}),
+      ...(sourceProviderRef ? { sourceProviderRef } : {}),
     };
   });
 }

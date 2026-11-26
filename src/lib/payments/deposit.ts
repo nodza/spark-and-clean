@@ -45,7 +45,27 @@ export function depositAmountCents(amountDueCents: number): number {
   return Math.max(0, Math.round(DEPOSIT_FRACTION * amountDueCents));
 }
 
-/** Remaining balance after deposits / partial payments. */
+/**
+ * Cents still held above the amount due.
+ * Prefers the stored refund due from the ledger when present.
+ */
+export function refundOverageCents(
+  booking: DueInput & {
+    billing?: { amountDueCents?: number; amountPaidCents?: number } | null;
+    refundDueCents?: number;
+  }
+): number {
+  const stored = booking.refundDueCents;
+  if (typeof stored === "number" && Number.isFinite(stored) && stored >= 0) {
+    return Math.round(stored);
+  }
+  const paid =
+    typeof booking.billing?.amountPaidCents === "number" &&
+    Number.isFinite(booking.billing.amountPaidCents)
+      ? Math.max(0, Math.round(booking.billing.amountPaidCents))
+      : 0;
+  return Math.max(0, paid - amountDueCentsForBooking(booking));
+}
 export function balanceAmountCents(
   input: DueInput & {
     billing?: { amountDueCents?: number; amountPaidCents?: number } | null;

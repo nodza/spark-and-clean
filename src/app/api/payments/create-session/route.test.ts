@@ -39,6 +39,10 @@ vi.mock("@/lib/serialize", () => ({
   toClientBooking: (doc: unknown) => doc,
 }));
 
+vi.mock("@/lib/payments/ledger", () => ({
+  healInvoiceSettlement: vi.fn(async () => false),
+}));
+
 const sarahBooking = {
   id: "SC-1",
   userId: "user-sarah",

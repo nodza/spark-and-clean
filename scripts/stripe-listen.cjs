@@ -23,7 +23,7 @@ const child = spawn(
   [
     "listen",
     "--events",
-    "checkout.session.completed,checkout.session.async_payment_succeeded,payment_intent.succeeded",
+    "checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,payment_intent.succeeded,payment_intent.payment_failed,charge.refunded",
     "--forward-to",
     "localhost:3000/api/webhooks/stripe",
   ],

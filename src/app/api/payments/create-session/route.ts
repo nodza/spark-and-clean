@@ -14,6 +14,7 @@ import {
   createBalanceCheckoutSession,
   createDepositCheckoutSession,
 } from "@/lib/payments/stripe";
+import { healInvoiceSettlement } from "@/lib/payments/ledger";
 import { toPublicApiError } from "@/lib/publicApiError";
 import type { PaymentKind } from "@/models/Payment";
 
@@ -73,6 +74,12 @@ export async function POST(request: Request) {
     }
 
     await connectDB();
+    try {
+      await healInvoiceSettlement(bookingId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "invoice heal failed";
+      console.error("[api/payments/create-session] invoice heal", message);
+    }
     const doc = await Booking.findOne({ id: bookingId }).lean();
     if (!doc) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
