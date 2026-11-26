@@ -38,6 +38,8 @@ const booking = {
   rug: {
     tagCode,
     type: "Kilim",
+    color: "Blue and cream",
+    specialNotes: "Loose fringe near one corner.",
     widthM: 2,
     lengthM: 3,
     areaSqM: 6,
@@ -147,6 +149,8 @@ describe("/api/workshop/rugs/[tagCode]", () => {
       bookingId: booking.id,
       tagCode,
       type: "Kilim",
+      color: "Blue and cream",
+      specialNotes: "Loose fringe near one corner.",
       widthM: 2,
       lengthM: 3,
       areaSqM: 6,

@@ -412,6 +412,60 @@ describe("PATCH /api/bookings/[id] measured size", () => {
   });
 });
 
+describe("PATCH /api/bookings/[id] pickup rug details", () => {
+  it("lets the assigned technician update rug color and special notes before collection", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "SCHEDULED" }))
+    );
+
+    const res = await patch({ rugColor: "  Blue and cream  ", specialNotes: "  Loose fringe  " });
+
+    expect(res.status).toBe(200);
+    expect(mocks.bookingFindOneAndUpdate).toHaveBeenCalledWith(
+      { id: "SC-SARAH" },
+      {
+        $set: {
+          "rug.color": "Blue and cream",
+          "rug.specialNotes": "Loose fringe",
+        },
+      },
+      { new: true, runValidators: true }
+    );
+  });
+
+  it("rejects pickup rug detail edits after collection", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: "tech-1",
+      email: "mark@example.com",
+      role: "technician",
+      driverProfileId: "driver_mark",
+    });
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "COLLECTED" }))
+    );
+
+    const res = await patch({ specialNotes: "Loose fringe" });
+
+    expect(res.status).toBe(409);
+    expect(mocks.bookingFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not allow clients to update pickup rug details", async () => {
+    mocks.getSession.mockResolvedValue({ id: sarahId, role: "client" });
+
+    const res = await patch({ rugColor: "Blue" });
+
+    expect(res.status).toBe(403);
+    expect(mocks.bookingFindOne).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/bookings/[id] job vehicles", () => {
   const quantum = { label: "Toyota Quantum", plate: "CA 555-001" };
   const np200 = { label: "Nissan NP200", plate: "CA 123-456" };
@@ -571,5 +625,34 @@ describe("GET /api/bookings/[id] rug photos", () => {
     expect(payload.rug.labelPhotos).toEqual([]);
     expect(JSON.stringify(payload)).not.toContain("rug-photos/");
     expect(JSON.stringify(payload)).not.toContain("signed.example");
+  });
+
+  it("returns client rug details without exposing ops internal notes", async () => {
+    mocks.getSession.mockResolvedValue({
+      id: sarahId,
+      email: "sarah@example.com",
+      role: "client",
+    });
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(
+        sarahBooking({
+          rug: {
+            type: "Persian",
+            color: "Blue and cream",
+            specialNotes: "Loose fringe",
+            areaSqM: 6,
+            photos: [],
+            labelPhotos: [],
+          },
+          notes: [{ id: "ops-note", body: "Ops only", author: "Admin", createdAt: "2026-10-01" }],
+        })
+      )
+    );
+
+    const payload = await (await get()).json();
+
+    expect(payload.rug.color).toBe("Blue and cream");
+    expect(payload.rug.specialNotes).toBe("Loose fringe");
+    expect(payload).not.toHaveProperty("notes");
   });
 });

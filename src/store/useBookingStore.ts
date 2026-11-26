@@ -12,6 +12,11 @@ export type FieldSizeUpdate = {
   lengthM: number;
 };
 
+export type PickupDetailsUpdate = {
+  rugColor: string;
+  specialNotes: string;
+};
+
 interface BookingState {
   bookings: Booking[];
   isLoading: boolean;
@@ -30,6 +35,10 @@ interface BookingState {
   saveMeasuredSize: (
     id: string,
     size: FieldSizeUpdate
+  ) => Promise<string | null>;
+  savePickupDetails: (
+    id: string,
+    details: PickupDetailsUpdate
   ) => Promise<string | null>;
   updatePaymentStatus: (
     id: string,
@@ -243,6 +252,50 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Could not save the measured size.";
+      set({ error: message, bookings: prev });
+      return message;
+    }
+  },
+
+  savePickupDetails: async (id, details) => {
+    const prev = get().bookings;
+    set({
+      error: null,
+      bookings: prev.map((booking) =>
+        booking.id === id
+          ? {
+              ...booking,
+              rug: {
+                ...booking.rug,
+                color: details.rugColor,
+                specialNotes: details.specialNotes,
+              },
+            }
+          : booking
+      ),
+    });
+    try {
+      const updated = await bookingService.savePickupDetails(id, details);
+      set((state) => ({
+        bookings: state.bookings.map((booking) =>
+          booking.id === id
+            ? {
+                ...booking,
+                ...updated,
+                technician: updated.technician ?? booking.technician,
+                dayVehicles: updated.dayVehicles ?? booking.dayVehicles,
+                standingVehicle:
+                  updated.standingVehicle !== undefined
+                    ? updated.standingVehicle
+                    : booking.standingVehicle,
+              }
+            : booking
+        ),
+      }));
+      return null;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not save rug details.";
       set({ error: message, bookings: prev });
       return message;
     }

@@ -19,6 +19,10 @@ import { isClientRole, isFullAccount } from "@/types/user";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import type { BookingStatus } from "@/types/booking";
 import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import {
+  MAX_RUG_COLOR_LEN,
+  MAX_RUG_SPECIAL_NOTES_LEN,
+} from "@/lib/bookingFieldLimits";
 import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
@@ -212,8 +216,17 @@ export async function PATCH(request: Request, { params }: Params) {
       Object.prototype.hasOwnProperty.call(body, "deliveryDate") ||
       Object.prototype.hasOwnProperty.call(body, "deliverySlot") ||
       Object.prototype.hasOwnProperty.call(body, "deliveryDriverId");
+    const wantsPickupDetails =
+      Object.prototype.hasOwnProperty.call(body, "rugColor") ||
+      Object.prototype.hasOwnProperty.call(body, "specialNotes");
 
-    if (!wantsStatus && !wantsPayment && !wantsAssign && !wantsDelivery) {
+    if (
+      !wantsStatus &&
+      !wantsPayment &&
+      !wantsAssign &&
+      !wantsDelivery &&
+      !wantsPickupDetails
+    ) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
@@ -228,6 +241,8 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!session.driverProfileId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+    } else if (wantsPickupDetails) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     } else if (session.role === "admin") {
       requireFullAdminSession(session);
     } else {
@@ -257,6 +272,12 @@ export async function PATCH(request: Request, { params }: Params) {
     if (session.role === "technician") {
       if (!technicianOwnsJob(existingClient, session.driverProfileId)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (wantsPickupDetails && existingClient.status !== "SCHEDULED") {
+        return NextResponse.json(
+          { error: "Rug details can only be updated before collection." },
+          { status: 409 }
+        );
       }
     }
 
@@ -297,13 +318,37 @@ export async function PATCH(request: Request, { params }: Params) {
     const $set: Record<string, unknown> = {};
     const $unset: Record<string, ""> = {};
 
+    if (wantsPickupDetails) {
+      if (Object.prototype.hasOwnProperty.call(body, "rugColor")) {
+        if (
+          typeof body.rugColor !== "string" ||
+          body.rugColor.length > MAX_RUG_COLOR_LEN
+        ) {
+          return NextResponse.json({ error: "Invalid rug color" }, { status: 400 });
+        }
+        $set["rug.color"] = body.rugColor.trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(body, "specialNotes")) {
+        if (
+          typeof body.specialNotes !== "string" ||
+          body.specialNotes.length > MAX_RUG_SPECIAL_NOTES_LEN
+        ) {
+          return NextResponse.json(
+            { error: "Special notes must be 1000 characters or fewer." },
+            { status: 400 }
+          );
+        }
+        $set["rug.specialNotes"] = body.specialNotes.trim();
+      }
+    }
+
     if (session.role === "technician") {
       const widthProvided = Object.prototype.hasOwnProperty.call(body, "widthM");
       const lengthProvided = Object.prototype.hasOwnProperty.call(
         body,
         "lengthM"
       );
-      const decision = technicianFieldUpdate({
+      const decision = wantsStatus ? technicianFieldUpdate({
         driverProfileId: session.driverProfileId,
         // Delivery drivers own READY → DELIVERED; collectors own pickups.
         assignedDriverId:
@@ -320,14 +365,11 @@ export async function PATCH(request: Request, { params }: Params) {
         widthM: widthProvided ? body.widthM : undefined,
         lengthM: lengthProvided ? body.lengthM : undefined,
         tagCode: existingRug?.tagCode,
-      });
-      if (!decision.ok) {
-        return NextResponse.json(
-          { error: decision.error },
-          { status: decision.status }
-        );
+      }) : null;
+      if (decision && !decision.ok) {
+        return NextResponse.json({ error: decision.error }, { status: decision.status });
       }
-      Object.assign($set, decision.set);
+      if (decision?.ok) Object.assign($set, decision.set);
     } else if (wantsStatus) {
       $set.status = body.status as BookingStatus;
     }

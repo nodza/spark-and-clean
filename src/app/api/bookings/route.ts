@@ -18,6 +18,10 @@ import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
+import {
+  MAX_RUG_COLOR_LEN,
+  MAX_RUG_SPECIAL_NOTES_LEN,
+} from "@/lib/bookingFieldLimits";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
 import { attachGeocodedCoordinates } from "@/lib/geocode/provider";
 
@@ -174,6 +178,22 @@ export async function POST(request: Request) {
       body.rug && typeof body.rug === "object" && !Array.isArray(body.rug)
         ? body.rug
         : null;
+    if (
+      rug?.color !== undefined &&
+      (typeof rug.color !== "string" || rug.color.length > MAX_RUG_COLOR_LEN)
+    ) {
+      return NextResponse.json({ error: "Invalid rug color" }, { status: 400 });
+    }
+    if (
+      rug?.specialNotes !== undefined &&
+      (typeof rug.specialNotes !== "string" ||
+        rug.specialNotes.length > MAX_RUG_SPECIAL_NOTES_LEN)
+    ) {
+      return NextResponse.json(
+        { error: "Special notes must be 1000 characters or fewer." },
+        { status: 400 }
+      );
+    }
     const addOns =
       body.addOns &&
       typeof body.addOns === "object" &&

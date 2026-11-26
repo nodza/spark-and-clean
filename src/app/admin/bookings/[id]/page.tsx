@@ -818,6 +818,12 @@ export default function AdminBookingDetail() {
                       </p>
                     </div>
                     <div>
+                      <JobDetailLabel icon={Sparkles}>Rug colour</JobDetailLabel>
+                      <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
+                        {booking.rug.color?.trim() || "Not provided"}
+                      </p>
+                    </div>
+                    <div>
                       <JobDetailLabel
                         icon={Ruler}
                         action={
@@ -845,6 +851,12 @@ export default function AdminBookingDetail() {
                       </JobDetailLabel>
                       <p className="text-body mt-[4px]" style={{ color: "#32373c" }}>
                         {rugDimensionLabel(booking.rug)}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <JobDetailLabel icon={Sparkles}>Client special notes</JobDetailLabel>
+                      <p className="text-body mt-[4px] whitespace-pre-wrap" style={{ color: "#32373c" }}>
+                        {booking.rug.specialNotes?.trim() || "None"}
                       </p>
                     </div>
                     <div>

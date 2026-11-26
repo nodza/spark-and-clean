@@ -76,6 +76,8 @@ export function Step5Review({ data, termsAccepted, onTermsAcceptedChange }: Step
           <Detail label="Dimensions">
             {hasSize ? `${data.rug!.widthM}m × ${data.rug!.lengthM}m` : "Pending (Measured by Driver on Pickup)"}
           </Detail>
+          <Detail label="Colour">{data.rug?.color?.trim() || "Not provided"}</Detail>
+          <Detail label="Special notes">{data.rug?.specialNotes?.trim() || "None"}</Detail>
           <Detail label="Label Photo">{data.rug?.labelPhotos?.length ? "Provided" : "None provided"}</Detail>
           <Detail label="Cleaning Photos">{data.rug?.photos?.length ? `${data.rug.photos.length} provided` : "None provided"}</Detail>
         </dl>

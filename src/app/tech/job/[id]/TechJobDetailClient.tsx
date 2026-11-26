@@ -36,6 +36,7 @@ import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
 import { DriverMeasurement } from "@/components/tech/DriverMeasurement";
 import { RugTagIntake } from "@/components/tech/RugTagIntake";
+import { Textarea } from "@/components/ui/textarea";
 import {
   hasRugTagCode,
   isVanCollectStatus,
@@ -78,7 +79,12 @@ export function TechJobDetailClient() {
   const rawId = params.id;
   const id = (Array.isArray(rawId) ? rawId[0] : rawId) ?? "";
   const { user, ready } = useRequireAuth(["technician"], "/tech/login");
-  const { fetchBookingById, updateBookingStatus, saveMeasuredSize } =
+  const {
+    fetchBookingById,
+    updateBookingStatus,
+    saveMeasuredSize,
+    savePickupDetails,
+  } =
     useBookingStore();
   const storeBooking = useBookingStore((s) =>
     s.bookings.find((b) => b.id === id)
@@ -288,6 +294,33 @@ export function TechJobDetailClient() {
     return null;
   };
 
+  const handleSavePickupDetails = async (
+    rugColor: string,
+    specialNotes: string
+  ) => {
+    if (loadState.kind !== "ready" || fieldUpdateLock.current) {
+      return "Could not save rug details. Try again.";
+    }
+    const bookingId = loadState.booking.id;
+    const previous = loadState.booking;
+
+    fieldUpdateLock.current = true;
+    const error = await savePickupDetails(bookingId, { rugColor, specialNotes });
+    const saved = useBookingStore
+      .getState()
+      .bookings.find((candidate) => candidate.id === bookingId);
+
+    if (error || !saved) {
+      fieldUpdateLock.current = false;
+      setLoadState({ kind: "ready", booking: previous });
+      return error ?? "Could not save rug details. Try again.";
+    }
+
+    setLoadState({ kind: "ready", booking: saved });
+    fieldUpdateLock.current = false;
+    return null;
+  };
+
   const showJob = loadState.kind === "ready";
 
   if (showJob) {
@@ -299,6 +332,7 @@ export function TechJobDetailClient() {
         actionError={actionError}
         onStatusUpdate={handleStatusUpdate}
         onSaveMeasurement={handleSaveMeasurement}
+        onSavePickupDetails={handleSavePickupDetails}
         onTagged={(booking) => setLoadState({ kind: "ready", booking })}
         onBack={() => router.push("/tech/dashboard")}
       />
@@ -428,6 +462,7 @@ function JobContent({
   actionError,
   onStatusUpdate,
   onSaveMeasurement,
+  onSavePickupDetails,
   onTagged,
   onBack,
 }: {
@@ -438,11 +473,22 @@ function JobContent({
   onTagged: (booking: Booking) => void;
   onStatusUpdate: (status: "COLLECTED" | "DELIVERED") => void;
   onSaveMeasurement: (widthM: number, lengthM: number) => Promise<string | null>;
+  onSavePickupDetails: (
+    rugColor: string,
+    specialNotes: string
+  ) => Promise<string | null>;
   onBack: () => void;
 }) {
+  const [rugColor, setRugColor] = useState(booking.rug.color ?? "");
+  const [specialNotes, setSpecialNotes] = useState(
+    booking.rug.specialNotes ?? ""
+  );
+  const [savingPickupDetails, setSavingPickupDetails] = useState(false);
+  const [pickupDetailsError, setPickupDetailsError] = useState<string | null>(null);
+
   const phone = booking.customer.phone?.trim() ?? "";
   const phoneHref = phone ? telHref(phone) : null;
-  const busy = pendingStatus !== null;
+  const busy = pendingStatus !== null || savingPickupDetails;
   const kind = techStopKind(booking.status);
   const vehicleLine = formatAssignedDriverLine(
     driverName,
@@ -453,6 +499,21 @@ function JobContent({
   const canDeliver =
     isVanDeliverStatus(booking.status) || pendingStatus === "DELIVERED";
   const hasTagCode = hasRugTagCode(booking.rug.tagCode);
+  const canEditPickupDetails = booking.status === "SCHEDULED" && canCollect;
+
+  async function submitPickupDetails() {
+    if (busy) return;
+    setSavingPickupDetails(true);
+    setPickupDetailsError(null);
+    const error = await onSavePickupDetails(rugColor, specialNotes);
+    setSavingPickupDetails(false);
+    if (error) {
+      setPickupDetailsError(error);
+      toast.error(error);
+      return;
+    }
+    toast.success("Rug details saved.");
+  }
 
   function submitCollect() {
     if (busy) return;
@@ -663,6 +724,61 @@ function JobContent({
             </ul>
           ) : (
             <p className="mt-1 text-xs text-[#9aa0a6]">None</p>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-[#f0f2f6] pt-3">
+          <div className="text-[10px] font-extrabold tracking-[0.12em] text-[#9aa0a6]">
+            COLOUR AND CLIENT NOTES
+          </div>
+          {canEditPickupDetails ? (
+            <div className="mt-2 space-y-3">
+              <label className="block space-y-1 text-xs font-semibold text-[#6b7280]">
+                <span>Rug colour</span>
+                <input
+                  value={rugColor}
+                  maxLength={120}
+                  onChange={(event) => setRugColor(event.target.value)}
+                  className="h-10 w-full rounded-md border border-[#d7dce3] bg-white px-3 text-sm font-normal text-[#20252a] outline-none focus:border-[#0a7a63] focus:ring-2 focus:ring-[#0a7a63]/15"
+                />
+              </label>
+              <label className="block space-y-1 text-xs font-semibold text-[#6b7280]">
+                <span>Special notes from client</span>
+                <Textarea
+                  value={specialNotes}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) => setSpecialNotes(event.target.value)}
+                  className="text-sm font-normal"
+                />
+              </label>
+              {pickupDetailsError ? (
+                <p role="alert" className="text-xs font-semibold text-[#b33232]">
+                  {pickupDetailsError}
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={() => void submitPickupDetails()}
+              >
+                {savingPickupDetails ? "Saving…" : "Save rug details"}
+              </Button>
+            </div>
+          ) : (
+            <dl className="mt-2 space-y-2 text-sm text-[#32373c]">
+              <div>
+                <dt className="text-xs text-[#9aa0a6]">Rug colour</dt>
+                <dd>{booking.rug.color?.trim() || "Not provided"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[#9aa0a6]">Special notes</dt>
+                <dd className="whitespace-pre-wrap">
+                  {booking.rug.specialNotes?.trim() || "None"}
+                </dd>
+              </div>
+            </dl>
           )}
         </div>
 
