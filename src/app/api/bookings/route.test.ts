@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import "./route";
 import { estimateBookingPrice } from "@/lib/bookingEstimate";
 import {
   applyCoupon,
@@ -23,6 +24,10 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("@/lib/createNewBookingAlert", () => ({
   createNewBookingAlert: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/email/bookingNotifications", () => ({
+  notifyBookingConfirmed: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/models/Booking", () => ({
@@ -421,5 +426,90 @@ describe("POST /api/bookings confirm coupon", () => {
     );
     expect(outside.status).toBe(400);
     expect(bookingCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a confirmation for a guest and for a signed-in client", async () => {
+    const { notifyBookingConfirmed } = await import(
+      "@/lib/email/bookingNotifications"
+    );
+    vi.mocked(notifyBookingConfirmed).mockClear();
+    const { POST } = await import("./route");
+
+    const guest = await POST(post());
+    expect(guest.status).toBe(200);
+    expect(notifyBookingConfirmed).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyBookingConfirmed).mock.calls[0]?.[0]).toMatchObject({
+      id: "SC-2026-0001",
+      customer: { email: "amina@example.com" },
+    });
+
+    vi.mocked(getSession).mockResolvedValue({
+      id: sarahId,
+      email: "amina@example.com",
+      role: "client",
+    });
+    const client = await POST(post({ id: "SC-2026-0002" }));
+    expect(client.status).toBe(200);
+    expect(notifyBookingConfirmed).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(notifyBookingConfirmed).mock.calls[1]?.[0]).toMatchObject({
+      id: "SC-2026-0002",
+      userId: sarahId,
+      customer: { email: "amina@example.com" },
+    });
+  });
+
+  it("still creates the booking when the confirmation email throws", async () => {
+    const { notifyBookingConfirmed } = await import(
+      "@/lib/email/bookingNotifications"
+    );
+    vi.mocked(notifyBookingConfirmed).mockRejectedValueOnce(new Error("smtp down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { POST } = await import("./route");
+    const res = await POST(post());
+    expect(res.status).toBe(200);
+    errorSpy.mockRestore();
+  });
+
+  it("saves a typed address without inventing a pin when geocoding is not configured", async () => {
+    const previous = {
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
+      GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
+      MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN,
+      GEOCODER_PROVIDER: process.env.GEOCODER_PROVIDER,
+    };
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    delete process.env.GOOGLE_PLACES_API_KEY;
+    delete process.env.MAPBOX_ACCESS_TOKEN;
+    delete process.env.GEOCODER_PROVIDER;
+    try {
+      const { POST } = await import("./route");
+      const res = await POST(post());
+      expect(res.status).toBe(200);
+      expect(writtenPayload().coordinates).toBeUndefined();
+      expect(writtenPayload().coordinatesManual).toBeUndefined();
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it("keeps a customer pin and drops the manual flag", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        coordinates: { lat: -33.91812, lng: 18.38451 },
+        coordinatesManual: true,
+        postalCode: "8005",
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(writtenPayload().coordinates).toEqual({
+      lat: -33.91812,
+      lng: 18.38451,
+    });
+    expect(writtenPayload().postalCode).toBe("8005");
+    expect(writtenPayload().coordinatesManual).toBeUndefined();
   });
 });

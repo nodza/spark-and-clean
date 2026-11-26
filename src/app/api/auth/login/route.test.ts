@@ -105,6 +105,25 @@ describe("POST /api/auth/login", () => {
     );
   });
 
+  it("filters workshop sign-in to the workshop role", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "workshop@example.com",
+          password: "secret123",
+          role: "workshop",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(mocks.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "workshop" })
+    );
+  });
+
   it("blocks a correct password after five failures for the email", async () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const response = await POST(request("wrong-password"));

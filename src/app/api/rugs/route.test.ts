@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
-  requireTechnicianSession: vi.fn(),
   connectDB: vi.fn(),
   bookingFind: vi.fn(),
   bookingFindOne: vi.fn(),
@@ -15,9 +14,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/session", () => ({ getSession: mocks.getSession }));
-vi.mock("@/lib/fieldMessageAuth", () => ({
-  requireTechnicianSession: mocks.requireTechnicianSession,
-}));
 vi.mock("@/lib/mongodb", () => ({ connectDB: mocks.connectDB }));
 vi.mock("@/models/Booking", () => ({
   Booking: {
@@ -82,10 +78,6 @@ function search(value: string, key = "q") {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getSession.mockResolvedValue({ role: "admin", adminTier: "full" });
-  mocks.requireTechnicianSession.mockResolvedValue({
-    role: "technician",
-    driverProfileId: "driver_thabo",
-  });
   mocks.connectDB.mockResolvedValue(undefined);
   mocks.bookingFind.mockImplementation(() =>
     findQuery([
@@ -276,7 +268,44 @@ describe("GET /api/rugs", () => {
 });
 
 describe("POST /api/rugs", () => {
+  it("does not allow a marketing-only admin to create tags", async () => {
+    mocks.getSession.mockResolvedValue({
+      role: "admin",
+      adminTier: "marketing-only",
+    });
+
+    const response = await post({ bookingId: "SC-DEMO-1" });
+
+    expect(response.status).toBe(403);
+    expect(mocks.connectDB).not.toHaveBeenCalled();
+  });
+
+  it("allows a full admin to generate and link a tag", async () => {
+    const response = await post({ bookingId: "SC-DEMO-1" });
+    const result = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(result.rug.tagCode).toMatch(/^SC-RUG-[0-9A-HJKMNP-TV-Z]{8}$/);
+    expect(mocks.bookingFindOneAndUpdate).toHaveBeenCalledWith(
+      {
+        id: "SC-DEMO-1",
+        status: { $in: ["BOOKED", "SCHEDULED"] },
+        $or: [
+          { "rug.tagCode": { $exists: false } },
+          { "rug.tagCode": null },
+          { "rug.tagCode": "" },
+        ],
+      },
+      expect.any(Object),
+      { new: true, runValidators: true }
+    );
+  });
+
   it("creates a generated tag asset and links it to the assigned booking", async () => {
+    mocks.getSession.mockResolvedValue({
+      role: "technician",
+      driverProfileId: "driver_thabo",
+    });
     const response = await post({ bookingId: "SC-DEMO-1" });
     const result = await response.json();
 
@@ -308,6 +337,10 @@ describe("POST /api/rugs", () => {
   });
 
   it("claims a pre-printed code asset and links it to the booking", async () => {
+    mocks.getSession.mockResolvedValue({
+      role: "technician",
+      driverProfileId: "driver_thabo",
+    });
     mocks.rugAssetFindOne.mockResolvedValue({
       _id: "asset-roll-1",
       currentBookingId: null,
@@ -333,7 +366,7 @@ describe("POST /api/rugs", () => {
   });
 
   it("returns 403 when a different technician tries to tag the booking", async () => {
-    mocks.requireTechnicianSession.mockResolvedValue({
+    mocks.getSession.mockResolvedValue({
       role: "technician",
       driverProfileId: "driver_sipho",
     });

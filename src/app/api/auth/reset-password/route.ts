@@ -146,13 +146,21 @@ export async function POST(request: Request) {
     await setSessionCookie(jwt);
 
     const loginPath =
-      role === "technician" ? "/tech" : role === "admin" ? "/login" : "/login";
+      role === "technician"
+        ? "/tech"
+        : role === "workshop"
+          ? "/workshop/login"
+          : role === "admin"
+            ? "/login"
+            : "/login";
     const homePath =
       role === "technician"
         ? "/tech/dashboard"
-        : role === "admin"
-          ? "/admin"
-          : "/portal";
+        : role === "workshop"
+          ? "/workshop/dashboard"
+          : role === "admin"
+            ? "/admin"
+            : "/portal";
 
     return NextResponse.json({
       user: sessionUser,

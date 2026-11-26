@@ -64,7 +64,9 @@ export function clientCity(doc: {
   addresses?: unknown;
 }): string {
   const preferred = clean(doc.preferredCity);
-  if (preferred) return preferred;
+  if (preferred) {
+    return preferred === "Johannesburg" ? "Gauteng" : preferred;
+  }
 
   const addresses = Array.isArray(doc.addresses) ? doc.addresses : [];
   const records = addresses.filter(
@@ -73,7 +75,9 @@ export function clientCity(doc: {
   );
   const chosen =
     records.find((address) => address.isDefault === true) ?? records[0];
-  return chosen ? clean(chosen.city) : "";
+  const city = chosen ? clean(chosen.city) : "";
+  // Legacy preferredCity / address city stored as Johannesburg.
+  return city === "Johannesburg" ? "Gauteng" : city;
 }
 
 function rowId(doc: Record<string, unknown>): string {

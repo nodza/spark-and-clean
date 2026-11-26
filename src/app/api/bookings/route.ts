@@ -13,11 +13,13 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
+import { notifyBookingConfirmed } from "@/lib/email/bookingNotifications";
 import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
 import { isClientRole, isFullAccount, isPersistedClient } from "@/types/user";
+import { attachGeocodedCoordinates } from "@/lib/geocode/provider";
 
 export async function GET() {
   try {
@@ -246,6 +248,18 @@ export async function POST(request: Request) {
       payload.userId = session.id;
     }
 
+    try {
+      await attachGeocodedCoordinates(payload);
+    } catch (geoErr) {
+      console.error(
+        "[api/bookings POST] geocode failed",
+        geoErr instanceof Error ? geoErr.message : geoErr
+      );
+    }
+    if (typeof payload.postalCode === "string" && !payload.postalCode.trim()) {
+      delete payload.postalCode;
+    }
+
     let claimedCode: string | null = null;
     if (couponCode) {
       if (!claimOwner) {
@@ -301,7 +315,7 @@ export async function POST(request: Request) {
       session
     );
 
-    // In-app ops alert only on create — no WhatsApp / SMS / email.
+    // In-app ops alert on create. Customer confirmation is email, not WhatsApp.
     try {
       await createNewBookingAlert({
         id: clientBooking.id,
@@ -313,6 +327,12 @@ export async function POST(request: Request) {
         "[api/bookings POST] ops alert failed",
         alertErr instanceof Error ? alertErr.message : alertErr
       );
+    }
+
+    try {
+      await notifyBookingConfirmed(clientBooking);
+    } catch (err) {
+      console.error("[api/bookings POST] confirmation email", err);
     }
 
     return NextResponse.json(clientBooking);

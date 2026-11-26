@@ -83,6 +83,8 @@ export interface Booking {
   suburb: string;
   addressLine1: string;
   city: string;
+  /** South African postal code, when the geocoder or the customer supplied one. */
+  postalCode?: string;
   coordinates?: Coordinates;
   /** Calendar day `yyyy-MM-dd` (legacy rows may still store ISO timestamps). */
   collectionDate: string;

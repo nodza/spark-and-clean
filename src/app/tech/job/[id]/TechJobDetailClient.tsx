@@ -30,6 +30,7 @@ import {
 import { useBookingStore } from "@/store/useBookingStore";
 import { useBookingLiveTracking } from "@/hooks/useBookingLiveTracking";
 import type { Booking } from "@/types/booking";
+import { formatServiceAreaLabel } from "@/types/user";
 import { cn } from "@/lib/utils";
 import { telHref } from "@/lib/phone";
 import { FieldMessagesPanel } from "@/components/booking/FieldMessagesPanel";
@@ -64,7 +65,9 @@ function mapsUrl(booking: Booking): string {
   }
 
   const query = encodeURIComponent(
-    [booking.addressLine1, booking.suburb, booking.city].filter(Boolean).join(", ")
+    [booking.addressLine1, booking.suburb, booking.city, booking.postalCode]
+      .filter(Boolean)
+      .join(", ")
   );
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
@@ -597,7 +600,8 @@ function JobContent({
             {booking.addressLine1}
             <br />
             {booking.suburb}
-            {booking.city ? `, ${booking.city}` : null}
+            {booking.city ? `, ${formatServiceAreaLabel(booking.city)}` : null}
+            {booking.postalCode ? ` ${booking.postalCode}` : null}
           </p>
 
           <div className="mt-4 flex gap-2">
