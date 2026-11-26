@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   bookingFindOneAndUpdate: vi.fn(),
   bookingUpdateOne: vi.fn(),
   driverFindOne: vi.fn(),
+  userFindOne: vi.fn(),
   paymentFind: vi.fn(),
   couponFindOne: vi.fn(),
   punchOnce: vi.fn(),
@@ -50,6 +51,14 @@ vi.mock("@/lib/vehicleStore", () => ({
 vi.mock("@/lib/email/bookingNotifications", () => ({
   notifyAfterBookingUpdate: vi.fn(async () => undefined),
 }));
+vi.mock("@/lib/email/staffNotifications", () => ({
+  notifyDriverAssigned: vi.fn(async () => undefined),
+}));
+vi.mock("@/models/User", () => ({
+  User: {
+    findOne: (...args: unknown[]) => mocks.userFindOne(...args),
+  },
+}));
 vi.mock("@/lib/s3RugPhotos", () => ({
   presentPhotoList: async (values?: string[]) =>
     (values ?? []).flatMap((value) => {
@@ -64,6 +73,7 @@ vi.mock("@/lib/s3RugPhotos", () => ({
 }));
 
 import { notifyAfterBookingUpdate } from "@/lib/email/bookingNotifications";
+import { notifyDriverAssigned } from "@/lib/email/staffNotifications";
 import { GET, PATCH } from "./route";
 
 const sarahId = "507f1f77bcf86cd799439011";
@@ -124,7 +134,10 @@ beforeEach(() => {
   mocks.listDayVehiclesForDriver.mockResolvedValue([]);
   mocks.vehiclesByDriverId.mockResolvedValue(new Map());
   mocks.driverFindOne.mockImplementation(() =>
-    driverLean({ name: "Mark", phone: "0821111111" })
+    driverLean({ name: "Mark", phone: "0821111111", isActive: true })
+  );
+  mocks.userFindOne.mockImplementation(() =>
+    driverLean({ _id: "tech-1", disabledAt: null, isActive: true })
   );
   mocks.deliveryClientId.mockImplementation(
     async (booking: { userId?: unknown }) => booking.userId ?? null
@@ -338,6 +351,46 @@ describe("PATCH /api/bookings/[id] loyalty punch", () => {
     expect(res.status).toBe(200);
     expect(mocks.punchOnce).not.toHaveBeenCalled();
     expect(mocks.creditReferrerOnce).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/bookings/[id] driver assignment email", () => {
+  it("emails the new driver and still saves when that email throws", async () => {
+    mocks.bookingFindOne.mockImplementation(() =>
+      lean(sarahBooking({ status: "BOOKED", updatedAt: new Date("2026-09-01T08:00:00.000Z") }))
+    );
+
+    const res = await patch({ assignedDriverId: "driver_thabo" });
+    expect(res.status).toBe(200);
+    expect(notifyDriverAssigned).toHaveBeenCalledWith(
+      expect.objectContaining({
+        previousDriverId: "driver_mark",
+        nextDriverId: "driver_thabo",
+      })
+    );
+
+    vi.mocked(notifyDriverAssigned).mockClear();
+    const same = await patch({ assignedDriverId: "driver_mark" });
+    expect(same.status).toBe(200);
+    expect(notifyDriverAssigned).not.toHaveBeenCalled();
+
+    vi.mocked(notifyDriverAssigned).mockClear();
+    const cleared = await patch({ assignedDriverId: null });
+    expect(cleared.status).toBe(200);
+    expect(notifyDriverAssigned).not.toHaveBeenCalled();
+
+    vi.mocked(notifyDriverAssigned).mockRejectedValueOnce(new Error("smtp down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failed = await patch({ assignedDriverId: "driver_thabo" });
+    expect(failed.status).toBe(200);
+    expect((await failed.json()).assignedDriverId).toBe("driver_thabo");
+    errorSpy.mockRestore();
+  });
+
+  it("does not email the driver when only the status changes", async () => {
+    const res = await patch({ status: "CLEANING" });
+    expect(res.status).toBe(200);
+    expect(notifyDriverAssigned).not.toHaveBeenCalled();
   });
 });
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bookingPageUrl } from "@/lib/email/appUrl";
+import { adminBookingUrl, bookingPageUrl, techJobUrl } from "@/lib/email/appUrl";
 import {
+  adminNewBookingEmail,
   bookingConfirmedEmail,
   collectionReminderEmail,
   deliveredEmail,
+  driverAssignedEmail,
   loyaltyRewardEmail,
   outForDeliveryEmail,
 } from "@/lib/email/copy";
@@ -95,6 +97,29 @@ describe("customer email copy", () => {
       total: 5,
       note: "That's stamp 2 of 5. Five cleans earn one rug free, up to R500.",
     });
+  });
+
+  it("gives the admin team the booking, customer, and rug without opening the dashboard", () => {
+    const email = adminNewBookingEmail(booking());
+    const lines = email.ledger?.map((row) => `${row.label}: ${row.value}`).join("\n");
+    expect(email.subject).toBe("New booking SC-2418");
+    expect(lines).toContain("Booking reference: SC-2418");
+    expect(lines).toContain("Customer: Nomsa Dlamini");
+    expect(lines).toContain("Phone: 0820000000");
+    expect(lines).toContain("18 Fredman Drive, Sandton, Johannesburg");
+    expect(lines).toContain("Persian");
+    expect(email.cta.href).toBe(adminBookingUrl("SC-2418"));
+  });
+
+  it("gives the assigned driver the address and collection time", () => {
+    const email = driverAssignedEmail(booking());
+    const lines = email.ledger?.map((row) => `${row.label}: ${row.value}`).join("\n");
+    expect(email.subject).toBe("Collection assigned — SC-2418");
+    expect(lines).toContain("Booking reference: SC-2418");
+    expect(lines).toContain("Customer: Nomsa Dlamini");
+    expect(lines).toContain("Address: 18 Fredman Drive, Sandton, Johannesburg");
+    expect(lines).toContain("08:00 – 12:00");
+    expect(email.cta.href).toBe(techJobUrl("SC-2418"));
   });
 
   it("links a loyalty reward back to the booking that earned it", () => {

@@ -24,6 +24,7 @@ import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { deliveryClientId, punchOnce } from "@/lib/promotion/loyalty";
 import { notifyAfterBookingUpdate } from "@/lib/email/bookingNotifications";
+import { notifyDriverAssigned } from "@/lib/email/staffNotifications";
 import { creditReferrerOnce } from "@/lib/referral";
 import {
   effectiveDeliveryDriverId,
@@ -500,6 +501,27 @@ export async function PATCH(request: Request, { params }: Params) {
       });
     } catch (err) {
       console.error("[api/bookings] customer email", err);
+    }
+
+    if (wantsAssign) {
+      const previousDriverId =
+        typeof existing.assignedDriverId === "string"
+          ? existing.assignedDriverId.trim()
+          : "";
+      const nextDriverId =
+        typeof $set.assignedDriverId === "string" ? $set.assignedDriverId.trim() : "";
+      if (nextDriverId && nextDriverId !== previousDriverId) {
+        try {
+          await notifyDriverAssigned({
+            booking: client,
+            previousDriverId,
+            nextDriverId,
+            previousUpdatedAt: existing.updatedAt,
+          });
+        } catch (err) {
+          console.error("[api/bookings] driver email", err);
+        }
+      }
     }
     return NextResponse.json(await withJobVehicles(client, session));
   } catch (err) {
