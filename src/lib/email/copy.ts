@@ -10,6 +10,12 @@ import { bookingAddOnLabels, OPS_ADD_ON_COPY } from "@/lib/techUi";
 import type { Booking } from "@/types/booking";
 import type { EmailLedgerRow, EmailTimelineStep, TransactionalEmail } from "@/lib/email/layout";
 import { getAppBaseUrl } from "@/lib/email/appUrl";
+import {
+  branchForBooking,
+  branchLabel,
+  isOfficeCollect,
+  isOfficeDropoff,
+} from "@/lib/handover";
 
 export type DriverMailContact = {
   name: string;
@@ -116,16 +122,29 @@ export function bookingConfirmedEmail(booking: Booking): TransactionalEmail {
   const slot = slotWindow(booking.collectionSlot);
   const when = dayLabel(booking.collectionDate, "EEE d MMM");
   const longWhen = dayLabel(booking.collectionDate, "EEEE d MMMM");
+  const dropoff = isOfficeDropoff(booking);
+  const collect = isOfficeCollect(booking);
+  const branch = branchForBooking(booking);
+  const place = branchLabel(booking);
+  const intro = dropoff && collect
+    ? `Bring your rug to ${place}${branch ? `, ${branch.address}` : ""}. Collect it from the same branch when it is ready.`
+    : dropoff
+      ? `Drop your rug at ${place}${branch ? `, ${branch.address}` : ""}. We will deliver it back to ${collectionAddress(booking)}.`
+      : collect
+        ? `We'll collect from ${collectionAddress(booking)}. When it is clean, collect it from ${place}.`
+        : `We'll collect from ${collectionAddress(booking)}. You'll get an email the day before collection.`;
   return {
-    subject: `Your collection is booked — ${longWhen || booking.collectionDate}`,
-    preheader: `${booking.id} · ${itemLabel(booking)} · ${slot.compact} window`,
+    subject: dropoff
+      ? `Your drop-off is booked — ${longWhen || booking.collectionDate}`
+      : `Your collection is booked — ${longWhen || booking.collectionDate}`,
+    preheader: `${booking.id} · ${itemLabel(booking)} · ${dropoff ? "branch drop-off" : `${slot.compact} window`}`,
     eyebrow: "BOOKING CONFIRMED",
     heading: name ? `You're booked in, ${name}` : "You're booked in",
-    intro: `We'll collect from ${collectionAddress(booking)}. You'll get an email the day before collection.`,
+    intro,
     hero: {
-      label: "COLLECTION",
+      label: dropoff ? "DROP-OFF" : "COLLECTION",
       value: when || booking.collectionDate,
-      note: `${slot.spaced} window`,
+      note: dropoff ? place : `${slot.spaced} window`,
     },
     ledger: [
       { label: "Booking reference", value: booking.id },

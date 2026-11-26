@@ -4,7 +4,13 @@ export type BranchPhone = {
 };
 
 export type BranchContact = {
+  /** Stable id stored on a booking. */
+  id: "gauteng" | "cape-town";
   name: string;
+  /** Short place name, e.g. Kya Sand. */
+  area: string;
+  /** Service city stored on an office-only booking. */
+  serviceCity: "Gauteng" | "Cape Town";
   location: string;
   address: string;
   addressLines?: string[];
@@ -19,7 +25,10 @@ export type BranchContact = {
 
 export const branchContacts: BranchContact[] = [
   {
+    id: "gauteng",
     name: "Gauteng Branch",
+    area: "Kya Sand",
+    serviceCity: "Gauteng",
     location: "Randburg, Gauteng",
     address: "Unit 1, Ohm Street Industrial Park, Ohm Street, Kya Sand, Randburg, 2163",
     addressLines: [
@@ -39,7 +48,10 @@ export const branchContacts: BranchContact[] = [
       "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4145.431243294435!2d27.9483691!3d-26.025773199999996!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1e959f5d6b384ac3%3A0xabba2a49b41a73ff!2sSpark%20and%20Clean!5e1!3m2!1sen!2sza!4v1742759721488!5m2!1sen!2sza"
   },
   {
+    id: "cape-town",
     name: "Cape Town Branch",
+    area: "Maitland",
+    serviceCity: "Cape Town",
     location: "Maitland, Cape Town",
     address: "969 Voortrekker Road, Unit 5, Olympic Park, Maitland, Cape Town",
     addressLines: [

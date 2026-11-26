@@ -3,6 +3,7 @@
  * Pure helpers — no React. Used by Step 1 / Step 3 and the wizard gate.
  */
 
+import { isBranchKey, needsBranch, needsCustomerAddress, isDriverCollection } from "@/lib/handover";
 import { isOutsideCollectionPlace } from "@/lib/serviceArea";
 
 export const MAX_RUG_DIMENSION_M = 20;
@@ -125,24 +126,46 @@ export function validateStep3Contact(data: {
   addressLine1?: string;
   suburb?: string;
   city?: string;
+  collectionDate?: string;
+  collectionSlot?: string;
+  handoverIn?: "collection" | "dropoff" | null;
+  handoverOut?: "delivery" | "collect" | null;
+  branchKey?: string | null;
   customer?: { id?: string; name?: string; phone?: string; email?: string };
 }): FieldErrors {
   const errors: FieldErrors = {};
   const customer = data.customer || {};
+  const askAddress = needsCustomerAddress(data);
 
-  if (!data.addressLine1?.trim()) {
-    errors.addressLine1 = "Enter a street address for collection.";
+  if (askAddress) {
+    if (!data.addressLine1?.trim()) {
+      errors.addressLine1 = isDriverCollection(data)
+        ? "Enter a street address for collection."
+        : "Enter a street address for delivery.";
+    }
+    if (!data.suburb?.trim()) {
+      errors.suburb = "Enter a suburb.";
+    }
+    if (!data.city?.trim()) {
+      errors.city = "Enter a city.";
+    } else if (
+      isOutsideCollectionPlace(data.city) ||
+      isOutsideCollectionPlace(data.suburb ?? "")
+    ) {
+      errors.city = "We collect in Cape Town and across Gauteng.";
+    }
   }
-  if (!data.suburb?.trim()) {
-    errors.suburb = "Enter a suburb.";
+
+  if (needsBranch(data) && !isBranchKey(data.branchKey)) {
+    errors.branchKey = "Choose Gauteng or Cape Town.";
   }
-  if (!data.city?.trim()) {
-    errors.city = "Enter a city.";
-  } else if (
-    isOutsideCollectionPlace(data.city) ||
-    isOutsideCollectionPlace(data.suburb ?? "")
-  ) {
-    errors.city = "We collect in Cape Town and across Gauteng.";
+
+  if (isDriverCollection(data)) {
+    if (data.collectionSlot !== "MORNING" && data.collectionSlot !== "AFTERNOON") {
+      errors.collectionSlot = "Choose morning or afternoon.";
+    }
+  } else if (!data.collectionDate?.trim()) {
+    errors.collectionDate = "Choose the day you will drop the rug off.";
   }
 
   const nameErr = validateCustomerName(customer.name || "");

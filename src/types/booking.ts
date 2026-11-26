@@ -88,7 +88,21 @@ export interface Booking {
   coordinates?: Coordinates;
   /** Calendar day `yyyy-MM-dd` (legacy rows may still store ISO timestamps). */
   collectionDate: string;
-  collectionSlot: "MORNING" | "AFTERNOON";
+  /**
+   * Driver collection window. Omitted for an office drop-off.
+   * Older rows always have this.
+   */
+  collectionSlot?: "MORNING" | "AFTERNOON";
+  /**
+   * How the rug reaches the branch. Omitted on older rows, which means collection.
+   */
+  handoverIn?: "collection" | "dropoff";
+  /**
+   * How the rug goes home. Omitted on older rows, which means delivery.
+   */
+  handoverOut?: "delivery" | "collect";
+  /** Gauteng (Kya Sand) or Cape Town (Maitland) when either leg is at the branch. */
+  branchKey?: "gauteng" | "cape-town";
   /**
    * Return window once the rug is READY. Optional until ops schedules delivery.
    * Calendar day `yyyy-MM-dd`.

@@ -41,6 +41,7 @@ export type PickupZoneBooking = Pick<
   | "status"
   | "collectionDate"
   | "collectionSlot"
+  | "handoverIn"
 >;
 
 export type PickupZone = {
@@ -195,6 +196,7 @@ function meanLatLng(points: LatLngTuple[]): LatLngTuple {
 function inScope(booking: PickupZoneBooking, scope: PickupZoneScope): boolean {
   return (
     ZONE_STATUSES.has(booking.status) &&
+    booking.handoverIn !== "dropoff" &&
     booking.collectionSlot === scope.slot &&
     isBookingOnJohannesburgDay(booking.collectionDate, scope.collectionDate)
   );

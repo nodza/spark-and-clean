@@ -428,6 +428,29 @@ describe("POST /api/bookings confirm coupon", () => {
     expect(bookingCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts office drop-off and collect without a customer address", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(
+      post({
+        handoverIn: "dropoff",
+        handoverOut: "collect",
+        branchKey: "gauteng",
+        addressLine1: "",
+        suburb: "",
+        city: "",
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(writtenPayload()).toMatchObject({
+      handoverIn: "dropoff",
+      handoverOut: "collect",
+      branchKey: "gauteng",
+      city: "Gauteng",
+      suburb: "Kya Sand",
+    });
+    expect(writtenPayload().collectionSlot).toBeUndefined();
+  });
+
   it("sends a confirmation for a guest and for a signed-in client", async () => {
     const { notifyBookingConfirmed } = await import(
       "@/lib/email/bookingNotifications"
