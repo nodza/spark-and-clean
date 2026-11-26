@@ -43,7 +43,7 @@ export function technicianDeleteBlockMessage(input: {
   }
   if (standing) {
     parts.push(
-      "Still the standing driver on a vehicle."
+      "Still the standing driver on a vehicle. Clear them on the Vehicles page."
     );
   }
   return parts.join(" ");
