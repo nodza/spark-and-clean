@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getRugTypeLabel } from "@/data/rugTypes";
 import { Booking } from "@/types/booking";
 import {
   estimateBookingPrice,
@@ -18,9 +19,24 @@ import {
   type CouponPreviewQuote,
 } from "@/lib/promotion/requestCouponPreview";
 
+export type RugPriceLine = {
+  id: string;
+  type: string;
+  totalMin: number;
+  totalMax: number;
+  dimensionsSkipped: boolean;
+};
+
 interface StepProps {
   data: Partial<Booking>;
   update: (data: Partial<Booking>) => void;
+  /** Booking sum before the coupon. Defaults to the active rug. */
+  bookingQuote?: {
+    totalMin: number;
+    totalMax: number;
+    dimensionsSkipped: boolean;
+    lines: RugPriceLine[];
+  };
 }
 
 /** Letters and numbers only, 2–32 characters. Must also be an active catalogue coupon. */
@@ -75,10 +91,18 @@ function AddOnRow({ id, label, priceLabel, pressed, onToggle }: AddOnRowProps) {
   );
 }
 
-export function Step4Price({ data, update }: StepProps) {
+export function Step4Price({ data, update, bookingQuote }: StepProps) {
   const addOns = data.addOns || EMPTY_ADD_ONS;
-  const estimate = estimateBookingPrice(data);
-  const { area, dimensionsSkipped, odourPrice, stainProtectPrice } = estimate;
+  const activeEstimate = estimateBookingPrice(data);
+  const estimate = bookingQuote
+    ? {
+        totalMin: bookingQuote.totalMin,
+        totalMax: bookingQuote.totalMax,
+        dimensionsSkipped: bookingQuote.dimensionsSkipped,
+      }
+    : activeEstimate;
+  const { area, dimensionsSkipped, odourPrice, stainProtectPrice } = activeEstimate;
+  const lines = bookingQuote?.lines ?? [];
 
   const [couponInput, setCouponInput] = useState(data.couponCode || "");
   const [couponStatus, setCouponStatus] = useState<
@@ -138,6 +162,13 @@ export function Step4Price({ data, update }: StepProps) {
     const code = couponInput.trim();
     const seq = ++applySeq.current;
 
+    if (estimate.dimensionsSkipped) {
+      setCouponError("Rug width and length are required to apply a coupon");
+      setCouponStatus("error");
+      clearCoupon();
+      return;
+    }
+
     if (!isValidCouponFormat(code)) {
       setCouponError("Invalid coupon format");
       setCouponStatus("error");
@@ -174,6 +205,7 @@ export function Step4Price({ data, update }: StepProps) {
   useEffect(() => {
     const code = data.couponCode;
     if (!code) return;
+    if (estimate.dimensionsSkipped) return;
     const baseMin = estimate.totalMin;
     const baseMax = estimate.totalMax;
     const key = `${code}|${baseMin}|${baseMax}`;
@@ -238,8 +270,39 @@ export function Step4Price({ data, update }: StepProps) {
         </div>
       </div>
 
+      {lines.length > 0 ? (
+        <div className="mb-[22px]">
+          <div className="mb-2.5 text-[14px] font-bold text-navy">Price per rug</div>
+          <ul className="flex flex-col gap-2">
+            {lines.map((line, index) => (
+              <li
+                key={line.id}
+                className="flex items-baseline justify-between gap-3 rounded-[10px] bg-[#f7f8fa] px-3 py-2.5 text-[13px]"
+              >
+                <span className="min-w-0 text-[#32373c]">
+                  Rug {index + 1}
+                  {line.type ? ` · ${getRugTypeLabel(line.type)}` : ""}
+                </span>
+                <b className="shrink-0 text-navy">
+                  {line.dimensionsSkipped || line.totalMin <= 0
+                    ? "Measured on pickup"
+                    : line.totalMax > line.totalMin
+                      ? `R${line.totalMin} – R${line.totalMax}`
+                      : `R${line.totalMin}`}
+                </b>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[12px] leading-relaxed text-[#6b7280]">
+            {estimate.dimensionsSkipped
+              ? "The booking total is confirmed after every rug is measured."
+              : `Booking total R${estimate.totalMin} – R${estimate.totalMax}. A coupon applies to this total.`}
+          </p>
+        </div>
+      ) : null}
+
       <div className="mb-2.5 text-[14px] font-bold text-navy">
-        Recommended add-ons
+        Add-ons for this rug
       </div>
       <div className="mb-[22px] flex flex-col gap-2">
         <AddOnRow

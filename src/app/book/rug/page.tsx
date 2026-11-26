@@ -10,13 +10,21 @@ import {
 } from "@/components/booking/Step3Location";
 import { Step4Price } from "@/components/booking/Step4Price";
 import { Step5Review } from "@/components/booking/Step5Review";
+import { RugSwitcher } from "@/components/booking/RugSwitcher";
 import { BookingSuccessPanel } from "@/components/booking/BookingSuccessPanel";
 import {
   BookingWizardShell,
   CLIENT_STEP_TITLES,
 } from "@/components/booking/BookingWizardShell";
 import { generateBookingReference } from "@/lib/bookingReference";
-import { estimateBookingPrice } from "@/lib/bookingEstimate";
+import { MAX_RUGS_PER_BOOKING } from "@/lib/bookingRugs";
+import {
+  emptyWizardRug,
+  patchWizardRug,
+  quoteWizardRugs,
+  wizardRugDetails,
+  type WizardRug,
+} from "@/lib/wizardRugs";
 import { localCalendarDate } from "@/lib/localCalendarDate";
 import { estimateQuoteMidpointCents } from "@/lib/promotion/applyCoupon";
 import {
@@ -28,7 +36,7 @@ import {
 import { getRugTypeLabel } from "@/data/rugTypes";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBookingStore } from "@/store/useBookingStore";
-import { Booking, Customer } from "@/types/booking";
+import { Booking, BookingRug, Customer } from "@/types/booking";
 import { isPersistedClient } from "@/types/user";
 
 function latestBookingForEmail(bookings: Booking[], email: string): Booking | undefined {
@@ -42,9 +50,26 @@ function latestBookingForEmail(bookings: Booking[], email: string): Booking | un
     )[0];
 }
 
+function submittedRugs(rugs: WizardRug[]): BookingRug[] {
+  const quote = quoteWizardRugs(rugs);
+  return rugs.map((rug, index) => ({
+    id: rug.id,
+    type: rug.type,
+    widthM: rug.widthM,
+    lengthM: rug.lengthM,
+    areaSqM: rug.areaSqM,
+    photos: rug.photos,
+    labelPhotos: rug.labelPhotos,
+    addOns: rug.addOns,
+    estimatedPriceMin: quote.lines[index]?.totalMin ?? 0,
+    estimatedPriceMax: quote.lines[index]?.totalMax ?? 0,
+  }));
+}
+
 function buildSubmittedBooking(
   formData: Partial<Booking>,
-  bookingId: string
+  bookingId: string,
+  rugs: WizardRug[]
 ): Booking {
   const customer = formData.customer || {
     id: "",
@@ -68,14 +93,17 @@ function buildSubmittedBooking(
     coordinates: formData.coordinates,
     collectionDate: formData.collectionDate || localCalendarDate(),
     collectionSlot: formData.collectionSlot || "MORNING",
-    rug: formData.rug || {
+    rugs: submittedRugs(rugs),
+    rug: rugs[0]
+      ? wizardRugDetails(rugs[0])
+      : formData.rug || {
       type: "",
       widthM: null,
       lengthM: null,
       areaSqM: 0,
       photos: [],
     },
-    addOns: formData.addOns || {
+    addOns: rugs[0]?.addOns || formData.addOns || {
       odourRemoval: false,
       stainProtection: false,
     },
@@ -106,6 +134,11 @@ export default function BookingWizard() {
   const [step1Errors, setStep1Errors] = useState<FieldErrors>({});
   const [step3Errors, setStep3Errors] = useState<FieldErrors>({});
   const [sizeSkipped, setSizeSkipped] = useState(false);
+  const [wizardRugs, setWizardRugs] = useState<WizardRug[]>(() => [emptyWizardRug()]);
+  const [activeRugIndex, setActiveRugIndex] = useState(0);
+  const [skippedSizeIds, setSkippedSizeIds] = useState<Record<string, boolean>>({});
+  const activeRugIndexRef = useRef(0);
+  activeRugIndexRef.current = activeRugIndex;
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locatingAddress, setLocatingAddress] = useState(false);
@@ -180,10 +213,12 @@ export default function BookingWizard() {
   }, [ready, sessionEmail, bookings, user]);
 
   const totalSteps = 5;
-  const estimate = useMemo(
-    () => estimateBookingPrice(formData),
-    [formData.rug, formData.addOns]
-  );
+  const bookingQuote = useMemo(() => quoteWizardRugs(wizardRugs), [wizardRugs]);
+  const estimate = {
+    totalMin: bookingQuote.totalMin,
+    totalMax: bookingQuote.totalMax,
+    dimensionsSkipped: bookingQuote.dimensionsSkipped,
+  };
 
   useEffect(() => {
     if (formData.couponCode) return;
@@ -215,14 +250,15 @@ export default function BookingWizard() {
   const nextStep = async () => {
     if (locatingRef.current) return;
     if (step === 1) {
-      if (!formData.rug?.type) {
-        setShowTypeError(true);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-      const dimErrors = validateStep1Dimensions(formData.rug);
-      setStep1Errors(dimErrors);
-      if (hasFieldErrors(dimErrors)) {
+      const invalid = wizardRugs.findIndex((rug) => {
+        if (!rug.type.trim()) return true;
+        return hasFieldErrors(validateStep1Dimensions(rug));
+      });
+      if (invalid >= 0) {
+        const rug = wizardRugs[invalid];
+        showRug(invalid);
+        setShowTypeError(!rug.type.trim());
+        setStep1Errors(validateStep1Dimensions(rug));
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
@@ -285,8 +321,79 @@ export default function BookingWizard() {
       return next;
     });
 
+  const showRug = (index: number) => {
+    const rug = wizardRugs[index];
+    if (!rug) return;
+    setActiveRugIndex(index);
+    setSizeSkipped(Boolean(skippedSizeIds[rug.id]));
+    setFormData((prev) => ({
+      ...prev,
+      rug: wizardRugDetails(rug),
+      addOns: rug.addOns,
+    }));
+  };
+
   const updateFormData = (data: Partial<Booking>) => {
+    const index = activeRugIndexRef.current;
+    setWizardRugs((prev) => {
+      const next = [...prev];
+      const current = next[index] ?? emptyWizardRug();
+      next[index] = patchWizardRug(current, {
+        rug: data.rug,
+        addOns: data.addOns,
+      });
+      return next;
+    });
     setFormData((prev) => ({ ...prev, ...data }));
+  };
+
+  const addRug = () => {
+    if (photoGate.busy || wizardRugs.length >= MAX_RUGS_PER_BOOKING) return;
+    const current = wizardRugs[activeRugIndex];
+    if (!current?.type) {
+      setShowTypeError(true);
+      setStep(1);
+      return;
+    }
+    const dimErrors = validateStep1Dimensions(current);
+    setStep1Errors(dimErrors);
+    if (hasFieldErrors(dimErrors)) {
+      setStep(1);
+      return;
+    }
+    const created = emptyWizardRug();
+    setWizardRugs((prev) => [...prev, created]);
+    setActiveRugIndex(wizardRugs.length);
+    setSizeSkipped(false);
+    setShowTypeError(false);
+    setStep1Errors({});
+    setFormData((prev) => ({
+      ...prev,
+      rug: wizardRugDetails(created),
+      addOns: created.addOns,
+    }));
+    setStep(1);
+  };
+
+  const removeRug = () => {
+    if (wizardRugs.length < 2 || photoGate.busy) return;
+    const removed = wizardRugs[activeRugIndex];
+    const next = wizardRugs.filter((_, index) => index !== activeRugIndex);
+    const index = Math.min(activeRugIndex, next.length - 1);
+    setWizardRugs(next);
+    setActiveRugIndex(index);
+    setSkippedSizeIds((prev) => {
+      if (!removed) return prev;
+      const copy = { ...prev };
+      delete copy[removed.id];
+      return copy;
+    });
+    setSizeSkipped(Boolean(skippedSizeIds[next[index].id]));
+    setFormData((prev) => ({
+      ...prev,
+      rug: wizardRugDetails(next[index]),
+      addOns: next[index].addOns,
+    }));
   };
 
   const confirmBooking = async () => {
@@ -300,13 +407,27 @@ export default function BookingWizard() {
         email: sessionEmail || formData.customer?.email || "",
       },
     });
-    const dimErrors = validateStep1Dimensions(formData.rug);
-    if (hasFieldErrors(contactErrors) || hasFieldErrors(dimErrors)) {
+    const invalidRug = wizardRugs.findIndex((rug) => {
+      if (!rug.type.trim()) return true;
+      return hasFieldErrors(validateStep1Dimensions(rug));
+    });
+    if (hasFieldErrors(contactErrors) || invalidRug >= 0) {
       setStep3Errors(contactErrors);
-      setStep1Errors(dimErrors);
-      if (hasFieldErrors(dimErrors)) setStep(1);
-      else if (hasFieldErrors(contactErrors)) setStep(3);
+      if (invalidRug >= 0) {
+        const rug = wizardRugs[invalidRug];
+        showRug(invalidRug);
+        setStep1Errors(validateStep1Dimensions(rug));
+        setShowTypeError(!rug.type.trim());
+        setStep(1);
+      } else if (hasFieldErrors(contactErrors)) {
+        setStep(3);
+      }
       setSubmitError("Please fix the highlighted fields before confirming.");
+      return;
+    }
+    if (formData.couponCode && bookingQuote.dimensionsSkipped) {
+      setSubmitError("Rug width and length are required to apply a coupon");
+      setStep(4);
       return;
     }
 
@@ -326,7 +447,8 @@ export default function BookingWizard() {
         ...formData,
         customer: contact,
       },
-      bookingId
+      bookingId,
+      wizardRugs
     );
 
     const created = await addBooking(booking);
@@ -360,10 +482,17 @@ export default function BookingWizard() {
     );
   }
 
-  const addOnCount = [
-    formData.addOns?.odourRemoval,
-    formData.addOns?.stainProtection,
-  ].filter(Boolean).length;
+  const addOnCount = wizardRugs.reduce(
+    (count, rug) =>
+      count +
+      (rug.addOns.odourRemoval ? 1 : 0) +
+      (rug.addOns.stainProtection ? 1 : 0),
+    0
+  );
+  const rugSummaryLabel =
+    wizardRugs.length > 1
+      ? `${wizardRugs.length} rugs`
+      : getRugTypeLabel(wizardRugs[0]?.type);
 
   const hasCoupon = Boolean(formData.couponCode?.trim());
   const quotedMin =
@@ -415,7 +544,7 @@ export default function BookingWizard() {
       totalSteps={totalSteps}
       title={CLIENT_STEP_TITLES[step - 1]}
       summary={{
-        rugLabel: getRugTypeLabel(formData.rug?.type),
+        rugLabel: rugSummaryLabel,
         cityLabel: formData.city?.trim() || "—",
         addOnsLabel: addOnCount ? `${addOnCount} selected` : "none",
         estimatePrimary,
@@ -465,6 +594,16 @@ export default function BookingWizard() {
                 : undefined
       }
     >
+      {(step === 1 || step === 2 || step === 4) && (
+        <RugSwitcher
+          rugs={wizardRugs}
+          activeIndex={activeRugIndex}
+          onSelect={showRug}
+          onAdd={addRug}
+          onRemove={removeRug}
+          disabled={photoGate.busy}
+        />
+      )}
       {step === 1 && (
         <Step1Details
           data={formData}
@@ -474,11 +613,17 @@ export default function BookingWizard() {
           errors={step1Errors}
           onClearError={clearStep1Error}
           sizeSkipped={sizeSkipped}
-          onSizeSkippedChange={setSizeSkipped}
+          onSizeSkippedChange={(skipped) => {
+            setSizeSkipped(skipped);
+            const id = wizardRugs[activeRugIndex]?.id;
+            if (!id) return;
+            setSkippedSizeIds((prev) => ({ ...prev, [id]: skipped }));
+          }}
         />
       )}
       {step === 2 && (
         <Step2Photos
+          key={wizardRugs[activeRugIndex]?.id}
           data={formData}
           update={updateFormData}
           onUploadGateChange={onPhotoGate}
@@ -495,10 +640,18 @@ export default function BookingWizard() {
           locating={locatingAddress}
         />
       )}
-      {step === 4 && <Step4Price data={formData} update={updateFormData} />}
+      {step === 4 && (
+        <Step4Price
+          data={formData}
+          update={updateFormData}
+          bookingQuote={bookingQuote}
+        />
+      )}
       {step === 5 && (
         <Step5Review
           data={formData}
+          rugs={wizardRugs}
+          rugLines={bookingQuote.lines}
           termsAccepted={termsAccepted}
           onTermsAcceptedChange={setTermsAccepted}
         />

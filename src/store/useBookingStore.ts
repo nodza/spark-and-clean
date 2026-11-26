@@ -10,6 +10,7 @@ import { mergeJobVehiclesFromDetail } from "@/lib/vehicle";
 export type FieldSizeUpdate = {
   widthM: number;
   lengthM: number;
+  rugId?: string;
 };
 
 interface BookingState {
@@ -207,14 +208,33 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       error: null,
       bookings: prev.map((b) => {
         if (b.id !== id) return b;
+        const areaSqM = rugAreaSqM(size.widthM, size.lengthM);
+        const lines = b.rugs ?? [];
+        const targetId =
+          size.rugId || (lines.length === 1 ? lines[0]?.id : undefined);
+        const updatesFirst =
+          lines.length === 0 || (targetId != null && lines[0]?.id === targetId);
         return {
           ...b,
-          rug: {
-            ...b.rug,
-            widthM: size.widthM,
-            lengthM: size.lengthM,
-            areaSqM: rugAreaSqM(size.widthM, size.lengthM),
-          },
+          ...(updatesFirst
+            ? {
+                rug: {
+                  ...b.rug,
+                  widthM: size.widthM,
+                  lengthM: size.lengthM,
+                  areaSqM,
+                },
+              }
+            : {}),
+          ...(targetId
+            ? {
+                rugs: lines.map((line) =>
+                  line.id === targetId
+                    ? { ...line, widthM: size.widthM, lengthM: size.lengthM, areaSqM }
+                    : line
+                ),
+              }
+            : {}),
         };
       }),
     });

@@ -1,4 +1,5 @@
 import { hasRugDimensions, estimateBookingPrice } from "@/lib/bookingEstimate";
+import { MAX_RUGS_PER_BOOKING } from "@/lib/bookingRugs";
 import type { BookingPromotion } from "@/types/booking";
 import {
   applyCoupon,
@@ -22,14 +23,31 @@ type AddOnInput = {
   stainProtection?: unknown;
 };
 
-export type ConfirmedBookingQuote = {
-  promotion: Required<
-    Pick<BookingPromotion, "couponId" | "code" | "discountCents" | "amountDueCents">
-  > | null;
+export type ConfirmedRugLineQuote = {
+  /** This rug before the booking coupon. */
   estimatedPriceMin: number;
   estimatedPriceMax: number;
   areaSqM: number;
   dimensionsSkipped: boolean;
+};
+
+export type ConfirmedBookingQuote = {
+  promotion: Required<
+    Pick<BookingPromotion, "couponId" | "code" | "discountCents" | "amountDueCents">
+  > | null;
+  /** Booking total after the coupon. One coupon is applied to the sum. */
+  estimatedPriceMin: number;
+  estimatedPriceMax: number;
+  /** Sum of the rug prices before the coupon. */
+  subtotalMin: number;
+  subtotalMax: number;
+  areaSqM: number;
+  dimensionsSkipped: boolean;
+  lines: ConfirmedRugLineQuote[];
+};
+
+type RugQuoteInput = RugInput & {
+  addOns?: AddOnInput | null;
 };
 
 export type ConfirmedCouponQuote = ConfirmedBookingQuote & {
@@ -74,6 +92,87 @@ function quoteFromRug(input: {
   return { widthM, lengthM, areaSqM, dimensionsSkipped, estimate };
 }
 
+export const RUG_LIST_COUPON_ERROR =
+  "Rug width and length are required to apply a coupon";
+
+/**
+ * Price every rug, then apply the coupon once to the sum.
+ * A fixed coupon is taken off the booking once. A percent is the percent of the sum.
+ * Posted totals and posted areas are ignored.
+ */
+export function confirmRugsQuote(input: {
+  coupon?: {
+    couponId: string;
+    code: string;
+    coupon: CouponDiscount;
+  } | null;
+  rugs: RugQuoteInput[];
+}):
+  | {
+      promotion: ConfirmedBookingQuote["promotion"];
+      estimatedPriceMin: number;
+      estimatedPriceMax: number;
+      subtotalMin: number;
+      subtotalMax: number;
+      dimensionsSkipped: boolean;
+      lines: ConfirmedRugLineQuote[];
+    }
+  | { error: string } {
+  if (input.rugs.length < 1) {
+    return { error: "Add a rug to this booking." };
+  }
+  if (input.rugs.length > MAX_RUGS_PER_BOOKING) {
+    return { error: `A booking can include up to ${MAX_RUGS_PER_BOOKING} rugs.` };
+  }
+
+  const lines: ConfirmedRugLineQuote[] = input.rugs.map((rug) => {
+    const quoted = quoteFromRug({ rug, addOns: rug.addOns });
+    return {
+      estimatedPriceMin: quoted.estimate.totalMin,
+      estimatedPriceMax: quoted.estimate.totalMax,
+      areaSqM: quoted.areaSqM,
+      dimensionsSkipped: quoted.dimensionsSkipped,
+    };
+  });
+  const subtotalMin = lines.reduce((sum, line) => sum + line.estimatedPriceMin, 0);
+  const subtotalMax = lines.reduce((sum, line) => sum + line.estimatedPriceMax, 0);
+  const dimensionsSkipped = lines.some((line) => line.dimensionsSkipped);
+
+  if (input.coupon) {
+    if (dimensionsSkipped) {
+      return { error: RUG_LIST_COUPON_ERROR };
+    }
+    const applied = applyCoupon(input.coupon.coupon, subtotalMin, subtotalMax);
+    return {
+      promotion: {
+        couponId: input.coupon.couponId,
+        code: input.coupon.code,
+        discountCents: applied.discountCents,
+        amountDueCents: estimateQuoteMidpointCents(
+          applied.estimateMin,
+          applied.estimateMax
+        ),
+      },
+      estimatedPriceMin: applied.estimateMin,
+      estimatedPriceMax: applied.estimateMax,
+      subtotalMin,
+      subtotalMax,
+      dimensionsSkipped,
+      lines,
+    };
+  }
+
+  return {
+    promotion: null,
+    estimatedPriceMin: subtotalMin,
+    estimatedPriceMax: subtotalMax,
+    subtotalMin,
+    subtotalMax,
+    dimensionsSkipped,
+    lines,
+  };
+}
+
 /**
  * Re-price a booking from rug size and add-ons.
  * Posted totals and a posted area are ignored so confirm cannot trust the client.
@@ -88,42 +187,21 @@ export function confirmBookingQuote(input: {
   rug?: RugInput | null;
   addOns?: AddOnInput | null;
 }): ConfirmedBookingQuote | { error: string } {
-  const { areaSqM, dimensionsSkipped, estimate } = quoteFromRug(input);
-
-  if (input.coupon) {
-    if (dimensionsSkipped) {
-      return {
-        error: "Rug width and length are required to apply a coupon",
-      };
-    }
-    const applied = applyCoupon(
-      input.coupon.coupon,
-      estimate.totalMin,
-      estimate.totalMax
-    );
-    return {
-      promotion: {
-        couponId: input.coupon.couponId,
-        code: input.coupon.code,
-        discountCents: applied.discountCents,
-        amountDueCents: estimateQuoteMidpointCents(
-          applied.estimateMin,
-          applied.estimateMax
-        ),
-      },
-      estimatedPriceMin: applied.estimateMin,
-      estimatedPriceMax: applied.estimateMax,
-      areaSqM,
-      dimensionsSkipped,
-    };
-  }
-
+  const quoted = confirmRugsQuote({
+    coupon: input.coupon,
+    rugs: [{ ...input.rug, addOns: input.addOns }],
+  });
+  if ("error" in quoted) return quoted;
+  const line = quoted.lines[0];
   return {
-    promotion: null,
-    estimatedPriceMin: estimate.totalMin,
-    estimatedPriceMax: estimate.totalMax,
-    areaSqM,
-    dimensionsSkipped,
+    promotion: quoted.promotion,
+    estimatedPriceMin: quoted.estimatedPriceMin,
+    estimatedPriceMax: quoted.estimatedPriceMax,
+    subtotalMin: quoted.subtotalMin,
+    subtotalMax: quoted.subtotalMax,
+    areaSqM: line?.areaSqM ?? 0,
+    dimensionsSkipped: line?.dimensionsSkipped ?? true,
+    lines: quoted.lines,
   };
 }
 

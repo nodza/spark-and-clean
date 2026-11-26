@@ -98,6 +98,29 @@ const MeasuredQuoteSchema = new Schema(
   { _id: false }
 );
 
+/**
+ * One rug line. `id` is the stable line id (not a Mongo _id).
+ * Booking-level `rug` stays the first line until every reader uses `rugs`.
+ */
+const BookingRugSchema = new Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    type: { type: String, required: true, trim: true },
+    widthM: { type: Number, default: null },
+    lengthM: { type: Number, default: null },
+    areaSqM: { type: Number, required: true, min: 0 },
+    photos: { type: [String], default: [] },
+    labelPhotos: { type: [String], default: [] },
+    addOns: { type: AddOnsSchema, default: () => ({}) },
+    estimatedPriceMin: { type: Number, required: true, min: 0 },
+    estimatedPriceMax: { type: Number, required: true, min: 0 },
+    measuredQuote: { type: MeasuredQuoteSchema },
+    tagCode: { type: String, trim: true },
+    assetId: { type: Schema.Types.ObjectId, ref: "RugAsset" },
+  },
+  { _id: false }
+);
+
 /** Cents snapshot for the payment ledger (E7). No checkout UI in this story. */
 const BillingSchema = new Schema(
   {
@@ -158,7 +181,10 @@ const BookingSchema = new Schema(
     },
     /** Return driver; when omitted, assignedDriverId is used. */
     deliveryDriverId: { type: String, trim: true, index: true, sparse: true },
+    /** First rug. Writers still update this until they take a rug id. */
     rug: { type: RugSchema, required: true },
+    /** All rugs. Absent on rows saved before the list existed. */
+    rugs: { type: [BookingRugSchema], default: undefined },
     addOns: { type: AddOnsSchema, default: () => ({}) },
     estimatedPriceMin: { type: Number, required: true },
     estimatedPriceMax: { type: Number, required: true },
@@ -202,6 +228,7 @@ const BookingSchema = new Schema(
 
 BookingSchema.index({ "customer.email": 1, status: 1 });
 BookingSchema.index({ "rug.tagCode": 1 }, { sparse: true });
+BookingSchema.index({ "rugs.tagCode": 1 }, { sparse: true });
 BookingSchema.index({ status: 1, deliveryDate: 1 });
 
 export type BookingDocument = InferSchemaType<typeof BookingSchema> & {

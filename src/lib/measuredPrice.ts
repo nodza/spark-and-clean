@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { bookingRugs } from "@/lib/bookingRugs";
 import { hasRugDimensions } from "@/lib/bookingEstimate";
 import { readMeasuredMeters } from "@/lib/measuredSize";
 import { connectDB } from "@/lib/mongodb";
@@ -12,15 +13,21 @@ import {
   estimateQuoteMidpointCents,
   type CouponDiscount,
 } from "@/lib/promotion/applyCoupon";
-import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
+import { confirmRugsQuote } from "@/lib/promotion/confirmCoupon";
 import { selectedAddOnKinds } from "@/lib/techUi";
-import type { MeasuredQuote, PaymentStatus } from "@/types/booking";
+import type { BookingRug, MeasuredQuote, PaymentStatus } from "@/types/booking";
 
 export const COUPON_REAPPLY_ERROR =
   "The coupon on this booking could not be reapplied.";
 
 export const MEASUREMENT_CONFLICT_ERROR =
   "The payment total changed while the price was saving. Please try again.";
+
+export const MEASUREMENT_RUG_REQUIRED =
+  "Choose which rug to measure.";
+
+export const MEASUREMENT_RUG_MISSING =
+  "That rug is not on this booking.";
 
 const WRITE_ATTEMPTS = 5;
 const LEDGER_CURRENCY = "ZAR";
@@ -52,8 +59,21 @@ type AddOnSource = Partial<{
 
 export type MeasurementBooking = {
   id?: unknown;
-  rug?: { type?: unknown } | null;
+  rug?: {
+    type?: unknown;
+    widthM?: unknown;
+    lengthM?: unknown;
+    areaSqM?: unknown;
+    photos?: unknown;
+    labelPhotos?: unknown;
+    tagCode?: unknown;
+    assetId?: unknown;
+  } | null;
+  rugs?: unknown;
   addOns?: AddOnSource | null;
+  estimatedPriceMin?: unknown;
+  estimatedPriceMax?: unknown;
+  measuredQuote?: MeasuredQuote | null;
   couponCode?: unknown;
   promotion?: {
     couponId?: unknown;
@@ -79,13 +99,28 @@ function pricingAddOns(addOns: AddOnSource | null | undefined): {
   };
 }
 
+function lineMeasuredQuote(
+  min: number,
+  max: number,
+  measuredAt: string
+): MeasuredQuote {
+  return {
+    estimatedPriceMin: min,
+    estimatedPriceMax: max,
+    amountDueCents: estimateQuoteMidpointCents(min, max),
+    discountCents: 0,
+    measuredAt,
+  };
+}
+
 /**
- * Re-price from the measured size the same way the booking wizard does.
- * The original estimatedPriceMin / estimatedPriceMax are not part of the write.
+ * Re-price one rug, then the booking total.
+ * Unmeasured rugs keep a fresh quote from the size already stored on that line.
+ * The coupon is applied once to the sum. Original estimatedPriceMin / Max are not written.
  */
-export function priceAfterMeasurement(input: {
-  rugType: string;
-  addOns?: AddOnSource | null;
+export function priceMeasuredLines(input: {
+  lines: BookingRug[];
+  rugId?: string | null;
   widthM: number;
   lengthM: number;
   coupon: MeasurementCoupon | null;
@@ -96,19 +131,42 @@ export function priceAfterMeasurement(input: {
   if (!hasRugDimensions(input.widthM, input.lengthM)) {
     return { ok: false, error: "Enter both width and length in metres." };
   }
+  if (input.lines.length < 1) {
+    return { ok: false, error: MEASUREMENT_RUG_MISSING };
+  }
 
-  const quote = confirmBookingQuote({
+  const requested = input.rugId?.trim() || "";
+  const targetId = requested || (input.lines.length === 1 ? input.lines[0].id : "");
+  if (!targetId) return { ok: false, error: MEASUREMENT_RUG_REQUIRED };
+  const index = input.lines.findIndex((line) => line.id === targetId);
+  if (index < 0) return { ok: false, error: MEASUREMENT_RUG_MISSING };
+
+  const quote = confirmRugsQuote({
     coupon: input.coupon,
-    rug: {
-      type: input.rugType,
+    rugs: input.lines.map((line, lineIndex) => ({
+      type: line.type,
+      widthM: lineIndex === index ? input.widthM : line.widthM,
+      lengthM: lineIndex === index ? input.lengthM : line.lengthM,
+      addOns: line.addOns,
+    })),
+  });
+  if ("error" in quote) return { ok: false, error: quote.error };
+
+  const targetQuote = quote.lines[index];
+  const rugs = input.lines.map((line, lineIndex) => {
+    if (lineIndex !== index) return line;
+    return {
+      ...line,
       widthM: input.widthM,
       lengthM: input.lengthM,
-    },
-    addOns: pricingAddOns(input.addOns),
+      areaSqM: targetQuote.areaSqM,
+      measuredQuote: lineMeasuredQuote(
+        targetQuote.estimatedPriceMin,
+        targetQuote.estimatedPriceMax,
+        input.measuredAt
+      ),
+    };
   });
-  if ("error" in quote) {
-    return { ok: false, error: quote.error };
-  }
 
   const amountDueCents = quote.promotion
     ? quote.promotion.amountDueCents
@@ -123,7 +181,6 @@ export function priceAfterMeasurement(input: {
     typeof input.currency === "string" && input.currency.trim()
       ? input.currency.trim().toUpperCase()
       : LEDGER_CURRENCY;
-
   const measuredQuote: MeasuredQuote = {
     estimatedPriceMin: quote.estimatedPriceMin,
     estimatedPriceMax: quote.estimatedPriceMax,
@@ -133,9 +190,7 @@ export function priceAfterMeasurement(input: {
   };
 
   const set: Record<string, unknown> = {
-    "rug.widthM": input.widthM,
-    "rug.lengthM": input.lengthM,
-    "rug.areaSqM": quote.areaSqM,
+    rugs,
     measuredQuote,
     refundRequired,
     paymentStatus,
@@ -145,6 +200,11 @@ export function priceAfterMeasurement(input: {
       amountPaidCents,
     },
   };
+  if (index === 0) {
+    set["rug.widthM"] = input.widthM;
+    set["rug.lengthM"] = input.lengthM;
+    set["rug.areaSqM"] = targetQuote.areaSqM;
+  }
 
   if (quote.promotion) {
     set["promotion.couponId"] = quote.promotion.couponId;
@@ -165,6 +225,44 @@ export function priceAfterMeasurement(input: {
       },
     },
   };
+}
+
+/**
+ * Re-price from the measured size the same way the booking wizard does.
+ * The original estimatedPriceMin / estimatedPriceMax are not part of the write.
+ */
+export function priceAfterMeasurement(input: {
+  rugType: string;
+  addOns?: AddOnSource | null;
+  widthM: number;
+  lengthM: number;
+  coupon: MeasurementCoupon | null;
+  amountPaidCents: number;
+  measuredAt: string;
+  currency?: string;
+}): { ok: true; write: MeasurementWrite } | { ok: false; error: string } {
+  const addOns = pricingAddOns(input.addOns);
+  return priceMeasuredLines({
+    lines: [
+      {
+        id: "rug-1",
+        type: input.rugType,
+        widthM: input.widthM,
+        lengthM: input.lengthM,
+        areaSqM: 0,
+        addOns,
+        estimatedPriceMin: 0,
+        estimatedPriceMax: 0,
+      },
+    ],
+    rugId: "rug-1",
+    widthM: input.widthM,
+    lengthM: input.lengthM,
+    coupon: input.coupon,
+    amountPaidCents: input.amountPaidCents,
+    measuredAt: input.measuredAt,
+    currency: input.currency,
+  });
 }
 
 function couponIdentity(booking: MeasurementBooking): {
@@ -276,6 +374,8 @@ export async function commitMeasuredSize(input: {
   bookingId: string;
   widthM: number;
   lengthM: number;
+  /** Omit on a one-rug booking. Required when the booking has several rugs. */
+  rugId?: string | null;
   extraSet?: Record<string, unknown>;
   measuredAt?: string;
 }): Promise<
@@ -307,16 +407,15 @@ export async function commitMeasuredSize(input: {
         ? Math.round(rawPaid)
         : 0;
     const amountPaidCents = await sumSucceededPaidCents(bookingId);
-    const rugType =
-      booking.rug && typeof booking.rug.type === "string" ? booking.rug.type : "";
     const currency =
       typeof booking.billing?.currency === "string"
         ? booking.billing.currency
         : undefined;
+    const lines = bookingRugs(booking);
 
-    const priced = priceAfterMeasurement({
-      rugType,
-      addOns: booking.addOns,
+    const priced = priceMeasuredLines({
+      lines,
+      rugId: input.rugId,
       widthM: meters.widthM,
       lengthM: meters.lengthM,
       coupon: loaded.coupon,

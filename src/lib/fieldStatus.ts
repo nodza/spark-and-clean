@@ -32,6 +32,14 @@ export function hasRugTagCode(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/** Collection needs a tag on every rug. One untagged rug blocks the job. */
+export function everyRugTagged(
+  rugs: { tagCode?: string | null }[] | null | undefined
+): boolean {
+  if (!rugs || rugs.length === 0) return false;
+  return rugs.every((rug) => hasRugTagCode(rug.tagCode));
+}
+
 export function isDepotStatus(status: BookingStatus): boolean {
   return DEPOT_STATUSES.includes(status);
 }

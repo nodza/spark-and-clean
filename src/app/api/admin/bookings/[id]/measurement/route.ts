@@ -42,10 +42,12 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     await connectDB();
+    const rugId = typeof raw.rugId === "string" ? raw.rugId.trim() : undefined;
     const committed = await commitMeasuredSize({
       bookingId,
       widthM: meters.widthM,
       lengthM: meters.lengthM,
+      rugId,
     });
     if (!committed.ok) {
       return NextResponse.json(

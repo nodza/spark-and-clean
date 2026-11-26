@@ -18,7 +18,8 @@ import {
 import { isClientRole, isFullAccount } from "@/types/user";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import type { BookingStatus } from "@/types/booking";
-import { hasRugTagCode, technicianFieldUpdate } from "@/lib/fieldStatus";
+import { bookingRugs } from "@/lib/bookingRugs";
+import { everyRugTagged, technicianFieldUpdate } from "@/lib/fieldStatus";
 import { commitMeasuredSize } from "@/lib/measuredPrice";
 import { clientOwnsBooking } from "@/lib/payments/checkoutAccess";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
@@ -282,14 +283,21 @@ export async function PATCH(request: Request, { params }: Params) {
       | { widthM?: unknown; lengthM?: unknown; tagCode?: unknown }
       | null
       | undefined;
+    const rugLines = bookingRugs(existing as Parameters<typeof bookingRugs>[0]);
+    const rugsTagged = everyRugTagged(rugLines);
     if (
       session.role === "technician" &&
       wantsStatus &&
       body.status === "COLLECTED" &&
-      !hasRugTagCode(existingRug?.tagCode)
+      !rugsTagged
     ) {
       return NextResponse.json(
-        { error: "Attach a rug tag before marking this job collected." },
+        {
+          error:
+            rugLines.length > 1
+              ? "Tag every rug before marking this job collected."
+              : "Attach a rug tag before marking this job collected.",
+        },
         { status: 409 }
       );
     }
@@ -319,7 +327,7 @@ export async function PATCH(request: Request, { params }: Params) {
         lengthProvided,
         widthM: widthProvided ? body.widthM : undefined,
         lengthM: lengthProvided ? body.lengthM : undefined,
-        tagCode: existingRug?.tagCode,
+        tagCode: rugsTagged ? rugLines[0]?.tagCode || existingRug?.tagCode : "",
       });
       if (!decision.ok) {
         return NextResponse.json(

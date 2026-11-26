@@ -13,8 +13,10 @@ import {
 } from "@/lib/coupon";
 import { toClientBooking } from "@/lib/serialize";
 import { createNewBookingAlert } from "@/lib/createNewBookingAlert";
+import { singularBookingRug } from "@/lib/bookingRugs";
+import { parsePostedRugs } from "@/lib/postedRugs";
 import { notifyBookingConfirmed } from "@/lib/email/bookingNotifications";
-import { confirmBookingQuote } from "@/lib/promotion/confirmCoupon";
+import { confirmBookingQuote, confirmRugsQuote } from "@/lib/promotion/confirmCoupon";
 import { PASSWORD_CHANGE_REQUIRED_MESSAGE } from "@/lib/accessControl";
 import { rugPhotosForSession } from "@/lib/rugPhotoAccess";
 import { parseRugPhotoKeys } from "@/lib/rugPhotos";
@@ -180,12 +182,26 @@ export async function POST(request: Request) {
       !Array.isArray(body.addOns)
         ? body.addOns
         : null;
+    const postedRugs = parsePostedRugs(body.rugs);
+    if (!postedRugs.ok) {
+      return NextResponse.json({ error: postedRugs.error }, { status: 400 });
+    }
 
-    const quoted = confirmBookingQuote({
-      coupon: couponForQuote,
-      rug,
-      addOns,
-    });
+    const quoted = postedRugs.rugs
+      ? confirmRugsQuote({
+          coupon: couponForQuote,
+          rugs: postedRugs.rugs.map((line) => ({
+            type: line.type,
+            widthM: line.widthM,
+            lengthM: line.lengthM,
+            addOns: line.addOns,
+          })),
+        })
+      : confirmBookingQuote({
+          coupon: couponForQuote,
+          rug,
+          addOns,
+        });
     if ("error" in quoted) {
       return NextResponse.json({ error: quoted.error }, { status: 400 });
     }
@@ -202,6 +218,7 @@ export async function POST(request: Request) {
     delete rest.couponCode;
     delete rest.estimatedPriceMin;
     delete rest.estimatedPriceMax;
+    delete rest.rugs;
 
     const payload: Record<string, unknown> = {
       ...rest,
@@ -216,14 +233,43 @@ export async function POST(request: Request) {
       },
     };
 
-    if (
+    if (postedRugs.rugs) {
+      const lines = postedRugs.rugs.map((line, index) => {
+        const priced = quoted.lines[index];
+        return singularBookingRug({
+          id: line.id,
+          rug: {
+            type: line.type,
+            widthM: line.widthM,
+            lengthM: line.lengthM,
+            areaSqM: priced?.areaSqM ?? 0,
+            photos: line.photos,
+            labelPhotos: line.labelPhotos,
+          },
+          addOns: line.addOns,
+          estimatedPriceMin: priced?.estimatedPriceMin ?? 0,
+          estimatedPriceMax: priced?.estimatedPriceMax ?? 0,
+        });
+      });
+      const first = lines[0];
+      payload.addOns = first.addOns;
+      payload.rug = {
+        type: first.type,
+        widthM: first.widthM,
+        lengthM: first.lengthM,
+        areaSqM: first.areaSqM,
+        photos: first.photos ?? [],
+        labelPhotos: first.labelPhotos ?? [],
+      };
+      payload.rugs = lines;
+    } else if (
       payload.rug &&
       typeof payload.rug === "object" &&
       !Array.isArray(payload.rug)
     ) {
       const rug: Record<string, unknown> = {
         ...(payload.rug as Record<string, unknown>),
-        areaSqM: quoted.areaSqM,
+        areaSqM: "areaSqM" in quoted ? quoted.areaSqM : quoted.lines[0]?.areaSqM ?? 0,
       };
       const photos = parseRugPhotoKeys(rug.photos);
       const labelPhotos = parseRugPhotoKeys(rug.labelPhotos);
@@ -236,6 +282,17 @@ export async function POST(request: Request) {
       if (photos) rug.photos = photos;
       if (labelPhotos) rug.labelPhotos = labelPhotos;
       payload.rug = rug;
+      const line = quoted.lines[0];
+      payload.rugs = [
+        singularBookingRug({
+          rug,
+          addOns: payload.addOns as
+            | { odourRemoval?: boolean; stainProtection?: boolean }
+            | undefined,
+          estimatedPriceMin: line?.estimatedPriceMin ?? quoted.subtotalMin,
+          estimatedPriceMax: line?.estimatedPriceMax ?? quoted.subtotalMax,
+        }),
+      ];
     }
 
     if (quoted.promotion) {
